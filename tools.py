@@ -2,6 +2,8 @@
 
 import os
 import json
+import subprocess
+import sys
 
 TOOLS_FILE = "tools.json"
 
@@ -32,26 +34,64 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     if not tool:
         return f"[Tool Error] Tool '{tool_name}' not found."
 
-    script = tool.get("script", "")
-    if not script.strip():
-        return f"[Tool Error] Tool '{tool_name}' has no script."
+    script_path = tool.get("script_path", "")
+    if not script_path:
+        return f"[Tool Error] Tool '{tool_name}' has no script path."
 
-    namespace = {}
+    if not os.path.exists(script_path):
+        return f"[Tool Error] Script path for tool '{tool_name}' does not exist: {script_path}"
+
     try:
-        exec(script, namespace)
-        if "run_tool" not in namespace:
-            return f"[Tool Error] run_tool(args) function not defined in '{tool_name}' script."
-        result = namespace["run_tool"](args)
-        return result
-    except Exception as e:
+        # Use subprocess.run with a timeout and capture output
+        result = subprocess.run(
+            [sys.executable, script_path] + [json.dumps(args)],
+            capture_output=True,
+            text=True,
+            check=True,  # Raise an exception if the subprocess fails
+            timeout=10,  # Set a timeout (e.g., 10 seconds)
+        )
+
         if debug_enabled:
-            print(f"[Debug] Exception while running tool '{tool_name}': {e}")
-        return f"[Tool Error] Exception running tool '{tool_name}': {e}"
+            print(f"[Debug] Tool '{tool_name}' output: {result.stdout}")
+
+        return result.stdout
+
+    except subprocess.CalledProcessError as e:
+        error_msg = f"[Tool Error] Error running tool '{tool_name}': {e.stderr}"
+        if debug_enabled:
+            print(f"[Debug] {error_msg}")
+        return error_msg
+    except subprocess.TimeoutExpired as e:
+        error_msg = f"[Tool Error] Tool '{tool_name}' timed out."
+        if debug_enabled:
+            print(f"[Debug] {error_msg}")
+        return error_msg
+    except Exception as e:
+        error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
+        if debug_enabled:
+            print(f"[Debug] {error_msg}")
+        return error_msg
 
 def add_tool(tools, name, description, script, debug_enabled=False):
     if any(t['name'] == name for t in tools):
         return f"[Tool Error] A tool with name '{name}' already exists."
-    tools.append({"name": name, "description": description, "script": script})
+
+    # Get the directory of the current script (tools.py)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Construct the absolute path for the new tool's script
+    script_path = os.path.join(current_dir, f"{name}.py")
+
+    # Create the script file
+    try:
+        with open(script_path, "w") as f:
+            f.write(script)
+        if debug_enabled:
+            print(f"[Debug] Created script file at: {script_path}")
+    except Exception as e:
+        return f"[Tool Error] Failed to create script file: {e}"
+
+    tools.append({"name": name, "description": description, "script_path": script_path})
     save_tools(tools, debug_enabled)
     return None
 
@@ -63,16 +103,36 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
     if new_name != old_name and any(t['name'] == new_name for t in tools):
         return f"[Tool Error] A tool with name '{new_name}' already exists."
 
+    # Update the script file if the script has changed
+    if script != tool.get("script", ""):
+        try:
+            with open(tool["script_path"], "w") as f:
+                f.write(script)
+            if debug_enabled:
+                print(f"[Debug] Updated script file at: {tool['script_path']}")
+        except Exception as e:
+            return f"[Tool Error] Failed to update script file: {e}"
+
     tool["name"] = new_name
     tool["description"] = description
-    tool["script"] = script
     save_tools(tools, debug_enabled)
     return None
 
 def delete_tool(tools, name, debug_enabled=False):
-    idx = next((i for i, t in enumerate(tools) if t["name"] == name), None)
-    if idx is None:
+    tool = next((t for t in tools if t["name"] == name), None)
+    if not tool:
         return f"[Tool Error] Tool '{name}' not found."
-    del tools[idx]
+
+    # Delete the associated script file
+    script_path = tool.get("script_path", "")
+    if script_path and os.path.exists(script_path):
+        try:
+            os.remove(script_path)
+            if debug_enabled:
+                print(f"[Debug] Deleted script file: {script_path}")
+        except Exception as e:
+            print(f"[Error] Failed to delete script file: {e}")
+
+    tools.remove(tool)
     save_tools(tools, debug_enabled)
     return None

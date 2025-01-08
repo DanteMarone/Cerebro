@@ -1,9 +1,9 @@
-# tab_tools.py
-
+#tab_tools.py
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QPushButton, QListWidgetItem,
-    QLabel, QMessageBox, QDialog
+    QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView
 )
+from PyQt5.QtCore import Qt  # Import Qt from PyQt5.QtCore
 from dialogs import ToolDialog
 from tools import add_tool, edit_tool, delete_tool
 
@@ -22,43 +22,62 @@ class ToolsTab(QWidget):
 
         # Tools List
         self.tools_list = QListWidget()
+        self.tools_list.setSelectionMode(QAbstractItemView.SingleSelection)  # Enforce single selection
+        self.tools_list.itemSelectionChanged.connect(self.on_item_selection_changed) # Connect selection change
         self.layout.addWidget(self.tools_list)
 
         # Buttons
         btn_layout = QHBoxLayout()
         self.add_button = QPushButton("Add Tool")
+        self.add_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileIcon')))
+        self.add_button.setToolTip("Add a new tool.")
         btn_layout.addWidget(self.add_button)
         self.layout.addLayout(btn_layout)
 
+        # Edit and Delete Buttons (initially hidden)
+        self.edit_button = QPushButton("Edit")
+        self.edit_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogDetailedView')))
+        self.edit_button.setToolTip("Edit the selected tool.")
+        self.edit_button.hide()
+        btn_layout.addWidget(self.edit_button)
+
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_TrashIcon')))
+        self.delete_button.setToolTip("Delete the selected tool.")
+        self.delete_button.hide()
+        btn_layout.addWidget(self.delete_button)
+
         # Connect signals
         self.add_button.clicked.connect(self.add_tool_ui)
+        self.edit_button.clicked.connect(self.edit_tool_ui)
+        self.delete_button.clicked.connect(self.delete_tool_ui)
 
         self.refresh_tools_list()
 
+    def on_item_selection_changed(self):
+        """
+        Show or hide the Edit/Delete buttons based on whether an item is selected.
+        """
+        selected_items = self.tools_list.selectedItems()
+        if selected_items:
+            self.edit_button.show()
+            self.delete_button.show()
+        else:
+            self.edit_button.hide()
+            self.delete_button.hide()
+
     def refresh_tools_list(self):
         self.tools_list.clear()
-        for t in self.tools:
-            item = QListWidgetItem()
-            item.setText(f"{t['name']}: {t['description']}")
-            self.tools_list.addItem(item)
-
-            container = QWidget()
-            h_layout = QHBoxLayout(container)
-            h_layout.setContentsMargins(0, 0, 0, 0)
-
-            label = QLabel(f"{t['name']}: {t['description']}")
-            edit_btn = QPushButton("Edit")
-            del_btn = QPushButton("Delete")
-
-            edit_btn.clicked.connect(lambda _, tn=t['name']: self.edit_tool_ui(tn))
-            del_btn.clicked.connect(lambda _, tn=t['name']: self.delete_tool_ui(tn))
-
-            h_layout.addWidget(label)
-            h_layout.addWidget(edit_btn)
-            h_layout.addWidget(del_btn)
-            container.setLayout(h_layout)
-
-            self.tools_list.setItemWidget(item, container)
+        if not self.tools:  # Check if the list is empty
+            label = QLabel("No tools available.")
+            label.setAlignment(Qt.AlignCenter)
+            self.layout.addWidget(label)
+        else:
+            for t in self.tools:
+                item = QListWidgetItem()
+                item.setText(f"{t['name']}: {t['description']}")
+                item.setData(Qt.UserRole, t['name'])  # Store the tool name in the item's data
+                self.tools_list.addItem(item)
 
     def add_tool_ui(self):
         dialog = ToolDialog(title="Add Tool")
@@ -72,7 +91,14 @@ class ToolsTab(QWidget):
                 self.tools = self.parent_app.tools
                 self.refresh_tools_list()
 
-    def edit_tool_ui(self, tool_name):
+    def edit_tool_ui(self):
+        selected_items = self.tools_list.selectedItems()
+        if not selected_items:
+            return
+        
+        # Get the tool name from the selected item's data
+        tool_name = selected_items[0].data(Qt.UserRole)
+
         tool = next((t for t in self.tools if t['name'] == tool_name), None)
         if not tool:
             QMessageBox.warning(self, "Error", f"No tool named '{tool_name}' found.")
@@ -93,7 +119,14 @@ class ToolsTab(QWidget):
                 self.tools = self.parent_app.tools
                 self.refresh_tools_list()
 
-    def delete_tool_ui(self, tool_name):
+    def delete_tool_ui(self):
+        selected_items = self.tools_list.selectedItems()
+        if not selected_items:
+            return
+
+        # Get the tool name from the selected item's data
+        tool_name = selected_items[0].data(Qt.UserRole)
+
         reply = QMessageBox.question(
             self,
             'Confirm Delete',

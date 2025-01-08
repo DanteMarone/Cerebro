@@ -2,14 +2,15 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QPushButton, QListWidgetItem,
-    QLabel, QMessageBox, QDialog
+    QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView
 )
+from PyQt5.QtCore import Qt  # Import Qt from PyQt5.QtCore
 from dialogs import TaskDialog
 from tasks import add_task, edit_task, delete_task
 
 class TasksTab(QWidget):
     """
-    Integrated version of Tasks management (previously TasksWindow).
+    Manages the display and interaction with scheduled tasks.
     """
     def __init__(self, parent_app):
         super().__init__()
@@ -22,49 +23,69 @@ class TasksTab(QWidget):
 
         # Tasks list
         self.tasks_list = QListWidget()
+        self.tasks_list.setSelectionMode(QAbstractItemView.SingleSelection) # Enforce single selection
+        self.tasks_list.itemSelectionChanged.connect(self.on_item_selection_changed)
         self.layout.addWidget(self.tasks_list)
 
         # Buttons
         btn_layout = QHBoxLayout()
         self.add_button = QPushButton("Add Task")
+        self.add_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileIcon')))
+        self.add_button.setToolTip("Add a new task.")
         btn_layout.addWidget(self.add_button)
         self.layout.addLayout(btn_layout)
 
+        # Edit and Delete Buttons (initially hidden)
+        self.edit_button = QPushButton("Edit")
+        self.edit_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogDetailedView')))
+        self.edit_button.setToolTip("Edit the selected task.")
+        self.edit_button.hide()
+        btn_layout.addWidget(self.edit_button)
+
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_TrashIcon')))
+        self.delete_button.setToolTip("Delete the selected task.")
+        self.delete_button.hide()
+        btn_layout.addWidget(self.delete_button)
+
+        # Connect signals
         self.add_button.clicked.connect(self.add_task_ui)
+        self.edit_button.clicked.connect(self.edit_task_ui)
+        self.delete_button.clicked.connect(self.delete_task_ui)
 
         self.refresh_tasks_list()
+
+    def on_item_selection_changed(self):
+        """
+        Show or hide the Edit/Delete buttons based on whether an item is selected.
+        """
+        selected_items = self.tasks_list.selectedItems()
+        if selected_items:
+            self.edit_button.show()
+            self.delete_button.show()
+        else:
+            self.edit_button.hide()
+            self.delete_button.hide()
 
     def refresh_tasks_list(self):
         """
         Refresh the tasks list in the UI.
         """
         self.tasks_list.clear()
-        for t in self.tasks:
-            item = QListWidgetItem()
-            due_time = t.get("due_time", "")
-            agent_name = t.get("agent_name", "")
-            prompt = t.get("prompt", "")
-            summary = f"[{due_time}] {agent_name} - {prompt[:30]}..."
-            item.setText(summary)
-            self.tasks_list.addItem(item)
-
-            container = QWidget()
-            h_layout = QHBoxLayout(container)
-            h_layout.setContentsMargins(0, 0, 0, 0)
-
-            label = QLabel(summary)
-            edit_btn = QPushButton("Edit")
-            del_btn = QPushButton("Delete")
-
-            edit_btn.clicked.connect(lambda _, tid=t['id']: self.edit_task_ui(tid))
-            del_btn.clicked.connect(lambda _, tid=t['id']: self.delete_task_ui(tid))
-
-            h_layout.addWidget(label)
-            h_layout.addWidget(edit_btn)
-            h_layout.addWidget(del_btn)
-            container.setLayout(h_layout)
-
-            self.tasks_list.setItemWidget(item, container)
+        if not self.tasks:  # Check if the list is empty
+            label = QLabel("No tasks available.")
+            label.setAlignment(Qt.AlignCenter)
+            self.layout.addWidget(label)
+        else:
+            for t in self.tasks:
+                item = QListWidgetItem()
+                due_time = t.get("due_time", "")
+                agent_name = t.get("agent_name", "")
+                prompt = t.get("prompt", "")
+                summary = f"[{due_time}] {agent_name} - {prompt[:30]}..."
+                item.setText(summary)
+                item.setData(Qt.UserRole, t['id'])  # Store the task ID in the item's data
+                self.tasks_list.addItem(item)
 
     def add_task_ui(self):
         """
@@ -89,10 +110,17 @@ class TasksTab(QWidget):
             )
             self.refresh_tasks_list()
 
-    def edit_task_ui(self, task_id):
+    def edit_task_ui(self):
         """
         Display a dialog to edit an existing task.
         """
+        selected_items = self.tasks_list.selectedItems()
+        if not selected_items:
+            return
+        
+        # Get the task ID from the selected item's data
+        task_id = selected_items[0].data(Qt.UserRole)
+        
         existing_task = next((t for t in self.tasks if t["id"] == task_id), None)
         if not existing_task:
             QMessageBox.warning(self, "Error", f"No task with ID {task_id} found.")
@@ -120,10 +148,17 @@ class TasksTab(QWidget):
             else:
                 self.refresh_tasks_list()
 
-    def delete_task_ui(self, task_id):
+    def delete_task_ui(self):
         """
         Delete a task after user confirmation.
         """
+        selected_items = self.tasks_list.selectedItems()
+        if not selected_items:
+            return
+
+        # Get the task ID from the selected item's data
+        task_id = selected_items[0].data(Qt.UserRole)
+
         reply = QMessageBox.question(
             self,
             'Confirm Delete',

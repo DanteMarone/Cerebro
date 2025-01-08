@@ -29,7 +29,14 @@ class AIWorker(QObject):
                 "model": self.model_name,
                 "messages": self.chat_history,
                 "temperature": self.temperature,
-                "max_tokens": self.max_tokens
+                "max_tokens": self.max_tokens,
+                "stream": True,
+                "options": {
+                    "stop": [
+                        "</s>",
+                        "<|im_end|>"
+                    ]
+                }
             }
 
             if self.debug_enabled:
@@ -40,7 +47,7 @@ class AIWorker(QObject):
                 print("[Debug] Sending request to Ollama API:", json.dumps(payload_copy, indent=2))
 
             response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-            response.raise_for_status()
+            response.raise_for_status()  # Raise an exception for bad status codes
 
             for line in response.iter_lines(decode_unicode=True):
                 if line:
@@ -57,12 +64,24 @@ class AIWorker(QObject):
                             if self.debug_enabled:
                                 print(f"[Debug] Error in response: {error_msg}")
                             break
+                        elif line_data.get("done"):
+                            if self.debug_enabled:
+                                print(f"[Debug] Stream finished for agent '{self.agent_name}'.")
+                            break
                     except ValueError as e:
                         error_msg = f"[Error] Failed to parse line as JSON: {e}"
                         if self.debug_enabled:
                             print(error_msg)
                         self.error_occurred.emit(error_msg)
             self.finished.emit()
+
+        except requests.exceptions.RequestException as e:
+            error_msg = f"[Error] Request error: {e}"
+            if self.debug_enabled:
+                print(error_msg)
+            self.error_occurred.emit(error_msg)
+            self.finished.emit()
+
         except Exception as e:
             error_msg = f"[Error] Exception in worker run: {e}"
             if self.debug_enabled:

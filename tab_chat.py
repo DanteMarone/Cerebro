@@ -1,9 +1,8 @@
-# tab_chat.py
-
+#tab_chat.py
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
+    QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle
 )
 
 class ChatTab(QWidget):
@@ -20,11 +19,13 @@ class ChatTab(QWidget):
         # Chat display
         self.chat_display = QTextEdit()
         self.chat_display.setReadOnly(True)
+        self.chat_display.setLineWrapMode(QTextEdit.WidgetWidth)  # Enable word wrap
         self.layout.addWidget(self.chat_display)
 
         # Input area
         self.user_input = QTextEdit()
         self.user_input.setPlaceholderText("Type your message here...")
+        self.user_input.setMinimumHeight(30)  # Set minimum height
         self.user_input.setMaximumHeight(100)
         self.user_input.installEventFilter(self)
         self.layout.addWidget(self.user_input)
@@ -32,7 +33,11 @@ class ChatTab(QWidget):
         # Button row
         btn_layout = QHBoxLayout()
         self.send_button = QPushButton("Send")
+        self.send_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DialogApplyButton')))  # Add icon
+        self.send_button.setToolTip("Send the message.")
         self.clear_chat_button = QPushButton("Clear Chat")
+        self.clear_chat_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DialogDiscardButton')))
+        self.clear_chat_button.setToolTip("Clear the chat history.")
         btn_layout.addWidget(self.send_button)
         btn_layout.addWidget(self.clear_chat_button)
         self.layout.addLayout(btn_layout)
@@ -79,3 +84,5 @@ class ChatTab(QWidget):
         Append a new message (in HTML) to the chat display.
         """
         self.chat_display.append(html_text)
+        # Ensure automatic scrolling to the bottom
+        self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())

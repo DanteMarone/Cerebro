@@ -1,12 +1,11 @@
-# app.py
-
+#app.py
 import os
 import json
 from datetime import datetime
 from PyQt5 import QtCore
-from PyQt5.QtCore import QThread
+from PyQt5.QtCore import QThread, Qt
 from PyQt5.QtWidgets import (
-    QMainWindow, QTabWidget, QMessageBox
+    QMainWindow, QTabWidget, QMessageBox, QApplication, QAction, QMenu, QDialog
 )
 
 from worker import AIWorker
@@ -19,10 +18,14 @@ from tab_tasks import TasksTab
 
 AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
+TOOLS_FILE = "tools.json"
+TASKS_FILE = "tasks.json"
 
 class AIChatApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        
+        # Check for debug mode
         if os.environ.get("DEBUG_MODE", "") == "1":
             self.debug_enabled = True
         else:
@@ -67,6 +70,21 @@ class AIChatApp(QMainWindow):
         self.load_settings()
         self.populate_agents()
         self.update_send_button_state()
+        
+        # Create a menu bar
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu('File')
+
+        # Add a settings action to the file menu
+        settings_action = QAction('Settings', self)
+        settings_action.triggered.connect(self.open_settings_dialog)  # Assuming you have a method named open_settings_dialog
+        file_menu.addAction(settings_action)
+
+        # Add a quit action to the file menu
+        quit_action = QAction('Quit', self)
+        quit_action.setShortcut('Ctrl+Q')
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
 
         # Apply dark mode if relevant
         if self.dark_mode:
@@ -78,9 +96,36 @@ class AIChatApp(QMainWindow):
         self.task_timer.start(30_000)  # 30 seconds in ms
 
     # -------------------------------------------------------------------------
+    # Settings Dialog
+    # -------------------------------------------------------------------------
+    def open_settings_dialog(self):
+        # Create a QDialog for settings
+        from dialogs import SettingsDialog  # Import here to avoid circular dependency
+        settings_dialog = SettingsDialog(self)
+        if settings_dialog.exec_() == QDialog.Accepted:
+            # Update settings based on user input
+            settings_data = settings_dialog.get_data()
+            self.dark_mode = settings_data["dark_mode"]
+            self.user_name = settings_data["user_name"]
+            self.user_color = settings_data["user_color"]
+            self.debug_enabled = settings_data["debug_enabled"]
+            self.apply_updated_styles()
+            self.agents_tab.load_global_preferences()
+            self.save_settings()
+
+    def apply_updated_styles(self):
+        if self.dark_mode:
+            self.apply_dark_mode_style()
+        else:
+            self.apply_light_mode_style()
+
+    # -------------------------------------------------------------------------
     # Chat / UI Utility
     # -------------------------------------------------------------------------
     def send_message(self, user_text):
+        # Disable send button to prevent multiple clicks
+        self.chat_tab.send_button.setEnabled(False)
+        
         timestamp = datetime.now().strftime("%H:%M:%S")
         user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
         self.chat_tab.append_message_html(user_message_html)
@@ -96,10 +141,12 @@ class AIChatApp(QMainWindow):
         ]
         if not enabled_agents:
             QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one non-DH agent.")
+            self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
             return
 
         def process_next_agent(index):
             if index is None or index >= len(enabled_agents):
+                self.chat_tab.send_button.setEnabled(True)  # Re-enable send button after all agents have responded
                 return
 
             agent_name, agent_settings = enabled_agents[index]
@@ -178,9 +225,17 @@ class AIChatApp(QMainWindow):
             tool_name = tool_request.get("name", "")
             tool_args = tool_request.get("args", {})
             tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
-            display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-            self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
-            self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+            
+            # Check for tool errors and handle them
+            if tool_result.startswith("[Tool Error]"):
+                error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+                self.chat_tab.append_message_html(error_msg)
+                # Append error message to chat history
+                self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+            else:
+                display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
+                self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
         else:
             final_content = content.strip()
             if final_content:
@@ -291,11 +346,11 @@ class AIChatApp(QMainWindow):
         if current_agent:
             if current_agent in self.agents_data:
                 del self.agents_data[current_agent]
-            idx = self.agents_tab.agent_selector.currentIndex()
-            self.agents_tab.agent_selector.removeItem(idx)
-            self.save_agents()
-            if self.debug_enabled:
-                print(f"[Debug] Agent '{current_agent}' removed.")
+                idx = self.agents_tab.agent_selector.currentIndex()
+                self.agents_tab.agent_selector.removeItem(idx)
+                self.save_agents()
+                if self.debug_enabled:
+                    print(f"[Debug] Agent '{current_agent}' removed.")
         self.update_send_button_state()
 
     def save_agents(self):
@@ -424,12 +479,12 @@ class AIChatApp(QMainWindow):
             "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
             "If using a tool, respond ONLY in the following exact JSON format and nothing else:\n"
             "{\n"
-            '  "role": "assistant",\n'
-            '  "content": "<explanation>",\n'
-            '  "tool_request": {\n'
-            '    "name": "<tool_name>",\n'
-            '    "args": { ... }\n'
-            '  }\n'
+            ' "role": "assistant",\n'
+            ' "content": "<explanation>",\n'
+            ' "tool_request": {\n'
+            '  "name": "<tool_name>",\n'
+            '  "args": { ... }\n'
+            ' }\n'
             '}\n'
             "No extra text outside this JSON when calling a tool.\n"
             f"Available tools:\n{tool_list_str}"
@@ -462,45 +517,31 @@ class AIChatApp(QMainWindow):
             try:
                 with open(SETTINGS_FILE, "r") as f:
                     settings = json.load(f)
-                    self.debug_enabled = settings.get("debug_enabled", False)
-                    self.include_image = settings.get("include_image", False)
-                    self.include_screenshot = settings.get("include_screenshot", False)
-                    self.user_name = settings.get("user_name", "You")
-                    self.user_color = settings.get("user_color", "#0000FF")
-                    self.dark_mode = settings.get("dark_mode", False)
+                self.debug_enabled = settings.get("debug_enabled", False)
+                self.include_image = settings.get("include_image", False)
+                self.include_screenshot = settings.get("include_screenshot", False)
+                self.user_name = settings.get("user_name", "You")
+                self.user_color = settings.get("user_color", "#0000FF")
+                self.dark_mode = settings.get("dark_mode", False)
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
             except Exception as e:
                 print(f"[Error] Failed to load settings: {e}")
-
-        self.agents_tab.username_input.setText(self.user_name)
-        self.agents_tab.user_color_button.setStyleSheet(f"background-color: {self.user_color}")
-        self.agents_tab.dark_mode_checkbox.setChecked(self.dark_mode)
+                
+        self.agents_tab.load_global_preferences()
 
     # -------------------------------------------------------------------------
     # Dark/Light Mode
     # -------------------------------------------------------------------------
     def apply_dark_mode_style(self):
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #2E2E2E;
-                color: #FFFFFF;
-            }
-            QPushButton {
-                background-color: #4C4C4C;
-                color: #FFFFFF;
-            }
-            QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
-                background-color: #3C3C3C;
-                color: #FFFFFF;
-            }
-            QCheckBox, QLabel, QGroupBox {
-                color: #FFFFFF;
-            }
-        """)
+        with open("dark_mode.qss", "r") as f:
+            style_sheet = f.read()
+        self.setStyleSheet(style_sheet)
 
     def apply_light_mode_style(self):
-        self.setStyleSheet("")
+        with open("light_mode.qss", "r") as f:
+            style_sheet = f.read()
+        self.setStyleSheet(style_sheet)
 
     # -------------------------------------------------------------------------
     # Close Event
