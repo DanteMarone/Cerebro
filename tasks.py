@@ -44,7 +44,7 @@ def add_task(tasks, agent_name, prompt, due_time, creator="user", debug_enabled=
         "creator": creator,
         "agent_name": agent_name,
         "prompt": prompt,
-        "due_time": due_time  # store as string
+        "due_time": due_time
     }
     tasks.append(new_task)
     save_tasks(tasks, debug_enabled)

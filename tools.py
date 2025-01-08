@@ -36,7 +36,6 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     if not script.strip():
         return f"[Tool Error] Tool '{tool_name}' has no script."
 
-    # Execute the script in a temporary namespace
     namespace = {}
     try:
         exec(script, namespace)
@@ -50,7 +49,6 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
         return f"[Tool Error] Exception running tool '{tool_name}': {e}"
 
 def add_tool(tools, name, description, script, debug_enabled=False):
-    # Check if tool with same name exists
     if any(t['name'] == name for t in tools):
         return f"[Tool Error] A tool with name '{name}' already exists."
     tools.append({"name": name, "description": description, "script": script})
@@ -62,7 +60,6 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
     if not tool:
         return f"[Tool Error] Tool '{old_name}' not found."
 
-    # If changing the name, ensure no duplicate
     if new_name != old_name and any(t['name'] == new_name for t in tools):
         return f"[Tool Error] A tool with name '{new_name}' already exists."
 
