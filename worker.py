@@ -1,3 +1,5 @@
+# worker.py
+
 import json
 import requests
 from PyQt5.QtCore import QObject, pyqtSignal

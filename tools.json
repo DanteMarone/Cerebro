@@ -1,0 +1,7 @@
+[
+  {
+    "name": "schedule-task",
+    "description": "Schedule a future prompt to run at the specified time. Useful for reminding the user of something in the future or continuing work at a later time.",
+    "script": "def run_tool(args): import os import sys from tasks import load_tasks, save_tasks, add_task # The agent will pass arguments like: # { # \"agent_name\": \"Agent X\", # \"prompt\": \"some scheduled prompt\", # \"due_time\": \"2024-12-31T23:59:59\" # } agent_name = args.get(\"agent_name\", \"Default Agent\") prompt = args.get(\"prompt\", \"No prompt provided\") due_time = args.get(\"due_time\", \"\") tasks = load_tasks(False) # # load current tasks if not due_time: return \"[schedule-task Error] No due_time provided.\" # Add the task, marking creator as 'agent' or 'user' as you prefer. add_task(tasks, agent_name, prompt, due_time, creator=\"agent\", debug_enabled=False) return f\"Task scheduled: Agent '{agent_name}' at '{due_time}' with prompt '{prompt}'.\""
+  }
+]

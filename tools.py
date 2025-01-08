@@ -1,3 +1,5 @@
+# tools.py
+
 import os
 import json
 
@@ -59,9 +61,11 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
     tool = next((t for t in tools if t["name"] == old_name), None)
     if not tool:
         return f"[Tool Error] Tool '{old_name}' not found."
+
     # If changing the name, ensure no duplicate
     if new_name != old_name and any(t['name'] == new_name for t in tools):
         return f"[Tool Error] A tool with name '{new_name}' already exists."
+
     tool["name"] = new_name
     tool["description"] = description
     tool["script"] = script
