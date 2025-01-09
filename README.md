@@ -1,102 +1,175 @@
-# Cerebro Chat Application
+# Cerebro: A Multi-Agent AI Chat Application
 
-A Python desktop application built with **PyQt5** that provides a multi-agent chat interface, task scheduling, and tool management. The UI has been restructured into tabs for improved clarity and organization:
+Cerebro is a desktop chat application built with PyQt5 that allows you to interact with multiple AI agents powered by the Ollama API. It provides a flexible and extensible framework for creating and managing AI agents with different roles, capabilities, and personalities.
 
-- **Chat** — Displays and interacts with the conversation.  
-- **Agents** — Manages agent configurations such as model details, temperature, prompts, and colors.  
-- **Tools** — Allows adding/editing/deleting custom tools.  
-- **Tasks** — Schedules prompts to run at specific times for particular agents.
+## Key Features
 
-## Features
+*   **Multiple AI Agents:** Create and manage multiple AI agents, each with its own:
+    *   Underlying language model (e.g., `llama3.2-vision`, `llava`).
+    *   Custom system prompt to define its behavior and personality.
+    *   Temperature and max tokens settings to control response randomness and length.
+    *   Assigned role:
+        *   **Coordinator:** Manages other agents and delegates tasks.
+        *   **Assistant:** Responds directly to user queries.
+        *   **Specialist:** Responds only to requests from a Coordinator.
+    *   Configurable color in the chat UI.
+*   **Agent Roles:**
+    *   **Coordinator:**  The Coordinator agent acts as a central hub. It receives user input, intelligently selects the most appropriate Specialist or Assistant agent to handle the request (based on agent descriptions and the nature of the query), and then displays the chosen agent's response. The Coordinator can also add context or modify the user's prompt before passing it on. When a Coordinator is done, it will pass the conversation on to another agent by specifying the phrase "Next Response By: [Agent Name]".
+    *   **Assistant:** Assistant agents behave like traditional chatbots, responding directly to user input in the chat window.
+    *   **Specialist:** Specialist agents are designed to handle specific types of tasks or answer questions within a particular domain. They do not engage directly with the user in the chat. Instead, they receive instructions or queries from a Coordinator agent and send their responses back to the Coordinator.
+*   **Tool Integration:**
+    *   Agents can be granted the ability to use tools.
+    *   Tools are implemented as Python scripts that define a `run_tool(args)` function.
+    *   Agents can invoke tools by including a specific JSON format in their response.
+    *   Each agent has an individual setting to toggle tool usage on or off.
+    *   Each agent can enable or disable individual tools.
+*   **Task Scheduling:**
+    *   Agents can schedule tasks to be executed at a specific time.
+    *   Tasks are stored in `tasks.json`.
+*   **Desktop History:**
+    *   Agents can be granted access to screenshots of the user's desktop.
+    *   Currently, this feature is not implemented, but the groundwork has been laid.
+*   **Customizable UI:**
+    *   Light and dark mode support.
+    *   Configurable user name and color.
+*   **Debug Mode:**
+    *   Enables verbose logging for debugging purposes.
 
-1. **Tabbed Interface**  
-   - **Chat Tab**: Shows conversation with user input, “Send” and “Clear Chat” buttons.  
-   - **Agents Tab**: List of agents with per-agent settings (model, temperature, prompts, etc.).  
-   - **Tools Tab**: Manage tools (scripts) that can be invoked by agents.  
-   - **Tasks Tab**: Schedule tasks with due times for specific agents.
+## Requirements
 
-2. **Multiple Agents**  
-   - Configure multiple agents with different model settings.  
-   - Enable or disable agents, or run them in “desktop historian” mode.  
-
-3. **Tool Integration**  
-   - Agents can call external “tools” if they cannot directly answer a user’s query.  
-   - Tools are Python scripts that define a `run_tool(args)` function.  
-
-4. **Task Scheduling**  
-   - Schedule “prompts” to be automatically posted to specific agents at a given time.  
-   - Tasks are stored in `tasks.json`.
-
-5. **Dark Mode**  
-   - Toggle Dark Mode for improved readability in low-light environments.
-
-6. **Debug Mode**  
-   - Set `DEBUG_MODE=1` to see additional debug outputs in the console.
+*   Python 3.7 or higher
+*   PyQt5
+*   Requests
+*   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 
 ## Installation
 
-1. **Clone the Repository**:
+1.  **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/username/cerebro-chat-app.git
-   cd cerebro-chat-app
+    ```bash
+    git clone [https://github.com/dantemarone/cerebro.git](https://github.com/dantemarone/cerebro.git)
+    cd cerebro
+    ```
 
-2. Create and Activate a Virtual Environment (optional but recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
+2.  **Create a virtual environment (recommended):**
 
-3. Install Requirements:
-   '''bash
-   pip install -r requirements.txt
+    ```bash
+    python3 -m venv venv
+    ```
 
-4. Run the Application:
-   '''bash
-   python main.py
+3.  **Activate the virtual environment:**
+    *   **Linux/macOS:**
+        ```bash
+        source venv/bin/activate
+        ```
+    *   **Windows:**
+        ```bash
+        venv\Scripts\activate
+        ```
 
-Usage
-Launching:
+4.  **Install dependencies:**
 
-Run python main.py. The main window will appear with four tabs: Chat, Agents, Tools, and Tasks.
-Chatting:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-Go to the Chat tab, type your message, and click Send or press Enter.
-Enable at least one agent in the Agents tab to receive responses.
-Agents:
+## Usage
 
-Add or remove agents, enable/disable them, or tweak their Model Name, Temperature, Max Tokens, etc.
-Set an optional System Prompt for specialized behavior.
-Tools:
+1.  **Start the Ollama server:**
+    Make sure your Ollama server is running in the background. Refer to the Ollama documentation for instructions. You can use the command `ollama serve` to start it.
 
-Add custom tools with Python scripts. Agents can call these tools if they encounter queries best handled by external functions.
-Tasks:
+2.  **Run the Cerebro application:**
 
-Create tasks that will automatically send prompts to specified agents at scheduled times.
-Dark Mode:
+    ```bash
+    python main.py
+    ```
 
-Enable or disable Dark Mode under Global Preferences in the Agents tab.
-File Overview
-main.py: Entry point; starts the AIChatApp.
-app.py: Main application file, orchestrating window setup, tabs, and logic.
-worker.py: AIWorker class that handles AI requests in a separate thread.
-tab_chat.py: Contains the ChatTab class for the Chat interface.
-tab_agents.py: Contains the AgentsTab class for managing agent configurations.
-tab_tools.py: Contains the ToolsTab class for managing external tools.
-tab_tasks.py: Contains the TasksTab class for scheduling tasks.
-dialogs.py: Contains ToolDialog and TaskDialog for creating/editing tools and tasks.
-tools.py: Functions to load, save, add, edit, and delete custom tools.
-tasks.py: Functions to load, save, add, edit, and delete scheduled tasks.
-Customization
-API URL: By default, the application sends requests to http://localhost:11434/api/chat (Ollama API). You can change this in worker.py.
-Debug Mode:
-Set export DEBUG_MODE=1 before running to see debug messages.
-Data Files:
-agents.json: Stores agent configurations.
-tools.json: Stores tool definitions.
-tasks.json: Stores scheduled tasks.
-settings.json: Stores global user settings (username, color, dark mode, etc.).
+    *   To enable debug mode, set the `DEBUG_MODE` environment variable to 1:
+        *   **Linux/macOS:** `DEBUG_MODE=1 python main.py`
+        *   **Windows:** `set DEBUG_MODE=1 & python main.py`
+
+## Configuration
+
+### `agents.json`
+
+This file stores the configuration for each agent.
+
+*   **`model`:** The name of the Ollama model to use (e.g., "llama3.2-vision", "llava").
+*   **`temperature`:** Controls the randomness of the AI's response (0.0 - 1.0).
+*   **`max_tokens`:** Limits the length of the AI's response.
+*   **`system_prompt`:** Sets the initial instructions for the agent.
+*   **`enabled`:** Enables or disables the agent.
+*   **`color`:** Sets the agent's display color in the chat.
+*   **`role`:** Defines the agent's role: "Coordinator", "Assistant", or "Specialist".
+*   **`description`:** A brief description of the agent's capabilities (used by Coordinators).
+*   **`managed_agents`:** (Coordinator only) A list of agents managed by this Coordinator.
+*   **`desktop_history_enabled`:** Enables access to desktop screenshots (currently not implemented).
+*   **`screenshot_interval`:**  Sets the screenshot interval (currently not implemented).
+*   **`tool_use`:** Boolean value to enable or disable an agent's access to tools.
+*   **`tools_enabled`:** A list of tools that an agent can access, assuming `tool_use` is set to true.
+
+**Example:**
+
+```json
+{
+    "Coordinator Agent": {
+        "model": "llama3.2-vision",
+        "temperature": 0.7,
+        "max_tokens": 512,
+        "system_prompt": "You are a coordinator agent. Your role is to select the most appropriate agent...",
+        "enabled": true,
+        "color": "#0000FF",
+        "role": "Coordinator",
+        "description": "This agent coordinates the activities of other agents.",
+        "managed_agents": ["Spiderman", "Coding Assistant"],
+        "tool_use": false,
+        "tools_enabled": []
+    },
+    "Coding Assistant": {
+        "model": "llava",
+        "temperature": 0.5,
+        "max_tokens": 1024,
+        "system_prompt": "You are a coding assistant. You can help with tasks like writing code...",
+        "enabled": true,
+        "color": "#008000",
+        "role": "Specialist",
+        "description": "An agent specialized in coding tasks.",
+        "tool_use": true,
+        "tools_enabled": ["schedule-task"]
+    }
+}
+
+settings.json
+This file stores global application settings.
+
+debug_enabled: Enables debug mode (boolean).
+include_image: Currently unused.
+include_screenshot: Currently unused.
+image_path: Currently unused.
+user_name: The user's display name.
+user_color: The user's chat message color.
+dark_mode: Enables dark mode (boolean).
+tools.json
+This file defines available tools.
+
+name: The name of the tool.
+description: A brief description of the tool.
+script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
+Example:
+
+'''JSON
+[
+  {
+    "name": "schedule-task",
+    "description": "Schedule a future prompt to run at the specified time.",
+    "script": "def run_tool(args):\\n  import os\\n  import sys\\n  from tasks import load_tasks, save_tasks, add_task\\n  # The agent will pass arguments like:\\n  # {\\n  # \\"agent_name\\": \\"Agent X\\",\\n  # \\"prompt\\": \\"some scheduled prompt\\",\\n  # \\"due_time\\": \\"2024-12-31T23:59:59\\"\\n  # }\\n  agent_name = args.get(\\"agent_name\\", \\"Default Agent\\")\\n  prompt = args.get(\\"prompt\\", \\"No prompt provided\\")\\n  due_time = args.get(\\"due_time\\", \\"\\")\\n  tasks = load_tasks(False) #\\n  # load current tasks\\n  if not due_time:\\n   return \\"[schedule-task Error] No due_time provided.\\"\\n  # Add the task, marking creator as 'agent' or 'user' as you prefer.\\n  add_task(tasks, agent_name, prompt, due_time, creator=\\"agent\\", debug_enabled=False)\\n  return f\\"Task scheduled: Agent '{agent_name}' at '{due_time}' with prompt '{prompt}'.\\""
+  }
+]
+tasks.json
+This file stores the list of scheduled tasks. You typically won't edit this file directly.
+
 Contributing
-Contributions are welcome! Feel free to open issues or submit pull requests for improvements or new features.
+Contributions are welcome! Please feel free to submit pull requests or open issues.
 
 License
-This software is available under the MIT License.
+This project is licensed under the MIT License

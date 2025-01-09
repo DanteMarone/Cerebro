@@ -12,7 +12,7 @@ class AIWorker(QObject):
     error_occurred = pyqtSignal(str)
     finished = pyqtSignal()
 
-    def __init__(self, model_name, chat_history, temperature, max_tokens, debug_enabled, agent_name):
+    def __init__(self, model_name, chat_history, temperature, max_tokens, debug_enabled, agent_name, agents_data):
         super().__init__()
         self.model_name = model_name
         self.chat_history = chat_history
@@ -20,11 +20,24 @@ class AIWorker(QObject):
         self.max_tokens = max_tokens
         self.debug_enabled = debug_enabled
         self.agent_name = agent_name
+        self.agents_data = agents_data  # Store a reference to agents_data
 
     def run(self):
         try:
             if self.debug_enabled:
                 print(f"[Debug] Worker run started for agent '{self.agent_name}'.")
+
+            # Access agent settings using the provided agents_data
+            agent_settings = self.agents_data.get(self.agent_name, {})
+
+            if agent_settings.get('role') == 'Specialist':
+                # Check if the last message indicates that this specialist should respond
+                if not self.chat_history[-1]['content'].endswith(f"Next Response By: {self.agent_name}"):
+                    if self.debug_enabled:
+                        print(f"[Debug] Specialist '{self.agent_name}' not addressed. Skipping response.")
+                    self.finished.emit()
+                    return
+
             payload = {
                 "model": self.model_name,
                 "messages": self.chat_history,

@@ -77,7 +77,7 @@ class AIChatApp(QMainWindow):
 
         # Add a settings action to the file menu
         settings_action = QAction('Settings', self)
-        settings_action.triggered.connect(self.open_settings_dialog)  # Assuming you have a method named open_settings_dialog
+        settings_action.triggered.connect(self.open_settings_dialog)
         file_menu.addAction(settings_action)
 
         # Add a quit action to the file menu
@@ -93,14 +93,14 @@ class AIChatApp(QMainWindow):
         # Check tasks regularly
         self.task_timer = QtCore.QTimer(self)
         self.task_timer.timeout.connect(self.check_for_due_tasks)
-        self.task_timer.start(30_000)  # 30 seconds in ms
+        self.task_timer.start(30_000)
 
     # -------------------------------------------------------------------------
     # Settings Dialog
     # -------------------------------------------------------------------------
     def open_settings_dialog(self):
         # Create a QDialog for settings
-        from dialogs import SettingsDialog  # Import here to avoid circular dependency
+        from dialogs import SettingsDialog
         settings_dialog = SettingsDialog(self)
         if settings_dialog.exec_() == QDialog.Accepted:
             # Update settings based on user input
@@ -133,16 +133,29 @@ class AIChatApp(QMainWindow):
         user_message = {"role": "user", "content": user_text}
         self.chat_history.append(user_message)
 
-        enabled_agents = [
+        # If a Coordinator agent is enabled, send the message to the Coordinator agents only.
+        enabled_coordinator_agents = [
             (agent_name, agent_settings)
             for agent_name, agent_settings in self.agents_data.items()
-            if agent_settings.get('enabled', False)
-            and not agent_settings.get('desktop_history_enabled', False)
+            if agent_settings.get('enabled', False) and agent_settings.get('role') == 'Coordinator'
         ]
-        if not enabled_agents:
-            QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one non-DH agent.")
-            self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
-            return
+
+        # If no Coordinator is enabled, fall back to the old logic of sending to all enabled agents, except Specialists.
+        if not enabled_coordinator_agents:
+            enabled_agents = [
+                (agent_name, agent_settings)
+                for agent_name, agent_settings in self.agents_data.items()
+                if agent_settings.get('enabled', False)
+                and not agent_settings.get('desktop_history_enabled', False)
+                and agent_settings.get('role') != 'Specialist'
+            ]
+
+            if not enabled_agents:
+                QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one Assistant agent or a Coordinator agent.")
+                self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
+                return
+        else:
+            enabled_agents = enabled_coordinator_agents
 
         def process_next_agent(index):
             if index is None or index >= len(enabled_agents):
@@ -161,9 +174,18 @@ class AIChatApp(QMainWindow):
 
             temperature = agent_settings.get("temperature", 0.7)
             max_tokens = agent_settings.get("max_tokens", 512)
-            chat_history = self.build_agent_chat_history(agent_name)
+            
+            # Build appropriate chat history
+            if agent_settings.get('role') == 'Coordinator':
+                chat_history = self.build_agent_chat_history(agent_name, user_message)
+            elif agent_settings.get('role') == 'Specialist':
+                chat_history = self.build_agent_chat_history(agent_name)
+            else: # Default to old behavior for Assistant agents
+                chat_history = self.build_agent_chat_history(agent_name)
+            
             thread = QThread()
-            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name)
+            # Pass the agents_data to the AIWorker
+            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data)
             worker.moveToThread(thread)
             self.active_worker_threads.append((worker, thread))
 
@@ -203,12 +225,34 @@ class AIChatApp(QMainWindow):
         task_request = None
         content = assistant_content.strip()
 
+        # Get the agent's settings
+        agent_settings = self.agents_data.get(agent_name, {})
+
+        # Check if this is a Specialist agent and if it was called by the Coordinator
+        if agent_settings.get('role') == 'Specialist':
+            if self.chat_history and self.chat_history[-1]['role'] == 'assistant':
+                last_message = self.chat_history[-1]['content']
+                if last_message.endswith(f"Next Response By: {agent_name}"):
+                    # This is a valid response from a Specialist to the Coordinator
+                    content = "[Response to Coordinator] " + content
+                else:
+                    # Specialist is not supposed to respond unless called by the Coordinator
+                    if process_next_agent is not None and index is not None:
+                        process_next_agent(index + 1)
+                    return
+            else:
+                if process_next_agent is not None and index is not None:
+                    process_next_agent(index + 1)
+                return
+
+        # Parse the content as JSON if it's a Coordinator or Specialist response
         parsed = None
-        if content.startswith("{") and content.endswith("}"):
-            try:
-                parsed = json.loads(content)
-            except json.JSONDecodeError:
-                parsed = None
+        if agent_settings.get('role') in ['Coordinator', 'Specialist']:
+            if content.startswith("{") and content.endswith("}"):
+                try:
+                    parsed = json.loads(content)
+                except json.JSONDecodeError:
+                    parsed = None
 
         if parsed is not None:
             if "tool_request" in parsed:
@@ -221,29 +265,90 @@ class AIChatApp(QMainWindow):
         timestamp = datetime.now().strftime("%H:%M:%S")
         agent_color = self.agents_data.get(agent_name, {}).get("color", "#000000")
 
-        if tool_request:
+        # If the message is from a Coordinator and contains "Next Response By:", extract the next agent's name.
+        next_agent = None
+        if agent_settings.get('role') == 'Coordinator' and "Next Response By:" in content:
+            parts = content.split("Next Response By:")
+            content = parts[0].strip()  # The part before "Next Response By:"
+            next_agent = parts[1].strip()
+
+        # Debugging: Print content before modification
+        print(f"[Debug] Content before modification: '{content}'")
+
+        if agent_settings.get('role') == 'Coordinator':
+            # Ensure the Coordinator's message ends with "Next Response By: [Agent Name]"
+            if content and next_agent and not content.endswith(f"Next Response By: {next_agent}"):
+                content += f"\nNext Response By: {next_agent}"
+                
+        # Debugging: Print content after modification
+        print(f"[Debug] Content after modification: '{content}'")
+
+        # Display the message from the Coordinator or Assistant
+        if agent_settings.get('role') in ['Coordinator', 'Assistant']:
+            if content:
+                # Check if the message is from a Specialist responding to the Coordinator
+                if content.startswith("[Response to Coordinator]"):
+                    content = content.replace("[Response to Coordinator]", "").strip() # Remove the prefix
+                    self.chat_tab.append_message_html(
+                        f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
+                    )
+                    self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+                else:
+                    self.chat_tab.append_message_html(
+                        f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
+                    )
+                    self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+        
+        # Display the message from a Specialist if specified by Coordinator
+        elif agent_settings.get('role') == 'Specialist' and any(msg['content'].strip().endswith(f"Next Response By: {agent_name}") for msg in self.chat_history):
+            self.chat_tab.append_message_html(
+                f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
+            )
+            self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+
+        # If there's a next agent specified and it's managed by the Coordinator, process it.
+        if next_agent:
+            managed_agents = agent_settings.get('managed_agents', [])
+            if next_agent in managed_agents:
+                # Send the user's original message to the next agent.
+                # We assume that the user's message is always the last message with role 'user'.
+                user_message = next((msg for msg in reversed(self.chat_history) if msg["role"] == "user"), None)
+                if user_message:
+                    self.send_message_to_agent(next_agent, user_message['content'])
+            else:
+                error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{next_agent}' is not managed by Coordinator '{agent_name}'.</span>"
+                self.chat_tab.append_message_html(error_msg)
+        
+        # We should always call process_next_agent if there is one to trigger the next agent.
+        elif process_next_agent is not None and index is not None:
+            process_next_agent(index + 1)
+
+        # Handle tool request if any, only if the agent is allowed to use tools
+        if tool_request and agent_settings.get("tool_use", False):
             tool_name = tool_request.get("name", "")
             tool_args = tool_request.get("args", {})
-            tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
             
-            # Check for tool errors and handle them
-            if tool_result.startswith("[Tool Error]"):
-                error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+            # Check if the requested tool is enabled for the agent
+            enabled_tools = agent_settings.get("tools_enabled", [])
+            if tool_name not in enabled_tools:
+                error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                 self.chat_tab.append_message_html(error_msg)
-                # Append error message to chat history
                 self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
             else:
-                display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-                self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
-                self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
-        else:
-            final_content = content.strip()
-            if final_content:
-                self.chat_tab.append_message_html(
-                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {final_content}"
-                )
-                self.chat_history.append({"role": "assistant", "content": final_content, "agent": agent_name})
+                tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
 
+                # Check for tool errors and handle them
+                if tool_result.startswith("[Tool Error]"):
+                    error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+                    self.chat_tab.append_message_html(error_msg)
+                    # Append error message to chat history
+                    self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                else:
+                    display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
+                    self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                    self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+
+        # Handle task request if any
         if task_request:
             agent_for_task = task_request.get("agent_name", "Default Agent")
             prompt_for_task = task_request.get("prompt", "No prompt provided")
@@ -280,6 +385,53 @@ class AIChatApp(QMainWindow):
         if process_next_agent is not None and index is not None:
             process_next_agent(index + 1)
 
+    def send_message_to_agent(self, agent_name, message):
+        """
+        Sends a message to a specific agent.
+        This is used by the Coordinator to direct messages to managed agents.
+        """
+        timestamp = datetime.now().strftime("%H:%M:%S")
+
+        # Construct a message to indicate which agent should respond next
+        formatted_message = f"{message}\nNext Response By: {agent_name}"
+
+        # Add this message to the chat history
+        self.chat_history.append({"role": "user", "content": formatted_message})
+
+        # Find the agent settings
+        agent_settings = self.agents_data.get(agent_name, {})
+        if not agent_settings:
+            error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{agent_name}' not found.</span>"
+            self.chat_tab.append_message_html(error_msg)
+            return
+
+        # If the agent is enabled, start a worker thread to process the message
+        if agent_settings.get('enabled', False):
+            model_name = agent_settings.get("model", "llama3.2-vision").strip()
+            temperature = agent_settings.get("temperature", 0.7)
+            max_tokens = agent_settings.get("max_tokens", 512)
+            chat_history = self.build_agent_chat_history(agent_name)
+
+            thread = QThread()
+            # Pass the agents_data to the AIWorker
+            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data)
+            worker.moveToThread(thread)
+            self.active_worker_threads.append((worker, thread))
+
+            def on_finished():
+                self.worker_finished_sequential(worker, thread, agent_name, None, process_next_agent=self.process_next_agent)
+
+            worker.response_received.connect(self.handle_ai_response_chunk)
+            worker.error_occurred.connect(self.handle_worker_error)
+            worker.finished.connect(on_finished)
+
+            thread.started.connect(worker.run)
+            thread.start()
+        else:
+            error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{agent_name}' is not enabled.</span>"
+            self.chat_tab.append_message_html(error_msg)
+
+
     # -------------------------------------------------------------------------
     # Agents / Settings Management
     # -------------------------------------------------------------------------
@@ -303,7 +455,11 @@ class AIChatApp(QMainWindow):
                 "color": "#000000",
                 "include_image": False,
                 "desktop_history_enabled": False,
-                "screenshot_interval": 5
+                "screenshot_interval": 5,
+                "role": "Assistant",  # Default role
+                "description": "A general-purpose assistant.", # Default description
+                "tool_use": False,
+                "tools_enabled": []
             }
             self.agents_data["Default Agent"] = default_agent_settings
             if self.debug_enabled:
@@ -331,7 +487,11 @@ class AIChatApp(QMainWindow):
                     "color": "#000000",
                     "include_image": False,
                     "desktop_history_enabled": False,
-                    "screenshot_interval": 5
+                    "screenshot_interval": 5,
+                    "role": "Assistant",
+                    "description": "A new assistant agent.",
+                    "tool_use": False,
+                    "tools_enabled": []
                 }
                 self.agents_tab.agent_selector.addItem(agent_name)
                 self.save_agents()
@@ -356,7 +516,7 @@ class AIChatApp(QMainWindow):
     def save_agents(self):
         try:
             with open(AGENTS_SAVE_FILE, "w") as f:
-                json.dump(self.agents_data, f)
+                json.dump(self.agents_data, f, indent=4)
             if self.debug_enabled:
                 print("[Debug] Agents saved.")
         except Exception as e:
@@ -367,6 +527,7 @@ class AIChatApp(QMainWindow):
             a.get("enabled", False)
             for a in self.agents_data.values()
             if not a.get("desktop_history_enabled", False)
+            and a.get("role") != 'Specialist'
         )
         self.chat_tab.send_button.setEnabled(any_enabled)
 
@@ -430,7 +591,8 @@ class AIChatApp(QMainWindow):
         chat_history = self.build_agent_chat_history(agent_name)
 
         thread = QThread()
-        worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name)
+        # Pass the agents_data to the AIWorker
+        worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data)
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
 
@@ -448,48 +610,91 @@ class AIChatApp(QMainWindow):
     # Chat History Helpers
     # -------------------------------------------------------------------------
     def build_agent_chat_history(self, agent_name, user_message=None, is_screenshot=False):
-        desktop_history_enabled = self.agents_data.get(agent_name, {}).get("desktop_history_enabled", False)
-        system_prompt = self.agents_data.get(agent_name, {}).get("system_prompt", "")
-        tool_instructions = self.generate_tool_instructions_message()
+        system_prompt = ""
+        agent_settings = self.agents_data.get(agent_name, {})
 
-        chat_history = [{"role": "system", "content": tool_instructions}]
-        if system_prompt:
-            chat_history.append({"role": "system", "content": system_prompt})
+        if agent_settings:
+            # If the agent is a Coordinator, include managed agents and their descriptions in the system prompt
+            if agent_settings.get('role') == 'Coordinator':
+                managed_agents_info = []
+                for managed_agent_name in agent_settings.get('managed_agents', []):
+                    managed_agent_settings = self.agents_data.get(managed_agent_name, {})
+                    if managed_agent_settings:
+                        managed_agent_desc = managed_agent_settings.get('description', 'No description available')
+                        managed_agents_info.append(f"{managed_agent_name}: {managed_agent_desc}")
+                
+                if managed_agents_info:
+                    system_prompt += "You can choose from the following agents:\n" + "\n".join(managed_agents_info) + "\n"
 
-        dh_agents = [a for a, s in self.agents_data.items() if s.get("desktop_history_enabled", False)]
-        filtered_history = []
+            # Include the agent's specific system prompt
+            system_prompt += agent_settings.get("system_prompt", "")
+
+            # Include tool instructions only if tool_use is enabled
+            if agent_settings.get("tool_use", False):
+                tool_instructions = self.generate_tool_instructions_message(agent_name)
+                system_prompt += "\n" + tool_instructions
+
+        # Build the chat history with the constructed system prompt
+        chat_history = [{"role": "system", "content": system_prompt}]
+
+        # Filter messages for the chat history
+        temp_history = []
         for msg in self.chat_history:
             if msg['role'] == 'user':
-                filtered_history.append(msg)
+                temp_history.append(msg)
             elif msg['role'] == 'assistant':
-                if msg.get('agent') == agent_name or msg.get('agent') in dh_agents:
-                    filtered_history.append(msg)
+                if msg.get('agent') == agent_name:
+                    temp_history.append(msg)
+                # Include messages from specialists if this agent is a coordinator
+                elif agent_settings.get('role') == 'Coordinator' and self.agents_data.get(msg.get('agent'), {}).get('role') == 'Specialist':
+                    temp_history.append(msg)
 
+        # If the last message indicates a handoff to a Specialist, insert the Specialist's description AFTER the handoff message
+        if temp_history:
+            last_message = temp_history[-1]
+            if last_message['role'] == 'assistant' and "Next Response By:" in last_message['content']:
+                next_agent_name = last_message['content'].split("Next Response By:")[1].strip()
+                next_agent_settings = self.agents_data.get(next_agent_name, {})
+                if next_agent_settings.get('role') == 'Specialist':
+                    specialist_description = next_agent_settings.get('description', '')
+                    if specialist_description:
+                        # Append the specialist description as an assistant message
+                        temp_history.append({"role": "assistant", "content": specialist_description, "agent": next_agent_name})
+
+        # Add the user message to the history if provided
         if user_message:
-            filtered_history.append(user_message)
-        chat_history.extend(filtered_history)
+            temp_history.append(user_message)
+
+        chat_history.extend(temp_history)
         return chat_history
 
-    def generate_tool_instructions_message(self):
-        tool_list_str = ""
-        for t in self.tools:
-            tool_list_str += f"- {t['name']}: {t['description']}\n"
-        instructions = (
-            "You are a knowledgeable assistant. You can answer most questions directly.\n"
-            "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
-            "If using a tool, respond ONLY in the following exact JSON format and nothing else:\n"
-            "{\n"
-            ' "role": "assistant",\n'
-            ' "content": "<explanation>",\n'
-            ' "tool_request": {\n'
-            '  "name": "<tool_name>",\n'
-            '  "args": { ... }\n'
-            ' }\n'
-            '}\n'
-            "No extra text outside this JSON when calling a tool.\n"
-            f"Available tools:\n{tool_list_str}"
-        )
-        return instructions
+
+    def generate_tool_instructions_message(self, agent_name):
+        agent_settings = self.agents_data.get(agent_name, {})
+        if agent_settings.get("tool_use", False):
+            enabled_tools = agent_settings.get("tools_enabled", [])
+            tool_list_str = ""
+            for t in self.tools:
+                if t['name'] in enabled_tools:
+                    tool_list_str += f"- {t['name']}: {t['description']}\n"
+            instructions = (
+                "You are a knowledgeable assistant. You can answer most questions directly.\n"
+                "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
+                "If using a tool, respond ONLY in the following exact JSON format and nothing else:\n"
+                "{\n"
+                ' "role": "assistant",\n'
+                ' "content": "<explanation>",\n'
+                ' "tool_request": {\n'
+                '     "name": "<tool_name>",\n'
+                '     "args": { ... }\n'
+                ' }\n'
+                '}\n'
+                "No extra text outside this JSON when calling a tool.\n"
+                f"Available tools:\n{tool_list_str}"
+            )
+            return instructions
+        else:
+            return ""
 
     # -------------------------------------------------------------------------
     # Settings
@@ -510,7 +715,7 @@ class AIChatApp(QMainWindow):
             if self.debug_enabled:
                 print("[Debug] Settings saved.")
         except Exception as e:
-            print(f"[Error] Failed to save settings: {e}")
+            print(f"[Error failed to save settings: {e}")
 
     def load_settings(self):
         if os.path.exists(SETTINGS_FILE):
