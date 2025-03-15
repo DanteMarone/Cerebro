@@ -3,10 +3,13 @@ import os
 import json
 from datetime import datetime
 from PyQt5 import QtCore
-from PyQt5.QtCore import QThread, Qt
+from PyQt5.QtCore import QThread, Qt, QTimer
 from PyQt5.QtWidgets import (
-    QMainWindow, QTabWidget, QMessageBox, QApplication, QAction, QMenu, QDialog
+    QMainWindow, QTabWidget, QMessageBox, QApplication, QAction, QMenu, QDialog,
+    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget, QStackedWidget,
+    QInputDialog, QScrollArea, QShortcut
 )
+from PyQt5.QtGui import QKeySequence
 
 from worker import AIWorker
 from tools import load_tools, run_tool
@@ -33,7 +36,7 @@ class AIChatApp(QMainWindow):
 
         # Basic window settings
         self.setWindowTitle("Cerebro 1.0")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 700)  # Larger default window
 
         # Variables
         self.chat_history = []
@@ -46,54 +49,322 @@ class AIChatApp(QMainWindow):
         self.user_color = "#0000FF"
         self.dark_mode = False
         self.active_worker_threads = []
+        
+        # Initialize notification system
+        self.notifications = []
+        self.notification_timer = QTimer(self)
+        self.notification_timer.timeout.connect(self.process_notifications)
+        self.notification_timer.start(3000)  # Check every 3 seconds
 
         # Load Tools and Tasks
         self.tools = load_tools(self.debug_enabled)
         self.tasks = load_tasks(self.debug_enabled)
-
-        # Prepare UI with tabs
-        self.tab_widget = QTabWidget()
-        self.setCentralWidget(self.tab_widget)
-
-        # Create tabs
+        
+        # Create main layout with sidebar
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        central_widget.setLayout(main_layout)
+        
+        # Create sidebar
+        self.sidebar = QWidget()
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setFixedWidth(220)
+        sidebar_layout = QVBoxLayout()
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(0)
+        self.sidebar.setLayout(sidebar_layout)
+        
+        # App logo/title
+        logo_container = QWidget()
+        logo_container.setObjectName("logoContainer")
+        logo_layout = QVBoxLayout()
+        logo_layout.setContentsMargins(15, 15, 15, 15)
+        logo_container.setLayout(logo_layout)
+        
+        logo_label = QLabel("CEREBRO")
+        logo_label.setObjectName("appLogo")
+        logo_label.setAlignment(Qt.AlignCenter)
+        logo_layout.addWidget(logo_label)
+        
+        tagline = QLabel("Multi-Agent AI Platform")
+        tagline.setObjectName("appTagline")
+        tagline.setAlignment(Qt.AlignCenter)
+        logo_layout.addWidget(tagline)
+        
+        sidebar_layout.addWidget(logo_container)
+        
+        # Create navigation buttons for sidebar
+        self.nav_buttons = {}
+        
+        # Chat button
+        self.nav_buttons["chat"] = self.create_nav_button("Chat", 0)
+        sidebar_layout.addWidget(self.nav_buttons["chat"])
+        
+        # Agents button
+        self.nav_buttons["agents"] = self.create_nav_button("Agents", 1)
+        sidebar_layout.addWidget(self.nav_buttons["agents"])
+        
+        # Tools button
+        self.nav_buttons["tools"] = self.create_nav_button("Tools", 2)
+        sidebar_layout.addWidget(self.nav_buttons["tools"])
+        
+        # Tasks button
+        self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 3)
+        sidebar_layout.addWidget(self.nav_buttons["tasks"])
+        
+        # Add stretcher to push settings button to bottom
+        sidebar_layout.addStretch(1)
+        
+        # Settings button
+        settings_btn = QPushButton("Settings")
+        settings_btn.setObjectName("navButton")
+        settings_btn.clicked.connect(self.open_settings_dialog)
+        settings_btn.setCursor(Qt.PointingHandCursor)
+        sidebar_layout.addWidget(settings_btn)
+        
+        # Help button
+        help_btn = QPushButton("Help")
+        help_btn.setObjectName("navButton")
+        help_btn.clicked.connect(self.show_help_dialog)
+        help_btn.setCursor(Qt.PointingHandCursor)
+        sidebar_layout.addWidget(help_btn)
+        
+        main_layout.addWidget(self.sidebar)
+        
+        # Create stacked widget for content
+        self.content_stack = QStackedWidget()
+        self.content_stack.setObjectName("contentStack")
+        
+        # Create content pages
         self.chat_tab = ChatTab(self)
         self.agents_tab = AgentsTab(self)
         self.tools_tab = ToolsTab(self)
         self.tasks_tab = TasksTab(self)
-
-        self.tab_widget.addTab(self.chat_tab, "Chat")
-        self.tab_widget.addTab(self.agents_tab, "Agents")
-        self.tab_widget.addTab(self.tools_tab, "Tools")
-        self.tab_widget.addTab(self.tasks_tab, "Tasks")
+        
+        # Add pages to stacked widget
+        self.content_stack.addWidget(self.chat_tab)
+        self.content_stack.addWidget(self.agents_tab)
+        self.content_stack.addWidget(self.tools_tab)
+        self.content_stack.addWidget(self.tasks_tab)
+        
+        main_layout.addWidget(self.content_stack)
+        
+        # Create notification area
+        self.notification_area = QWidget(self)
+        self.notification_area.setObjectName("notificationArea")
+        self.notification_area.setFixedWidth(300)
+        self.notification_area.setFixedHeight(0)  # Start with 0 height
+        self.notification_layout = QVBoxLayout(self.notification_area)
+        self.notification_layout.setContentsMargins(0, 0, 0, 0)
+        self.notification_layout.setSpacing(5)
+        self.notification_area.setLayout(self.notification_layout)
+        self.notification_area.move(self.width() - 320, 40)
+        self.notification_area.hide()
 
         # Load settings and agents
         self.load_settings()
         self.populate_agents()
         self.update_send_button_state()
         
-        # Create a menu bar
+        # Create a menu bar with expanded options
         menubar = self.menuBar()
+        menubar.setObjectName("mainMenuBar")
         file_menu = menubar.addMenu('File')
-
-        # Add a settings action to the file menu
+        view_menu = menubar.addMenu('View')
+        help_menu = menubar.addMenu('Help')
+        
+        # File menu actions
         settings_action = QAction('Settings', self)
+        settings_action.setShortcut('Ctrl+,')
         settings_action.triggered.connect(self.open_settings_dialog)
         file_menu.addAction(settings_action)
-
-        # Add a quit action to the file menu
+        
+        file_menu.addSeparator()
+        
         quit_action = QAction('Quit', self)
         quit_action.setShortcut('Ctrl+Q')
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
+        
+        # View menu actions
+        toggle_theme_action = QAction('Toggle Dark/Light Mode', self)
+        toggle_theme_action.setShortcut('Ctrl+T')
+        toggle_theme_action.triggered.connect(self.toggle_theme)
+        view_menu.addAction(toggle_theme_action)
+        
+        # Help menu actions
+        keyboard_shortcuts_action = QAction('Keyboard Shortcuts', self)
+        keyboard_shortcuts_action.setShortcut('Ctrl+K')
+        keyboard_shortcuts_action.triggered.connect(self.show_keyboard_shortcuts)
+        help_menu.addAction(keyboard_shortcuts_action)
+        
+        about_action = QAction('About Cerebro', self)
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
 
         # Apply dark mode if relevant
         if self.dark_mode:
             self.apply_dark_mode_style()
+        else:
+            self.apply_light_mode_style()
 
         # Check tasks regularly
         self.task_timer = QtCore.QTimer(self)
         self.task_timer.timeout.connect(self.check_for_due_tasks)
         self.task_timer.start(30_000)
+        
+        # Select chat tab initially and set keyboard shortcuts
+        self.nav_buttons["chat"].setProperty("selected", True)
+        self.setup_keyboard_shortcuts()
+
+    def create_nav_button(self, text, index):
+        """Create a navigation button for the sidebar."""
+        button = QPushButton(text)
+        button.setObjectName("navButton")
+        button.setProperty("selected", False)
+        button.setCursor(Qt.PointingHandCursor)
+        
+        # Connect button click to change content stack
+        button.clicked.connect(lambda: self.change_tab(index, button))
+        
+        return button
+        
+    def change_tab(self, index, button=None):
+        """Change the active tab and update button styles."""
+        self.content_stack.setCurrentIndex(index)
+        
+        # Update button styles
+        for btn in self.nav_buttons.values():
+            btn.setProperty("selected", False)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+        
+        if button:
+            button.setProperty("selected", True)
+            button.style().unpolish(button)
+            button.style().polish(button)
+        
+    def setup_keyboard_shortcuts(self):
+        """Set up keyboard shortcuts for navigation and actions."""
+        # Tab navigation shortcuts
+        for i, key in enumerate(['1', '2', '3', '4']):
+            shortcut = QShortcut(f"Ctrl+{key}", self)
+            shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
+        
+        # Chat actions
+        shortcut_send = QShortcut("Ctrl+S", self)
+        shortcut_send.activated.connect(lambda: self.chat_tab.on_send_clicked())
+        
+        shortcut_clear = QShortcut("Ctrl+L", self)
+        shortcut_clear.activated.connect(lambda: self.chat_tab.on_clear_chat_clicked())
+            
+    def show_help_dialog(self):
+        """Show the help dialog."""
+        QMessageBox.information(self, "Cerebro Help", 
+                              "Cerebro is a multi-agent AI chat application.\n\n"
+                              "• Chat: Interact with AI agents\n"
+                              "• Agents: Configure your AI assistants\n"
+                              "• Tools: Manage tools for agents to use\n"
+                              "• Tasks: Schedule future agent actions\n\n"
+                              "Press Ctrl+K to view keyboard shortcuts.")
+    
+    def show_keyboard_shortcuts(self):
+        """Show keyboard shortcuts dialog."""
+        QMessageBox.information(self, "Keyboard Shortcuts",
+                              "Ctrl+1: Chat Tab\n"
+                              "Ctrl+2: Agents Tab\n"
+                              "Ctrl+3: Tools Tab\n"
+                              "Ctrl+4: Tasks Tab\n"
+                              "Ctrl+S: Send Message\n"
+                              "Ctrl+L: Clear Chat\n"
+                              "Ctrl+T: Toggle Theme\n"
+                              "Ctrl+Q: Quit\n"
+                              "Ctrl+K: Show Shortcuts\n"
+                              "Ctrl+,: Open Settings")
+    
+    def show_about_dialog(self):
+        """Show about dialog."""
+        QMessageBox.about(self, "About Cerebro",
+                       "<h2>Cerebro</h2>"
+                       "<p>Version 1.0.0</p>"
+                       "<p>A multi-agent AI chat application</p>")
+                       
+    def show_notification(self, message, type="info"):
+        """Show a toast notification."""
+        self.notifications.append({"message": message, "type": type})
+        self.process_notifications()
+        
+    def process_notifications(self):
+        """Process pending notifications."""
+        if not self.notifications:
+            return
+            
+        # Get the next notification
+        notification = self.notifications.pop(0)
+        
+        # Create notification widget
+        toast = QWidget()
+        toast.setObjectName("toast")
+        toast.setProperty("type", notification["type"])
+        
+        toast_layout = QHBoxLayout()
+        toast_layout.setContentsMargins(10, 10, 10, 10)
+        toast.setLayout(toast_layout)
+        
+        # Icon based on type (we're not generating images, just using text)
+        icon_text = "i" if notification["type"] == "info" else "!"
+        icon_label = QLabel(icon_text)
+        icon_label.setObjectName("toastIcon")
+        icon_label.setFixedSize(24, 24)
+        toast_layout.addWidget(icon_label)
+        
+        # Message
+        message_label = QLabel(notification["message"])
+        message_label.setWordWrap(True)
+        toast_layout.addWidget(message_label)
+        
+        # Close button
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("toastCloseButton")
+        close_btn.setFixedSize(24, 24)
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.clicked.connect(lambda: self.remove_notification(toast))
+        toast_layout.addWidget(close_btn)
+        
+        # Add to notification area
+        self.notification_layout.addWidget(toast)
+        self.notification_area.setFixedHeight(
+            min(self.height() - 100, 
+                self.notification_layout.count() * 80))
+        self.notification_area.show()
+        
+        # Auto-remove after 5 seconds
+        QTimer.singleShot(5000, lambda: self.remove_notification(toast))
+    
+    def remove_notification(self, toast):
+        """Remove a notification toast."""
+        if toast and toast.parentWidget() == self.notification_area: # Robust check: Widget exists and is parented correctly
+            self.notification_layout.removeWidget(toast)
+            toast.deleteLater()
+
+            # Hide notification area if empty
+            if self.notification_layout.count() == 0:
+                self.notification_area.hide()
+            else:
+                self.notification_area.setFixedHeight(
+                    min(self.height() - 100,
+                        self.notification_layout.count() * 80))
+    
+    def toggle_theme(self):
+        """Toggle between dark and light mode."""
+        self.dark_mode = not self.dark_mode
+        self.apply_updated_styles()
+        self.save_settings()
+        
+        theme_name = "Dark" if self.dark_mode else "Light"
+        self.show_notification(f"Switched to {theme_name} Mode")
 
     # -------------------------------------------------------------------------
     # Settings Dialog
@@ -112,6 +383,7 @@ class AIChatApp(QMainWindow):
             self.apply_updated_styles()
             self.agents_tab.load_global_preferences()
             self.save_settings()
+            self.show_notification("Settings updated successfully")
 
     def apply_updated_styles(self):
         if self.dark_mode:
@@ -125,6 +397,9 @@ class AIChatApp(QMainWindow):
     def send_message(self, user_text):
         # Disable send button to prevent multiple clicks
         self.chat_tab.send_button.setEnabled(False)
+        
+        # Show typing indicator
+        self.chat_tab.show_typing_indicator()
         
         timestamp = datetime.now().strftime("%H:%M:%S")
         user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
@@ -151,6 +426,7 @@ class AIChatApp(QMainWindow):
             ]
 
             if not enabled_agents:
+                self.chat_tab.hide_typing_indicator()
                 QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one Assistant agent or a Coordinator agent.")
                 self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
                 return
@@ -160,6 +436,7 @@ class AIChatApp(QMainWindow):
         def process_next_agent(index):
             if index is None or index >= len(enabled_agents):
                 self.chat_tab.send_button.setEnabled(True)  # Re-enable send button after all agents have responded
+                self.chat_tab.hide_typing_indicator()
                 return
 
             agent_name, agent_settings = enabled_agents[index]
@@ -206,6 +483,7 @@ class AIChatApp(QMainWindow):
             print("[Debug] Clearing chat.")
         self.chat_tab.chat_display.clear()
         self.chat_history = []
+        self.show_notification("Chat cleared")
 
     def handle_ai_response_chunk(self, chunk, agent_name):
         if agent_name not in self.current_responses:
@@ -215,6 +493,8 @@ class AIChatApp(QMainWindow):
     def handle_worker_error(self, error_message):
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.chat_tab.append_message_html(f"[{timestamp}] {error_message}")
+        self.chat_tab.hide_typing_indicator()
+        self.show_notification(f"Error: {error_message}", "error")
 
     def worker_finished_sequential(self, sender_worker, thread, agent_name, index, process_next_agent):
         assistant_content = self.current_responses.get(agent_name, "")
@@ -273,7 +553,8 @@ class AIChatApp(QMainWindow):
             next_agent = parts[1].strip()
 
         # Debugging: Print content before modification
-        print(f"[Debug] Content before modification: '{content}'")
+        if self.debug_enabled:
+            print(f"[Debug] Content before modification: '{content}'")
 
         if agent_settings.get('role') == 'Coordinator':
             # Ensure the Coordinator's message ends with "Next Response By: [Agent Name]"
@@ -281,30 +562,69 @@ class AIChatApp(QMainWindow):
                 content += f"\nNext Response By: {next_agent}"
                 
         # Debugging: Print content after modification
-        print(f"[Debug] Content after modification: '{content}'")
+        if self.debug_enabled:
+            print(f"[Debug] Content after modification: '{content}'")
 
         # Display the message from the Coordinator or Assistant
         if agent_settings.get('role') in ['Coordinator', 'Assistant']:
             if content:
-                # Check if the message is from a Specialist responding to the Coordinator
-                if content.startswith("[Response to Coordinator]"):
-                    content = content.replace("[Response to Coordinator]", "").strip() # Remove the prefix
-                    self.chat_tab.append_message_html(
-                        f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
-                    )
-                    self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+                # Extract thought tags if present
+                thought = None
+                if "<thought>" in content and "</thought>" in content:
+                    thought_start = content.find("<thought>")
+                    thought_end = content.find("</thought>") + len("</thought>")
+                    thought = content[thought_start:thought_end]
+                    # Remove thought from content for history
+                    clean_content = content[:thought_start] + content[thought_end:]
+                    clean_content = clean_content.strip()
                 else:
-                    self.chat_tab.append_message_html(
-                        f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
-                    )
-                    self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+                    clean_content = content
+                
+                # Check if the message is from a Specialist responding to Coordinator
+                if clean_content.startswith("[Response to Coordinator]"):
+                    clean_content = clean_content.replace("[Response to Coordinator]", "").strip()
+                
+                # Create displayed content with collapsible thought if present
+                if thought:
+                    thought_content = thought.replace("<thought>", "").replace("</thought>", "").strip()
+                    display_content = f"{clean_content}<br><details><summary><i>Agent thoughts...</i></summary><pre style='background-color:#f5f5f5;padding:8px;border-radius:5px;color:#333;'>{thought_content}</pre></details>"
+                else:
+                    display_content = clean_content
+                
+                self.chat_tab.append_message_html(
+                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
+                )
+                
+                # Store only the clean content without thoughts in history
+                self.chat_history.append({"role": "assistant", "content": clean_content, "agent": agent_name})
         
         # Display the message from a Specialist if specified by Coordinator
         elif agent_settings.get('role') == 'Specialist' and any(msg['content'].strip().endswith(f"Next Response By: {agent_name}") for msg in self.chat_history):
+            # Extract thought tags if present
+            thought = None
+            if "<thought>" in content and "</thought>" in content:
+                thought_start = content.find("<thought>")
+                thought_end = content.find("</thought>") + len("</thought>")
+                thought = content[thought_start:thought_end]
+                # Remove thought from content for history
+                clean_content = content[:thought_start] + content[thought_end:]
+                clean_content = clean_content.strip()
+            else:
+                clean_content = content
+            
+            # Create displayed content with collapsible thought if present
+            if thought:
+                thought_content = thought.replace("<thought>", "").replace("</thought>", "").strip()
+                display_content = f"{clean_content}<br><details><summary><i>Agent thoughts...</i></summary><pre style='background-color:#f5f5f5;padding:8px;border-radius:5px;color:#333;'>{thought_content}</pre></details>"
+            else:
+                display_content = clean_content
+            
             self.chat_tab.append_message_html(
-                f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
+                f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
             )
-            self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+            
+            # Store only the clean content without thoughts in history
+            self.chat_history.append({"role": "assistant", "content": clean_content, "agent": agent_name})
 
         # If there's a next agent specified and it's managed by the Coordinator, process it.
         if next_agent:
@@ -318,6 +638,7 @@ class AIChatApp(QMainWindow):
             else:
                 error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{next_agent}' is not managed by Coordinator '{agent_name}'.</span>"
                 self.chat_tab.append_message_html(error_msg)
+                self.show_notification(f"Error: Agent '{next_agent}' is not managed by Coordinator", "error")
         
         # We should always call process_next_agent if there is one to trigger the next agent.
         elif process_next_agent is not None and index is not None:
@@ -334,7 +655,9 @@ class AIChatApp(QMainWindow):
                 error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                 self.chat_tab.append_message_html(error_msg)
                 self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
             else:
+                self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
                 tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
 
                 # Check for tool errors and handle them
@@ -343,10 +666,12 @@ class AIChatApp(QMainWindow):
                     self.chat_tab.append_message_html(error_msg)
                     # Append error message to chat history
                     self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                    self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
                     display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
                     self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
                     self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+                    self.show_notification(f"Tool executed successfully: {tool_name}", "info")
 
         # Handle task request if any
         if task_request:
@@ -364,9 +689,11 @@ class AIChatApp(QMainWindow):
                 )
                 note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
                 self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")
+                self.show_notification(f"New task scheduled for {due_time}", "info")
             else:
                 warn_msg = "[Task Error] Missing due_time in request."
                 self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{warn_msg}</span>")
+                self.show_notification("Task Error: Missing due time", "error")
 
         if self.debug_enabled and agent_name:
             print(f"[Debug] Worker for agent '{agent_name}' finished.")
@@ -403,6 +730,7 @@ class AIChatApp(QMainWindow):
         if not agent_settings:
             error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{agent_name}' not found.</span>"
             self.chat_tab.append_message_html(error_msg)
+            self.show_notification(f"Error: Agent '{agent_name}' not found", "error")
             return
 
         # If the agent is enabled, start a worker thread to process the message
@@ -419,7 +747,7 @@ class AIChatApp(QMainWindow):
             self.active_worker_threads.append((worker, thread))
 
             def on_finished():
-                self.worker_finished_sequential(worker, thread, agent_name, None, process_next_agent=self.process_next_agent)
+                self.worker_finished_sequential(worker, thread, agent_name, None, process_next_agent=None)
 
             worker.response_received.connect(self.handle_ai_response_chunk)
             worker.error_occurred.connect(self.handle_worker_error)
@@ -430,7 +758,7 @@ class AIChatApp(QMainWindow):
         else:
             error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{agent_name}' is not enabled.</span>"
             self.chat_tab.append_message_html(error_msg)
-
+            self.show_notification(f"Error: Agent '{agent_name}' is not enabled", "error")
 
     # -------------------------------------------------------------------------
     # Agents / Settings Management
@@ -497,6 +825,7 @@ class AIChatApp(QMainWindow):
                 self.save_agents()
                 if self.debug_enabled:
                     print(f"[Debug] Agent '{agent_name}' added.")
+                self.show_notification(f"Agent '{agent_name}' created successfully", "info")
             else:
                 QMessageBox.warning(self, "Agent Exists", "Agent already exists.")
         self.update_send_button_state()
@@ -511,6 +840,7 @@ class AIChatApp(QMainWindow):
                 self.save_agents()
                 if self.debug_enabled:
                     print(f"[Debug] Agent '{current_agent}' removed.")
+                self.show_notification(f"Agent '{current_agent}' deleted", "info")
         self.update_send_button_state()
 
     def save_agents(self):
@@ -521,6 +851,7 @@ class AIChatApp(QMainWindow):
                 print("[Debug] Agents saved.")
         except Exception as e:
             print(f"[Debug] Failed to save agents: {e}")
+            self.show_notification(f"Error saving agents: {str(e)}", "error")
 
     def update_send_button_state(self):
         any_enabled = any(
@@ -539,6 +870,7 @@ class AIChatApp(QMainWindow):
         if hasattr(self.tools_tab, "refresh_tools_list"):
             self.tools_tab.tools = self.tools
             self.tools_tab.refresh_tools_list()
+            self.show_notification("Tools list refreshed", "info")
 
     # -------------------------------------------------------------------------
     # Tasks / Scheduling
@@ -561,6 +893,7 @@ class AIChatApp(QMainWindow):
                 prompt = t.get("prompt", "")
                 self.schedule_user_message(agent_name, prompt, t["id"])
                 to_remove.append(t["id"])
+                self.show_notification(f"Executing scheduled task for {agent_name}", "info")
 
         for task_id in to_remove:
             delete_task(self.tasks, task_id, debug_enabled=self.debug_enabled)
@@ -578,11 +911,13 @@ class AIChatApp(QMainWindow):
         if not agent_settings:
             msg = f"[Task Error] Agent '{agent_name}' not found for Task '{task_id}'"
             self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{msg}</span>")
+            self.show_notification(msg, "error")
             return
 
         if not agent_settings.get("enabled", False):
             msg = f"[Task Error] Agent '{agent_name}' is disabled. Task '{task_id}' skipped."
             self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{msg}</span>")
+            self.show_notification(msg, "error")
             return
 
         model_name = agent_settings.get("model", "llama3.2-vision").strip()
@@ -640,14 +975,32 @@ class AIChatApp(QMainWindow):
         # Filter messages for the chat history
         temp_history = []
         for msg in self.chat_history:
+            # For user messages, include them as is
             if msg['role'] == 'user':
                 temp_history.append(msg)
             elif msg['role'] == 'assistant':
-                if msg.get('agent') == agent_name:
-                    temp_history.append(msg)
-                # Include messages from specialists if this agent is a coordinator
-                elif agent_settings.get('role') == 'Coordinator' and self.agents_data.get(msg.get('agent'), {}).get('role') == 'Specialist':
-                    temp_history.append(msg)
+                # Remove any thought tags before adding to history
+                content = msg['content']
+                if "<thought>" in content and "</thought>" in content:
+                    thought_start = content.find("<thought>")
+                    thought_end = content.find("</thought>") + len("</thought>")
+                    clean_content = content[:thought_start] + content[thought_end:]
+                    clean_content = clean_content.strip()
+                    # Create a new message with the clean content
+                    cleaned_msg = msg.copy()
+                    cleaned_msg["content"] = clean_content
+                    
+                    # Only include messages from this agent or specialists to coordinator
+                    if cleaned_msg.get('agent') == agent_name:
+                        temp_history.append(cleaned_msg)
+                    elif agent_settings.get('role') == 'Coordinator' and self.agents_data.get(cleaned_msg.get('agent'), {}).get('role') == 'Specialist':
+                        temp_history.append(cleaned_msg)
+                else:
+                    # No thought tags, include message if from this agent or specialists to coordinator
+                    if msg.get('agent') == agent_name:
+                        temp_history.append(msg)
+                    elif agent_settings.get('role') == 'Coordinator' and self.agents_data.get(msg.get('agent'), {}).get('role') == 'Specialist':
+                        temp_history.append(msg)
 
         # If the last message indicates a handoff to a Specialist, insert the Specialist's description AFTER the handoff message
         if temp_history:
@@ -685,8 +1038,8 @@ class AIChatApp(QMainWindow):
                 ' "role": "assistant",\n'
                 ' "content": "<explanation>",\n'
                 ' "tool_request": {\n'
-                '     "name": "<tool_name>",\n'
-                '     "args": { ... }\n'
+                '     "name": "<tool_name>",\n'
+                '     "args": { ... }\n'
                 ' }\n'
                 '}\n'
                 "No extra text outside this JSON when calling a tool.\n"
@@ -716,6 +1069,7 @@ class AIChatApp(QMainWindow):
                 print("[Debug] Settings saved.")
         except Exception as e:
             print(f"[Error failed to save settings: {e}")
+            self.show_notification(f"Error saving settings: {str(e)}", "error")
 
     def load_settings(self):
         if os.path.exists(SETTINGS_FILE):
