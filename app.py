@@ -1088,8 +1088,9 @@ class AIChatApp(QMainWindow):
                         # Append the specialist description as an assistant message
                         temp_history.append({"role": "assistant", "content": specialist_description, "agent": next_agent_name})
 
-        # Include recent screenshots for agents with desktop history enabled
-        if agent_settings.get('desktop_history_enabled', False):
+        # Include recent screenshots only if allowed
+        perms = agent_settings.get('permissions', {})
+        if agent_settings.get('desktop_history_enabled', False) and perms.get('access_screenshots', False):
             for img_path in self.screenshot_manager.get_images():
                 temp_history.append({"role": "user", "content": "", "images": [img_path]})
 
