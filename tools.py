@@ -113,6 +113,18 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     plugin_module = tool.get("plugin_module")
     cleanup_tmp = False
 
+    if plugin_module and hasattr(plugin_module, "run_tool"):
+        try:
+            result = plugin_module.run_tool(args)
+            if debug_enabled:
+                print(f"[Debug] Tool '{tool_name}' output: {result}")
+            return result
+        except Exception as e:
+            error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
+            if debug_enabled:
+                print(f"[Debug] {error_msg}")
+            return error_msg
+
     if not script_path and plugin_module:
         script_path = getattr(plugin_module, "__file__", "")
         if script_path and os.path.exists(script_path):
