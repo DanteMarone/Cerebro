@@ -16,6 +16,7 @@ from PyQt5.QtGui import QKeySequence
 from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task
+from transcripts import load_history, append_message, clear_history, export_history
 from tab_chat import ChatTab
 from tab_agents import AgentsTab
 from tab_tools import ToolsTab
@@ -41,7 +42,7 @@ class AIChatApp(QMainWindow):
         self.setGeometry(100, 100, 1000, 700)  # Larger default window
 
         # Variables
-        self.chat_history = []
+        self.chat_history = load_history(self.debug_enabled)
         self.current_responses = {}
         self.agents_data = {}
         self.include_image = False
@@ -411,6 +412,7 @@ class AIChatApp(QMainWindow):
 
         user_message = {"role": "user", "content": user_text}
         self.chat_history.append(user_message)
+        append_message(self.chat_history, "user", user_text, debug_enabled=self.debug_enabled)
 
         # If a Coordinator agent is enabled, send the message to the Coordinator agents only.
         enabled_coordinator_agents = [
@@ -488,6 +490,19 @@ class AIChatApp(QMainWindow):
         self.chat_tab.chat_display.clear()
         self.chat_history = []
         self.show_notification("Chat cleared")
+
+    def clear_chat_histories(self):
+        """Clear persisted chat history from disk."""
+        clear_history(self.debug_enabled)
+        self.chat_history = []
+        self.show_notification("Stored history cleared")
+
+    def export_chat_histories(self):
+        """Export persisted chat history to a timestamped file."""
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = f"chat_history_export_{ts}.json"
+        export_history(dest, self.debug_enabled)
+        self.show_notification(f"History exported to {dest}")
 
     def handle_ai_response_chunk(self, chunk, agent_name):
         if agent_name not in self.current_responses:
@@ -601,6 +616,7 @@ class AIChatApp(QMainWindow):
                 
                 # Store only the clean content without thoughts in history
                 self.chat_history.append({"role": "assistant", "content": clean_content, "agent": agent_name})
+                append_message(self.chat_history, "assistant", clean_content, agent_name, debug_enabled=self.debug_enabled)
         
         # Display the message from a Specialist if specified by Coordinator
         elif agent_settings.get('role') == 'Specialist' and any(msg['content'].strip().endswith(f"Next Response By: {agent_name}") for msg in self.chat_history):
@@ -629,6 +645,7 @@ class AIChatApp(QMainWindow):
             
             # Store only the clean content without thoughts in history
             self.chat_history.append({"role": "assistant", "content": clean_content, "agent": agent_name})
+            append_message(self.chat_history, "assistant", clean_content, agent_name, debug_enabled=self.debug_enabled)
 
         # If there's a next agent specified and it's managed by the Coordinator, process it.
         if next_agent:
@@ -659,6 +676,7 @@ class AIChatApp(QMainWindow):
                 error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                 self.chat_tab.append_message_html(error_msg)
                 self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
                 self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
             else:
                 self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
@@ -670,11 +688,13 @@ class AIChatApp(QMainWindow):
                     self.chat_tab.append_message_html(error_msg)
                     # Append error message to chat history
                     self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                    append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
                     self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
                     display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
                     self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
                     self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+                    append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.debug_enabled)
                     self.show_notification(f"Tool executed successfully: {tool_name}", "info")
 
         # Handle task request if any
@@ -728,6 +748,7 @@ class AIChatApp(QMainWindow):
 
         # Add this message to the chat history
         self.chat_history.append({"role": "user", "content": formatted_message})
+        append_message(self.chat_history, "user", formatted_message, debug_enabled=self.debug_enabled)
 
         # Find the agent settings
         agent_settings = self.agents_data.get(agent_name, {})
@@ -962,6 +983,9 @@ class AIChatApp(QMainWindow):
     # Chat History Helpers
     # -------------------------------------------------------------------------
     def build_agent_chat_history(self, agent_name, user_message=None, is_screenshot=False):
+        # Reload history from disk to ensure persistence
+        self.chat_history = load_history(self.debug_enabled)
+
         system_prompt = ""
         agent_settings = self.agents_data.get(agent_name, {})
 
