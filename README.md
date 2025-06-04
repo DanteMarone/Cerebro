@@ -207,8 +207,8 @@ This file stores the list of scheduled tasks. Each task entry includes an ``id``
 ``agent_name``, ``prompt``, ``due_time`` and ``status`` field. The status field defaults to ``pending``.
 You typically won't edit this file directly.
 
-Contributing
+## Contributing
 Contributions are welcome! Please feel free to submit pull requests or open issues.
 
-License
-This project is licensed under the MIT License
+## License
+This project is licensed under the MIT License.

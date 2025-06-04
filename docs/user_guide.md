@@ -1,80 +1,161 @@
 # Cerebro User Guide
 
-This guide provides a detailed overview of Cerebro's features. Each section corresponds to one of the application's tabs.
+Cerebro is a cross‐platform desktop application for chatting with multiple AI agents powered by the
+Ollama API. Each agent has a configurable role and capabilities. This document explains how to install
+Cerebro and describes every tab and feature so you can quickly become productive.
+
+## Installation
+
+1. Clone the repository and change into the directory:
+   ```bash
+   git clone https://github.com/dantemarone/cerebro.git
+   cd cerebro
+   ```
+2. (Optional) Create and activate a virtual environment:
+   ```bash
+   python3 -m venv venv
+   # Linux/macOS
+   source venv/bin/activate
+   # Windows
+   venv\Scripts\activate
+   ```
+3. Install the required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Start the Ollama server separately and then run the application:
+   ```bash
+   python main.py
+   ```
+   Set the environment variable `DEBUG_MODE=1` to enable verbose logging.
+
+## Application Overview
+
+The main window is divided into several tabs. Use the numbered shortcuts `Ctrl+1` – `Ctrl+6` to switch
+between them.
 
 ## Chat Tab
-The Chat tab is the primary interface for interacting with your agents. Use the text box at the bottom to send a prompt. Messages appear in a scrollable window above the input field. The chat history can be copied, exported or cleared using the menu in the top right corner. Each time the application starts you begin with a fresh conversation. While an agent is generating a response a "typing" indicator is displayed.
+
+The Chat tab is the primary interface for interacting with your agents.
+- Enter a prompt at the bottom and press **Send**.
+- Messages appear in a scrollable pane. While an agent is generating a reply, a "typing" indicator is
+  shown.
+- Use the menu in the upper‑right corner to copy, export or clear the conversation history. Each
+  session starts with a clean slate.
+- When many messages accumulate they are automatically summarized so prompts remain short.
+
+Agents with *desktop history* enabled attach recent screenshots at a configurable interval. This helps
+provide visual context for desktop‑based tasks.
 
 ## Agents Tab
-The Agents tab lets you create and configure AI agents. Every agent stores the following settings:
 
-- **Model** – select the language model from a dropdown of installed Ollama models (for example `llava` or `llama3.2-vision`).
-- **Temperature** – controls randomness of the output.
-- **Max Tokens** – maximum length of a single response.
+The Agents tab allows you to create, edit and delete AI agents. Each agent stores the following
+settings:
+
+- **Model** – select an installed Ollama model such as `llava` or `llama3.2-vision`.
+- **Temperature** – controls randomness of responses.
+- **Max Tokens** – maximum length of a single reply.
 - **Custom System Prompt** – additional instructions sent before every conversation.
 - **Enabled** – toggle to activate or disable the agent.
 - **Role** – choose between *Assistant*, *Coordinator* or *Specialist*.
-- **Description** – short description used by Coordinators when delegating tasks.
+- **Description** – short summary used by Coordinators when delegating tasks.
 - **Agent Color** – color used for chat messages.
-- **Managed Agents** – for Coordinators, select which agents they can delegate to.
+- **Managed Agents** – for Coordinators, choose which agents they can delegate to.
 - **Tool Use** – allow the agent to call tools.
 - **Enabled Tools** – choose which tools are available when tool use is on.
+- **Desktop History Enabled** – capture screenshots to give the model visual context.
+- **Screenshot Interval** – seconds between captures when desktop history is on.
 
-After adjusting any fields press **Save** to store your changes. You can also
-rename an agent using the **Agent Name** field. The Agents tab opens to a table
-listing all agents with an **Edit** button next to each one. Use **Add New
-Agent** to create a new entry. When editing an agent you can return to the list
-with **Back** or remove it with **Delete Agent**.
+Press **Save** after editing to persist your changes. Use **Add New Agent** to create a new entry.
+Deleting an agent permanently removes it.
 
 ## Tools Tab
-Manage the tools that agents can invoke. Add new tools or edit existing ones. 
-- The built-in **File Summarizer** tool can create short summaries of text files for quick reference.
-- Built-in plugins include `math-solver` for solving equations.
-- The app ships with a `web-scraper` plugin that fetches text from a URL.
-- The **Windows Notifier** tool can be used to display Windows 11 notifications when triggered by a scheduled task.
 
-Tools extend Cerebro with custom Python scripts. The Tools tab shows all tools loaded from `tools.json` and any plugin modules. You can:
+Tools extend Cerebro with custom Python scripts that agents can invoke. The tab lists tools from
+`tools.json` and from any plugin modules.
 
-1. **Add Tool** – open a dialog to provide a name, description and Python script. The script must define a `run_tool(args)` function.
-2. **Edit Tool** – modify the selected tool's metadata or script.
-3. **Delete** – permanently remove a tool and its script file.
-4. **Run** – test a tool by providing JSON arguments.
+1. **Add Tool** – provide a name, description and script defining `run_tool(args)`.
+2. **Edit Tool** – modify an existing tool.
+3. **Delete** – remove a tool and its script file.
+4. **Run** – execute a tool manually with JSON arguments.
 
-Plugin tools are loaded automatically from the `tool_plugins` directory or entry points.
-They behave like regular tools and can be edited or removed from the UI.
+Bundled plugins include:
+- **file-summarizer** – create a short summary of a text file or provided text.
+- **web-scraper** – download and sanitize text from a URL.
+- **math-solver** – evaluate mathematical expressions.
+- **windows-notifier** – display a Windows 11 notification using `win10toast`.
 
-Agents with tool use enabled can invoke these tools by returning a JSON block in the format described in `generate_tool_instructions_message()`.
-
+Agents call tools by returning a JSON block in the format produced by
+`generate_tool_instructions_message()`.
 
 ## Tasks Tab
-The Tasks tab manages scheduled prompts. Tasks are displayed in a list and on a calendar. The current day is highlighted and dates with tasks show a red dot in the corner. You can drag tasks to different dates to reschedule them. Double-clicking a task toggles its status between **pending** and **completed**. Buttons allow you to:
 
-- **Add Task** – create a new task specifying agent, prompt and due time. The due time defaults to one minute from now.
+Scheduled prompts appear in both a list and calendar view. Dates with tasks display a red dot and the
+current day is highlighted.
+
+- **Add Task** – create a prompt for a specific agent. The default due time is one minute from now.
 - **Edit** – change an existing task.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark the selected task as completed or pending.
+- **Repeat Interval** – optional number of minutes after which the task should repeat.
 
-Tasks may also be set to repeat automatically after a specified number of minutes.
-
-When a task reaches its due time the associated prompt is automatically sent to the chosen agent.
+When a task’s due time arrives the associated prompt is sent automatically. Combine this feature with
+the `windows-notifier` tool to create desktop reminders on Windows 11.
 
 ## Metrics Tab
-Metrics track tool usage, completed tasks and average response times. This tab reads data from `metrics.json` and displays three sections:
 
-- **Tool Usage** – how many times each tool has been run.
+This tab reads statistics from `metrics.json` and shows:
+- **Tool Usage** – how many times each tool has been executed.
 - **Task Completions** – number of tasks finished by each agent.
-- **Average Response Times** – the mean response time of each agent in seconds.
+- **Average Response Times** – mean response time of each agent in seconds.
 
-These metrics are updated whenever agents use tools or complete tasks.
+Metrics are updated whenever agents use tools or complete tasks.
 
 ## Documentation Tab
-The Documentation tab simply renders this `user_guide.md` file. It allows in-app viewing of the full user guide without leaving Cerebro.
+
+Displays this guide within the application so you can review instructions without leaving Cerebro.
 
 ## Settings Dialog
-The Settings dialog contains global preferences for the application.
 
-- Toggle dark mode and set your user name.
-- Use **Update Ollama** to download the latest Ollama release.
-- If the update fails, an error message will be displayed.
-- Select a model in the drop-down and click **Update Model** to pull its newest version.
+Global preferences are available under **Settings**.
+- Toggle dark mode and change your displayed user name and color.
+- Update the Ollama runtime or pull the latest version of a model using the provided buttons.
+- Errors during updates are shown in a pop‑up message.
 
+## Configuration Files
+
+Cerebro stores its data in several JSON files located in the application directory.
+
+### agents.json
+Defines every agent and their settings. See the fields listed in the Agents Tab section for details.
+
+### tools.json
+Contains tool metadata and Python code. Plugins placed in `tool_plugins` or installed with the
+`cerebro_tools` entry point are loaded automatically.
+
+### tasks.json
+Holds scheduled tasks. Each entry has `id`, `creator`, `agent_name`, `prompt`, `due_time`, `status` and
+`repeat_interval` fields.
+
+### metrics.json
+Records tool usage counts, task completions and average response times.
+
+### chat_history.json
+Stores conversation history for exporting or resuming later. The file is recreated each time the
+application starts unless you explicitly export the history.
+
+## Debug Mode
+
+Set `DEBUG_MODE=1` before launching to enable verbose logging in the console. This is useful for
+diagnosing issues with tools or agent configuration.
+
+## Developing Plugins
+
+You can extend Cerebro by creating additional tools. Place a Python file in the `tool_plugins`
+directory with a `TOOL_METADATA` dictionary and a `run_tool(args)` function. Restart Cerebro and the
+new tool will appear in the Tools tab.
+
+---
+
+With this guide you should be able to install Cerebro, configure agents and fully leverage every tab
+of the application without prior experience.
