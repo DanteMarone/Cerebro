@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView, QCalendarWidget,
     QInputDialog
 )
-from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData
+from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData, QRect
 from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
 from dialogs import TaskDialog
 from tasks import (
@@ -32,11 +32,35 @@ class TaskListWidget(QListWidget):
 
 
 class DroppableCalendarWidget(QCalendarWidget):
-    """Calendar widget that accepts drops to reschedule tasks."""
+    """Calendar widget that accepts drops and shows task markers."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
+        self.task_dates = set()
+
+    def paintCell(self, painter, rect, date):
+        """Customize painting to highlight today and mark task dates."""
+        if date == QDate.currentDate():
+            painter.save()
+            painter.fillRect(rect, QColor("#ffffb3"))
+            painter.restore()
+
+        super().paintCell(painter, rect, date)
+
+        if date in self.task_dates:
+            painter.save()
+            radius = 3
+            dot_rect = QRect(
+                rect.right() - radius * 2 - 2,
+                rect.top() + 2,
+                radius * 2,
+                radius * 2,
+            )
+            painter.setBrush(QColor("red"))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(dot_rect)
+            painter.restore()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasText():
@@ -152,11 +176,11 @@ class TasksTab(QWidget):
         self.highlight_task_dates()
 
     def highlight_task_dates(self):
-        """Highlight dates on the calendar that have tasks."""
+        """Update calendar decorations for task dates."""
         fmt_default = QTextCharFormat()
-        self.calendar.setDateTextFormat(QDate(), fmt_default)  # clear all
-        highlighted = QTextCharFormat()
-        highlighted.setBackground(QBrush(QColor("#a0c5ff")))
+        self.calendar.setDateTextFormat(QDate(), fmt_default)  # clear formatting
+
+        self.calendar.task_dates = set()
         for task in self.tasks:
             due = task.get("due_time")
             if not due:
@@ -165,7 +189,9 @@ class TasksTab(QWidget):
             if not dt.isValid():
                 dt = QDateTime.fromString(due, "yyyy-MM-dd HH:mm:ss")
             if dt.isValid():
-                self.calendar.setDateTextFormat(dt.date(), highlighted)
+                self.calendar.task_dates.add(dt.date())
+
+        self.calendar.updateCells()
 
     def add_task_ui(self):
         """
