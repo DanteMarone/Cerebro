@@ -1,6 +1,7 @@
 #tab_agents.py
 import os
 import json
+import copy
 import requests
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton,
@@ -16,6 +17,7 @@ class AgentsTab(QWidget):
         self.parent_app = parent_app
         self.current_agent = None
         self.unsaved_changes = False
+        self.original_settings = {}
 
         self.global_agent_preferences = {}
 
@@ -403,12 +405,17 @@ class AgentsTab(QWidget):
 
     def show_agent_list(self):
         """Display the list of agents."""
+        if self.unsaved_changes and self.current_agent:
+            self.parent_app.agents_data[self.current_agent] = copy.deepcopy(self.original_settings)
+            self.unsaved_changes = False
         self.refresh_agent_table()
+        self.current_agent = None
         self.stacked.setCurrentWidget(self.list_page)
 
     def edit_agent(self, agent_name):
         """Open the edit page for the specified agent."""
         self.current_agent = agent_name
+        self.original_settings = copy.deepcopy(self.parent_app.agents_data.get(agent_name, {}))
         self.load_agent_settings(agent_name)
         self.stacked.setCurrentWidget(self.edit_page)
 
