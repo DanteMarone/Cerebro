@@ -446,8 +446,13 @@ class AIChatApp(QMainWindow):
         user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
         self.chat_tab.append_message_html(user_message_html)
 
-        # Persist the user message once
-        append_message(self.chat_history, "user", user_text, debug_enabled=self.debug_enabled)
+        # Persist the user message once and keep the entry for history building
+        user_message = append_message(
+            self.chat_history,
+            "user",
+            user_text,
+            debug_enabled=self.debug_enabled,
+        )
 
         # If a Coordinator agent is enabled, send the message to the Coordinator agents only.
         enabled_coordinator_agents = [
