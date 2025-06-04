@@ -779,7 +779,8 @@ class AIChatApp(QMainWindow):
                     prompt_for_task,
                     due_time,
                     creator="agent",
-                    debug_enabled=self.debug_enabled
+                    debug_enabled=self.debug_enabled,
+                    os_schedule=True,
                 )
                 note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
                 self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")
@@ -1018,6 +1019,7 @@ class AIChatApp(QMainWindow):
                         t["id"],
                         new_due,
                         debug_enabled=self.debug_enabled,
+                        os_schedule=True,
                     )
                 else:
                     to_remove.append(t["id"])
@@ -1026,7 +1028,12 @@ class AIChatApp(QMainWindow):
                 )
 
         for task_id in to_remove:
-            delete_task(self.tasks, task_id, debug_enabled=self.debug_enabled)
+            delete_task(
+                self.tasks,
+                task_id,
+                debug_enabled=self.debug_enabled,
+                os_schedule=True,
+            )
         save_tasks(self.tasks, debug_enabled=self.debug_enabled)
         if hasattr(self, "tasks_tab"):
             self.tasks_tab.refresh_tasks_list()

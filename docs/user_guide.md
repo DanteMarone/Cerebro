@@ -103,7 +103,9 @@ current day is highlighted.
 - **Repeat Interval** – optional number of minutes after which the task should repeat.
 
 When a task’s due time arrives the associated prompt is sent automatically. Combine this feature with
-the `windows-notifier` tool to create desktop reminders on Windows 11.
+the `windows-notifier` tool to create desktop reminders on Windows 11. Tasks can optionally register with
+the operating system scheduler so they run even if Cerebro is not open. Windows uses Task Scheduler while
+Unix-like systems use cron.
 
 ## Metrics Tab
 
@@ -139,6 +141,7 @@ Contains tool metadata and Python code. Plugins placed in `tool_plugins` or inst
 ### tasks.json
 Holds scheduled tasks. Each entry has `id`, `creator`, `agent_name`, `prompt`, `due_time`, `status` and
 `repeat_interval` fields.
+Tasks are also exported to the operating system scheduler using `run_task.py` so they can fire when Cerebro is closed.
 
 ### metrics.json
 Records tool usage counts, task completions and average response times.
