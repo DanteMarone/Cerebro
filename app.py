@@ -4,6 +4,8 @@ import json
 from datetime import datetime
 from PyQt5 import QtCore
 from PyQt5.QtCore import QThread, Qt, QTimer
+
+from screenshot import ScreenshotManager
 from PyQt5.QtWidgets import (
     QMainWindow, QTabWidget, QMessageBox, QApplication, QAction, QMenu, QDialog,
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget, QStackedWidget,
@@ -48,6 +50,7 @@ class AIChatApp(QMainWindow):
         self.user_name = "You"
         self.user_color = "#0000FF"
         self.dark_mode = False
+        self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
         
         # Initialize notification system
@@ -167,6 +170,7 @@ class AIChatApp(QMainWindow):
         self.load_settings()
         self.populate_agents()
         self.update_send_button_state()
+        self.update_screenshot_timer()
         
         # Create a menu bar with expanded options
         menubar = self.menuBar()
@@ -849,6 +853,7 @@ class AIChatApp(QMainWindow):
                 json.dump(self.agents_data, f, indent=4)
             if self.debug_enabled:
                 print("[Debug] Agents saved.")
+            self.update_screenshot_timer()
         except Exception as e:
             print(f"[Debug] Failed to save agents: {e}")
             self.show_notification(f"Error saving agents: {str(e)}", "error")
@@ -861,6 +866,18 @@ class AIChatApp(QMainWindow):
             and a.get("role") != 'Specialist'
         )
         self.chat_tab.send_button.setEnabled(any_enabled)
+
+    def update_screenshot_timer(self):
+        """Update screenshot timer based on agent settings."""
+        enabled_agents = [
+            a for a in self.agents_data.values() if a.get("desktop_history_enabled", False)
+        ]
+        if not enabled_agents:
+            self.screenshot_manager.stop()
+            return
+
+        interval = min(a.get("screenshot_interval", 5) for a in enabled_agents)
+        self.screenshot_manager.start(interval)
 
     # -------------------------------------------------------------------------
     # Tools Management
@@ -1013,6 +1030,11 @@ class AIChatApp(QMainWindow):
                     if specialist_description:
                         # Append the specialist description as an assistant message
                         temp_history.append({"role": "assistant", "content": specialist_description, "agent": next_agent_name})
+
+        # Include recent screenshots for agents with desktop history enabled
+        if agent_settings.get('desktop_history_enabled', False):
+            for img_path in self.screenshot_manager.get_images():
+                temp_history.append({"role": "user", "content": "", "images": [img_path]})
 
         # Add the user message to the history if provided
         if user_message:
