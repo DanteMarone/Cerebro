@@ -29,6 +29,8 @@ Cerebro and describes every tab and feature so you can quickly become productive
    ```
    Set the environment variable `DEBUG_MODE=1` to enable verbose logging.
 
+To create a Windows installer, install PyInstaller and run `build_windows_installer.bat`. The resulting executable will appear in the `dist` directory.
+
 ## Application Overview
 
 The main window is divided into several tabs. Use the numbered shortcuts `Ctrl+1` – `Ctrl+6` to switch
