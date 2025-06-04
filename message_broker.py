@@ -410,7 +410,11 @@ class MessageBroker:
             tool_list_str = ""
             for t in self.app.tools:
                 if t['name'] in enabled_tools:
-                    tool_list_str += f"- {t['name']}: {t['description']}\n"
+                    args = ", ".join(t.get("args", []))
+                    if args:
+                        tool_list_str += f"- {t['name']}({args}): {t['description']}\n"
+                    else:
+                        tool_list_str += f"- {t['name']}: {t['description']}\n"
 
             instructions = (
                 "You are a knowledgeable assistant. You can answer most questions directly.\n"

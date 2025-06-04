@@ -38,6 +38,7 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                     "script_path": path,
                     "script": script_text,
+                    "args": meta.get("args", [])
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
@@ -67,6 +68,7 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                     "script_path": path,
                     "script": script_text,
+                    "args": meta.get("args", [])
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")

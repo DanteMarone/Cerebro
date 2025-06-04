@@ -1,6 +1,7 @@
 TOOL_METADATA = {
     "name": "file-summarizer",
-    "description": "Summarize the contents of a text file or provided text"
+    "description": "Summarize the contents of a text file or provided text",
+    "args": ["file_path", "text"]
 }
 
 

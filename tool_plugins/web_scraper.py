@@ -7,7 +7,8 @@ import requests
 
 TOOL_METADATA = {
     "name": "web-scraper",
-    "description": "Fetch and return text content from a URL."
+    "description": "Fetch and return text content from a URL.",
+    "args": ["url", "timeout"]
 }
 
 
