@@ -10,6 +10,7 @@ Create, configure, and remove AI agents. Each agent can use different models and
 
 ## Tools Tab
 Manage the tools that agents can invoke. Add new tools or edit existing ones.
+The built-in **File Summarizer** tool can create short summaries of text files for quick reference.
 
 ## Tasks Tab
 Schedule tasks for agents and mark them complete using the calendar interface.
