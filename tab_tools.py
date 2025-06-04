@@ -80,15 +80,9 @@ class ToolsTab(QWidget):
             self.run_button.setEnabled(False)
             return
 
-        item = selected_items[0]
-        is_plugin = item.data(Qt.UserRole + 1)
         self.run_button.setEnabled(True)
-        if is_plugin:
-            self.edit_tool_button.setEnabled(False)
-            self.delete_button.setEnabled(False)
-        else:
-            self.edit_tool_button.setEnabled(True)
-            self.delete_button.setEnabled(True)
+        self.edit_tool_button.setEnabled(True)
+        self.delete_button.setEnabled(True)
 
     def refresh_tools_list(self):
         self.tools_list.clear()
