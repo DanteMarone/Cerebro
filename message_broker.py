@@ -5,7 +5,13 @@ from PyQt5.QtCore import QThread
 from worker import AIWorker
 from tools import run_tool
 from tasks import add_task, delete_task, save_tasks
-from transcripts import load_history, append_message, clear_history, export_history
+from transcripts import (
+    load_history,
+    append_message,
+    clear_history,
+    export_history,
+    summarize_history,
+)
 
 class MessageBroker:
     """
@@ -310,6 +316,7 @@ class MessageBroker:
             list: The chat history for the agent.
         """
         self.chat_history = load_history(self.app.debug_enabled if self.app else False)
+        self.chat_history = summarize_history(self.chat_history)
         system_prompt = ""
         agent_settings = self.app.agents_data.get(agent_name, {}) if self.app else {}
 
