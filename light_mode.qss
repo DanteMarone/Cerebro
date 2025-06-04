@@ -125,7 +125,7 @@ QMainWindow {
     border-radius: 5px;
     padding: 8px;
     color: #333333;
-    min-height: 40px; /* Ensuring enough space for placeholder text */
+    min-height: 50px; /* Ensuring enough space for placeholder text */
 }
 
 #shortcutLabel {

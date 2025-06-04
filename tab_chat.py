@@ -130,7 +130,8 @@ class ChatTab(QWidget):
         self.user_input = QTextEdit()
         self.user_input.setObjectName("userInput")
         self.user_input.setPlaceholderText("Type your message here...")
-        self.user_input.setMinimumHeight(40)  # Set minimum height
+        # Increase minimum height so placeholder text isn't cropped
+        self.user_input.setMinimumHeight(50)
         self.user_input.setMaximumHeight(100)
         self.user_input.installEventFilter(self)
         input_layout.addWidget(self.user_input)
@@ -152,7 +153,9 @@ class ChatTab(QWidget):
         # Create send button with modern styling
         self.send_button = QPushButton("Send")
         self.send_button.setObjectName("sendButton")
-        self.send_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_ArrowRight')))
+        icon = self.style().standardIcon(QStyle.SP_ArrowRight)
+        self.send_button.setIcon(icon)
+        self.send_button.setIconSize(QtCore.QSize(16, 16))
         self.send_button.setToolTip("Send the message (Enter)")
         btn_layout.addWidget(self.send_button)
         
