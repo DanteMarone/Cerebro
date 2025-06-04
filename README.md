@@ -57,6 +57,7 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
 *   Python 3.7 or higher
 *   PyQt5
 *   Requests
+*   SymPy
 *   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 
 ## Installation
@@ -174,7 +175,7 @@ description: A brief description of the tool.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
 script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
 Tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point
-are loaded automatically on startup.
+are loaded automatically on startup. Built-in plugins include `math-solver` for complex calculations.
 Example:
 
 '''JSON
