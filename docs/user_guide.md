@@ -68,3 +68,10 @@ These metrics are updated whenever agents use tools or complete tasks.
 ## Documentation Tab
 The Documentation tab simply renders this `user_guide.md` file. It allows in-app viewing of the full user guide without leaving Cerebro.
 
+## Settings Dialog
+The Settings dialog contains global preferences for the application.
+
+- Toggle dark mode and set your user name.
+- Use **Update Ollama** to download the latest Ollama release.
+- Select a model in the drop-down and click **Update Model** to pull its newest version.
+
