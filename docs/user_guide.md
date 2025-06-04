@@ -10,6 +10,7 @@ Create, configure, and remove AI agents. Each agent can use different models and
 
 ## Tools Tab
 Manage the tools that agents can invoke. Add new tools or edit existing ones.
+The **Windows Notifier** tool can be used to display Windows 11 notifications when triggered by a scheduled task.
 
 ## Tasks Tab
 Schedule tasks for agents and mark them complete using the calendar interface.
