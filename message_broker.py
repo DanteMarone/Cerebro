@@ -281,7 +281,8 @@ class MessageBroker:
                     prompt_for_task,
                     due_time,
                     creator="agent",
-                    debug_enabled=self.app.debug_enabled
+                    debug_enabled=self.app.debug_enabled,
+                    os_schedule=True,
                 )
                 note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
                 self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")

@@ -41,6 +41,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
     *   Tasks can optionally repeat at a set interval.
         Today's date is highlighted and any date with tasks shows a small red dot.
+    *   Tasks can register with the operating system's scheduler so they run even when Cerebro is closed. Windows 11 uses **Task Scheduler** and Unix-like systems rely on `cron`.
     *   The included **Windows Notifier** tool can display Windows 11 notifications when a scheduled task runs.
 *   **Chat History Management:**
     *   Each session begins with a blank conversation.
@@ -206,6 +207,8 @@ Another bundled plugin named `web-scraper` fetches and sanitizes text from a URL
 The repository also provides a `windows-notifier` plugin that relies on the
 `win10toast` package to display a Windows 11 notification. Pair it with the
 `schedule-task` tool to create reminders or daily summaries.
+Scheduled tasks are also written to the OS task scheduler using the helper
+script `run_task.py` so they execute even when Cerebro is not running.
 
 tasks.json
 This file stores the list of scheduled tasks. Each task entry includes an ``id``, ``creator``,
