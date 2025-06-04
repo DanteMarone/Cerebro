@@ -22,9 +22,13 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Tools are implemented as Python scripts that define a `run_tool(args)` function.
     *   Agents can invoke tools by including a specific JSON format in their response.
     *   Each agent has an individual setting to toggle tool usage on or off.
-    *   Each agent can enable or disable individual tools.
-    *   Tools can also be discovered automatically from the `tool_plugins` directory
+*   Each agent can enable or disable individual tools.
+*   Tools can also be discovered automatically from the `tool_plugins` directory
         or from packages exposing the `cerebro_tools` entry point.
+    *   The distribution includes a `web-scraper` plugin for retrieving text
+        from websites.
+    *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
+
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time.
     *   Tasks are stored in `tasks.json`.
@@ -58,6 +62,7 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
 *   PyQt5
 *   Requests
 *   win10toast (required for Windows notification support)
+*   SymPy
 *   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 
 ## Installation
@@ -175,7 +180,7 @@ description: A brief description of the tool.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
 script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
 Tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point
-are loaded automatically on startup.
+are loaded automatically on startup. Built-in plugins include `math-solver` for complex calculations.
 Example:
 
 '''JSON
@@ -186,9 +191,12 @@ Example:
     "script": "def run_tool(args):\\n  import os\\n  import sys\\n  from tasks import load_tasks, save_tasks, add_task\\n  # The agent will pass arguments like:\\n  # {\\n  # \\"agent_name\\": \\"Agent X\\",\\n  # \\"prompt\\": \\"some scheduled prompt\\",\\n  # \\"due_time\\": \\"2024-12-31T23:59:59\\"\\n  # }\\n  agent_name = args.get(\\"agent_name\\", \\"Default Agent\\")\\n  prompt = args.get(\\"prompt\\", \\"No prompt provided\\")\\n  due_time = args.get(\\"due_time\\", \\"\\")\\n  tasks = load_tasks(False) #\\n  # load current tasks\\n  if not due_time:\\n   return \\"[schedule-task Error] No due_time provided.\\"\\n  # Add the task, marking creator as 'agent' or 'user' as you prefer.\\n  add_task(tasks, agent_name, prompt, due_time, creator=\\"agent\\", debug_enabled=False)\\n  return f\\"Task scheduled: Agent '{agent_name}' at '{due_time}' with prompt '{prompt}'.\\""
   }
 ]
+
+Another bundled plugin named `web-scraper` fetches and sanitizes text from a URL.
 The repository also provides a `windows-notifier` plugin that relies on the
 `win10toast` package to display a Windows 11 notification. Pair it with the
 `schedule-task` tool to create reminders or daily summaries.
+
 tasks.json
 This file stores the list of scheduled tasks. Each task entry includes an ``id``, ``creator``,
 ``agent_name``, ``prompt``, ``due_time`` and ``status`` field. The status field defaults to ``pending``.
