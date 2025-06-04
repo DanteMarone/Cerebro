@@ -5,6 +5,7 @@ from PyQt5.QtCore import QThread
 from worker import AIWorker
 from tools import run_tool
 from tasks import add_task, delete_task, save_tasks
+from transcripts import load_history, append_message, clear_history, export_history
 
 class MessageBroker:
     """
@@ -12,7 +13,7 @@ class MessageBroker:
     """
     def __init__(self, app):
         self.app = app  # Reference to the main application
-        self.chat_history = []
+        self.chat_history = load_history(app.debug_enabled if app else False)
         self.active_worker_threads = []
 
     def send_message(self, sender, recipient, message):
@@ -32,6 +33,7 @@ class MessageBroker:
 
         user_message = {"role": "user", "content": message}
         self.chat_history.append(user_message)
+        append_message(self.chat_history, "user", message, debug_enabled=self.app.debug_enabled if self.app else False)
 
         if recipient:
             # If we have a direct recipient, route there
@@ -202,6 +204,7 @@ class MessageBroker:
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
                 )
                 self.chat_history.append({"role": "assistant", "content": content, "agent": agent_name})
+                append_message(self.chat_history, "assistant", content, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
 
         # If there's a next agent specified and it's managed by the coordinator
         if next_agent and agent_settings.get('role') == 'Coordinator':
@@ -222,16 +225,19 @@ class MessageBroker:
                 error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                 self.app.chat_tab.append_message_html(error_msg)
                 self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
             else:
                 tool_result = run_tool(self.app.tools, tool_name, tool_args, self.app.debug_enabled)
                 if tool_result.startswith("[Tool Error]"):
                     error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
                     self.app.chat_tab.append_message_html(error_msg)
                     self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                    append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
                 else:
                     display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
                     self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
                     self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+                    append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
 
         # Handle any task request
         if task_request:
@@ -303,6 +309,7 @@ class MessageBroker:
         Returns:
             list: The chat history for the agent.
         """
+        self.chat_history = load_history(self.app.debug_enabled if self.app else False)
         system_prompt = ""
         agent_settings = self.app.agents_data.get(agent_name, {}) if self.app else {}
 
@@ -454,6 +461,7 @@ class MessageBroker:
             message = message + f"\nNext Response By: {agent_name}"
 
         self.chat_history.append({"role": "user", "content": message})
+        append_message(self.chat_history, "user", message, debug_enabled=self.app.debug_enabled if self.app else False)
 
         # Start worker thread
         model_name = agent_settings.get("model", "phi4").strip()

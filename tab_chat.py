@@ -71,6 +71,14 @@ class ChatTab(QWidget):
         clear_action = QAction("Clear conversation", self)
         clear_action.triggered.connect(self.on_clear_chat_clicked)
         options_menu.addAction(clear_action)
+
+        export_hist_action = QAction("Export history", self)
+        export_hist_action.triggered.connect(self.parent_app.export_chat_histories)
+        options_menu.addAction(export_hist_action)
+
+        clear_hist_action = QAction("Clear saved history", self)
+        clear_hist_action.triggered.connect(self.parent_app.clear_chat_histories)
+        options_menu.addAction(clear_hist_action)
         
         options_btn.setMenu(options_menu)
         options_btn.setPopupMode(QToolButton.InstantPopup)
