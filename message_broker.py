@@ -4,6 +4,7 @@ from datetime import datetime
 from PyQt5.QtCore import QThread
 from worker import AIWorker
 from tools import run_tool
+from tool_utils import generate_tool_instructions_message
 from tasks import add_task, delete_task, save_tasks
 from transcripts import (
     load_history,
@@ -359,7 +360,7 @@ class MessageBroker:
 
             # If the agent can use tools, add the instructions
             if agent_settings.get("tool_use", False):
-                tool_instructions = self.generate_tool_instructions_message(agent_name)
+                tool_instructions = generate_tool_instructions_message(self.app, agent_name)
                 system_prompt += "\n" + tool_instructions
 
         chat_history = [{"role": "system", "content": system_prompt}]
@@ -393,47 +394,6 @@ class MessageBroker:
             chat_history.append(user_message)
 
         return chat_history
-
-    def generate_tool_instructions_message(self, agent_name):
-        """
-        Generates tool usage instructions for an agent.
-
-        Args:
-            agent_name (str): The name of the agent.
-
-        Returns:
-            str: The tool instructions message.
-        """
-        agent_settings = self.app.agents_data.get(agent_name, {})
-        if agent_settings.get("tool_use", False):
-            enabled_tools = agent_settings.get("tools_enabled", [])
-            tool_list_str = ""
-            for t in self.app.tools:
-                if t['name'] in enabled_tools:
-                    args = ", ".join(t.get("args", []))
-                    if args:
-                        tool_list_str += f"- {t['name']}({args}): {t['description']}\n"
-                    else:
-                        tool_list_str += f"- {t['name']}: {t['description']}\n"
-
-            instructions = (
-                "You are a knowledgeable assistant. You can answer most questions directly.\n"
-                "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
-                "If using a tool, respond ONLY in the following exact JSON format and nothing else:\n"
-                "{\n"
-                ' "role": "assistant",\n'
-                ' "content": "<explanation>",\n'
-                ' "tool_request": {\n'
-                '    "name": "<tool_name>",\n'
-                '    "args": { ... }\n'
-                ' }\n'
-                '}\n'
-                "No extra text outside this JSON when calling a tool.\n"
-                f"Available tools:\n{tool_list_str}"
-            )
-            return instructions
-        else:
-            return ""
 
     def close_all_threads(self):
         """

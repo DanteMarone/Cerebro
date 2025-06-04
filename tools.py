@@ -104,6 +104,8 @@ def save_tools(tools, debug_enabled=False):
         print(f"[Error] Failed to save tools: {e}")
 
 def run_tool(tools, tool_name, args, debug_enabled=False):
+    """Execute the specified tool with the provided arguments."""
+
     tool = next((t for t in tools if t["name"] == tool_name), None)
     if not tool:
         return f"[Tool Error] Tool '{tool_name}' not found."
@@ -113,6 +115,7 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     cleanup_tmp = False
 
     # Prefer a loaded plugin module when available
+
     if plugin_module and hasattr(plugin_module, "run_tool"):
         try:
             result = plugin_module.run_tool(args)
@@ -163,6 +166,8 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
             print(f"[Debug] {error_msg}")
         return error_msg
     finally:
+
+        # Clean up loaded module and temporary script if needed
         sys.modules.pop(module_name, None)
         if cleanup_tmp:
             try:

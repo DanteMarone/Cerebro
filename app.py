@@ -32,6 +32,7 @@ from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
 from tab_docs import DocumentationTab
 from metrics import load_metrics, record_tool_usage, record_response_time
+from tool_utils import generate_tool_instructions_message
 
 AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
@@ -1098,7 +1099,7 @@ class AIChatApp(QMainWindow):
 
             # Include tool instructions only if tool_use is enabled
             if agent_settings.get("tool_use", False):
-                tool_instructions = self.generate_tool_instructions_message(agent_name)
+                tool_instructions = generate_tool_instructions_message(self, agent_name)
                 system_prompt += "\n" + tool_instructions
 
         # Build the chat history with the constructed system prompt
@@ -1158,33 +1159,6 @@ class AIChatApp(QMainWindow):
         chat_history.extend(temp_history)
         return chat_history
 
-
-    def generate_tool_instructions_message(self, agent_name):
-        agent_settings = self.agents_data.get(agent_name, {})
-        if agent_settings.get("tool_use", False):
-            enabled_tools = agent_settings.get("tools_enabled", [])
-            tool_list_str = ""
-            for t in self.tools:
-                if t['name'] in enabled_tools:
-                    tool_list_str += f"- {t['name']}: {t['description']}\n"
-            instructions = (
-                "You are a knowledgeable assistant. You can answer most questions directly.\n"
-                "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
-                "If using a tool, respond ONLY in the following exact JSON format and nothing else:\n"
-                "{\n"
-                ' "role": "assistant",\n'
-                ' "content": "<explanation>",\n'
-                ' "tool_request": {\n'
-                '     "name": "<tool_name>",\n'
-                '     "args": { ... }\n'
-                ' }\n'
-                '}\n'
-                "No extra text outside this JSON when calling a tool.\n"
-                f"Available tools:\n{tool_list_str}"
-            )
-            return instructions
-        else:
-            return ""
 
     # -------------------------------------------------------------------------
     # Settings
