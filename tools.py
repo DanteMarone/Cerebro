@@ -115,16 +115,23 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     cleanup_tmp = False
 
     # Prefer a loaded plugin module when available
-    if plugin_module:
-        if hasattr(plugin_module, "run_tool"):
-            try:
-                return plugin_module.run_tool(args)
-            except Exception as exc:
-                error_msg = f"[Tool Error] Exception running tool '{tool_name}': {exc}"
-                if debug_enabled:
-                    print(f"[Debug] {error_msg}")
-                return error_msg
-        # Fall back to script loading if module lacks run_tool
+
+    if plugin_module and hasattr(plugin_module, "run_tool"):
+        try:
+            result = plugin_module.run_tool(args)
+            if debug_enabled:
+                print(f"[Debug] Tool '{tool_name}' output: {result}")
+            return result
+        except Exception as exc:
+            error_msg = f"[Tool Error] Exception running tool '{tool_name}': {exc}"
+            if debug_enabled:
+                print(f"[Debug] {error_msg}")
+            return error_msg
+
+    if not script_path and plugin_module:
+        script_path = getattr(plugin_module, "__file__", "")
+        if script_path and os.path.exists(script_path):
+            tool["script_path"] = script_path
 
     if not script_path:
         script_content = tool.get("script")
@@ -159,6 +166,7 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
             print(f"[Debug] {error_msg}")
         return error_msg
     finally:
+
         # Clean up loaded module and temporary script if needed
         sys.modules.pop(module_name, None)
         if cleanup_tmp:
