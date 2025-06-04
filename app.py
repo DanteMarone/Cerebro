@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta
 from PyQt5 import QtCore
 from PyQt5.QtCore import QThread, Qt, QTimer
+from PyQt5 import sip
 
 from screenshot import ScreenshotManager
 from PyQt5.QtWidgets import (
@@ -378,7 +379,7 @@ class AIChatApp(QMainWindow):
     
     def remove_notification(self, toast):
         """Remove a notification toast."""
-        if toast and toast.parentWidget() == self.notification_area: # Robust check: Widget exists and is parented correctly
+        if toast and not sip.isdeleted(toast) and toast.parentWidget() == self.notification_area:
             self.notification_layout.removeWidget(toast)
             toast.deleteLater()
 
