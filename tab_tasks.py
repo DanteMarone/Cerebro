@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt  # Import Qt from PyQt5.QtCore
 from dialogs import TaskDialog
-from tasks import add_task, edit_task, delete_task
+from tasks import add_task, edit_task, delete_task, set_task_status
 
 class TasksTab(QWidget):
     """
@@ -48,10 +48,17 @@ class TasksTab(QWidget):
         self.delete_button.hide()
         btn_layout.addWidget(self.delete_button)
 
+        self.status_button = QPushButton("Toggle Status")
+        self.status_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_BrowserReload')))
+        self.status_button.setToolTip("Toggle between pending and completed.")
+        self.status_button.hide()
+        btn_layout.addWidget(self.status_button)
+
         # Connect signals
         self.add_button.clicked.connect(self.add_task_ui)
         self.edit_button.clicked.connect(self.edit_task_ui)
         self.delete_button.clicked.connect(self.delete_task_ui)
+        self.status_button.clicked.connect(self.toggle_status_ui)
 
         self.refresh_tasks_list()
 
@@ -63,9 +70,11 @@ class TasksTab(QWidget):
         if selected_items:
             self.edit_button.show()
             self.delete_button.show()
+            self.status_button.show()
         else:
             self.edit_button.hide()
             self.delete_button.hide()
+            self.status_button.hide()
 
     def refresh_tasks_list(self):
         """
@@ -82,7 +91,8 @@ class TasksTab(QWidget):
                 due_time = t.get("due_time", "")
                 agent_name = t.get("agent_name", "")
                 prompt = t.get("prompt", "")
-                summary = f"[{due_time}] {agent_name} - {prompt[:30]}..."
+                status = t.get("status", "pending")
+                summary = f"[{due_time}] {agent_name} ({status}) - {prompt[:30]}..."
                 item.setText(summary)
                 item.setData(Qt.UserRole, t['id'])  # Store the task ID in the item's data
                 self.tasks_list.addItem(item)
@@ -172,3 +182,22 @@ class TasksTab(QWidget):
                 QMessageBox.warning(self, "Error Deleting Task", err)
             else:
                 self.refresh_tasks_list()
+
+    def toggle_status_ui(self):
+        """Toggle the status of the selected task between pending and completed."""
+        selected_items = self.tasks_list.selectedItems()
+        if not selected_items:
+            return
+
+        task_id = selected_items[0].data(Qt.UserRole)
+        task = next((t for t in self.tasks if t["id"] == task_id), None)
+        if not task:
+            QMessageBox.warning(self, "Error", f"No task with ID {task_id} found.")
+            return
+
+        new_status = "completed" if task.get("status") != "completed" else "pending"
+        err = set_task_status(self.tasks, task_id, new_status, debug_enabled=self.parent_app.debug_enabled)
+        if err:
+            QMessageBox.warning(self, "Error Updating Status", err)
+        else:
+            self.refresh_tasks_list()

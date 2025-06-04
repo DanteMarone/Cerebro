@@ -13,6 +13,8 @@ def load_tasks(debug_enabled=False):
     try:
         with open(TASKS_FILE, "r") as f:
             tasks = json.load(f)
+            for t in tasks:
+                t.setdefault("status", "pending")
             if debug_enabled:
                 print("[Debug] Tasks loaded:", tasks)
             return tasks
@@ -44,7 +46,8 @@ def add_task(tasks, agent_name, prompt, due_time, creator="user", debug_enabled=
         "creator": creator,
         "agent_name": agent_name,
         "prompt": prompt,
-        "due_time": due_time
+        "due_time": due_time,
+        "status": "pending",
     }
     tasks.append(new_task)
     save_tasks(tasks, debug_enabled)
@@ -65,5 +68,14 @@ def delete_task(tasks, task_id, debug_enabled=False):
     if idx is None:
         return f"[Task Error] Task '{task_id}' not found."
     del tasks[idx]
+    save_tasks(tasks, debug_enabled)
+    return None
+
+def set_task_status(tasks, task_id, status, debug_enabled=False):
+    """Set the status of a task."""
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if not task:
+        return f"[Task Error] Task '{task_id}' not found."
+    task["status"] = status
     save_tasks(tasks, debug_enabled)
     return None

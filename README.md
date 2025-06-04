@@ -167,7 +167,9 @@ Example:
   }
 ]
 tasks.json
-This file stores the list of scheduled tasks. You typically won't edit this file directly.
+This file stores the list of scheduled tasks. Each task entry includes an ``id``, ``creator``,
+``agent_name``, ``prompt``, ``due_time`` and ``status`` field. The status field defaults to ``pending``.
+You typically won't edit this file directly.
 
 Contributing
 Contributions are welcome! Please feel free to submit pull requests or open issues.
