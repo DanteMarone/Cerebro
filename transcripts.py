@@ -2,6 +2,7 @@
 
 import json
 import os
+from debug_logger import log_debug
 from datetime import datetime
 
 HISTORY_FILE = "chat_history.json"
@@ -14,7 +15,7 @@ def load_history(debug_enabled=False):
         with open(HISTORY_FILE, "r") as f:
             data = json.load(f)
         if debug_enabled:
-            print("[Debug] History loaded", data)
+            log_debug("History loaded %s" % data, True)
         return data
     except Exception as e:
         print(f"[Error] Failed to load history: {e}")
@@ -26,9 +27,9 @@ def save_history(history, debug_enabled=False):
         with open(HISTORY_FILE, "w") as f:
             json.dump(history, f, indent=2)
         if debug_enabled:
-            print("[Debug] History saved")
+            log_debug("History saved", True)
     except Exception as e:
-        print(f"[Error] Failed to save history: {e}")
+        log_debug(f"[Error] Failed to save history: {e}", True)
 
 def append_message(history, role, content, agent=None, debug_enabled=False):
     """Append a message to history and save it."""
@@ -49,9 +50,9 @@ def clear_history(debug_enabled=False):
         if os.path.exists(HISTORY_FILE):
             os.remove(HISTORY_FILE)
             if debug_enabled:
-                print("[Debug] History cleared")
+                log_debug("History cleared", True)
     except Exception as e:
-        print(f"[Error] Failed to clear history: {e}")
+        log_debug(f"[Error] Failed to clear history: {e}", True)
 
 def export_history(dest_path, debug_enabled=False):
     """Export current history to the given path."""
@@ -60,9 +61,9 @@ def export_history(dest_path, debug_enabled=False):
         with open(dest_path, "w") as f:
             json.dump(history, f, indent=2)
         if debug_enabled:
-            print(f"[Debug] History exported to {dest_path}")
+            log_debug(f"History exported to {dest_path}", True)
     except Exception as e:
-        print(f"[Error] Failed to export history: {e}")
+        log_debug(f"[Error] Failed to export history: {e}", True)
 
 def summarize_history(history, threshold=20, max_chars=1000):
     """Condense older history into a single system message.

@@ -73,6 +73,8 @@ The Documentation tab simply renders this `user_guide.md` file. It allows in-app
 The Settings dialog contains global preferences for the application.
 
 - Toggle dark mode and set your user name.
+- Adjust the maximum debug log size in megabytes.
 - Use **Update Ollama** to download the latest Ollama release.
 - Select a model in the drop-down and click **Update Model** to pull its newest version.
+- When debug mode is active choose **View Debug Log** under the Help menu.
 

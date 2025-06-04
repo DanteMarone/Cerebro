@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import importlib.util
+from debug_logger import log_debug
 from importlib import metadata
 
 TOOLS_FILE = "tools.json"
@@ -36,9 +37,9 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                 })
                 if debug_enabled:
-                    print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
+                    log_debug(f"Loaded plugin tool '{meta['name']}' from {path}", True)
             except Exception as e:
-                print(f"[Error] Failed to load plugin '{path}': {e}")
+                log_debug(f"[Error] Failed to load plugin '{path}': {e}", True)
 
     # Load tools registered via entry points
     try:
@@ -55,12 +56,12 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                 })
                 if debug_enabled:
-                    print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")
+                    log_debug(f"Loaded plugin tool '{meta['name']}' from entry point", True)
             except Exception as e:
-                print(f"[Error] Failed to load entry point '{ep.name}': {e}")
+                log_debug(f"[Error] Failed to load entry point '{ep.name}': {e}", True)
     except Exception as e:
         if debug_enabled:
-            print(f"[Error] Failed to inspect entry points: {e}")
+            log_debug(f"[Error] Failed to inspect entry points: {e}", True)
 
     return tools
 
@@ -72,9 +73,9 @@ def load_tools(debug_enabled=False):
             with open(TOOLS_FILE, "r") as f:
                 tools = json.load(f)
                 if debug_enabled:
-                    print("[Debug] Tools loaded:", tools)
+                    log_debug(f"Tools loaded: {tools}", True)
         except Exception as e:
-            print(f"[Error] Failed to load tools: {e}")
+            log_debug(f"[Error] Failed to load tools: {e}", True)
 
     tools.extend(discover_plugin_tools(debug_enabled))
     return tools
@@ -84,9 +85,9 @@ def save_tools(tools, debug_enabled=False):
         with open(TOOLS_FILE, "w") as f:
             json.dump(tools, f, indent=2)
         if debug_enabled:
-            print("[Debug] Tools saved.")
+            log_debug("Tools saved", True)
     except Exception as e:
-        print(f"[Error] Failed to save tools: {e}")
+        log_debug(f"[Error] Failed to save tools: {e}", True)
 
 def run_tool(tools, tool_name, args, debug_enabled=False):
     tool = next((t for t in tools if t["name"] == tool_name), None)
@@ -100,7 +101,7 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
         except Exception as e:
             error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
             if debug_enabled:
-                print(f"[Debug] {error_msg}")
+                log_debug(error_msg, True)
             return error_msg
 
     script_path = tool.get("script_path", "")
@@ -116,7 +117,7 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
         script_path = tmp_file.name
         cleanup_tmp = True
         if debug_enabled:
-            print(f"[Debug] Created temporary script for '{tool_name}' at: {script_path}")
+            log_debug(f"Created temporary script for '{tool_name}' at: {script_path}", True)
 
     if not os.path.exists(script_path):
         return f"[Tool Error] Script path for tool '{tool_name}' does not exist: {script_path}"
@@ -132,31 +133,31 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
         )
 
         if debug_enabled:
-            print(f"[Debug] Tool '{tool_name}' output: {result.stdout}")
+            log_debug(f"Tool '{tool_name}' output: {result.stdout}", True)
 
         return result.stdout
 
     except subprocess.CalledProcessError as e:
         error_msg = f"[Tool Error] Error running tool '{tool_name}': {e.stderr}"
         if debug_enabled:
-            print(f"[Debug] {error_msg}")
+            log_debug(error_msg, True)
         return error_msg
     except subprocess.TimeoutExpired as e:
         error_msg = f"[Tool Error] Tool '{tool_name}' timed out."
         if debug_enabled:
-            print(f"[Debug] {error_msg}")
+            log_debug(error_msg, True)
         return error_msg
     except Exception as e:
         error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
         if debug_enabled:
-            print(f"[Debug] {error_msg}")
+            log_debug(error_msg, True)
         return error_msg
     finally:
         if cleanup_tmp:
             try:
                 os.remove(script_path)
                 if debug_enabled:
-                    print(f"[Debug] Deleted temporary script: {script_path}")
+                    log_debug(f"Deleted temporary script: {script_path}", True)
             except Exception:
                 pass
 
@@ -175,7 +176,7 @@ def add_tool(tools, name, description, script, debug_enabled=False):
         with open(script_path, "w") as f:
             f.write(script)
         if debug_enabled:
-            print(f"[Debug] Created script file at: {script_path}")
+            log_debug(f"Created script file at: {script_path}", True)
     except Exception as e:
         return f"[Tool Error] Failed to create script file: {e}"
 
@@ -203,7 +204,7 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
                 f.write(script)
             tool["script"] = script
             if debug_enabled:
-                print(f"[Debug] Updated script file at: {tool['script_path']}")
+                log_debug(f"Updated script file at: {tool['script_path']}", True)
         except Exception as e:
             return f"[Tool Error] Failed to update script file: {e}"
 
@@ -223,9 +224,9 @@ def delete_tool(tools, name, debug_enabled=False):
         try:
             os.remove(script_path)
             if debug_enabled:
-                print(f"[Debug] Deleted script file: {script_path}")
+                log_debug(f"Deleted script file: {script_path}", True)
         except Exception as e:
-            print(f"[Error] Failed to delete script file: {e}")
+            log_debug(f"[Error] Failed to delete script file: {e}", True)
 
     tools.remove(tool)
     save_tools(tools, debug_enabled)

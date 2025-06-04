@@ -226,6 +226,13 @@ class SettingsDialog(QDialog):
         self.debug_enabled_checkbox.setToolTip("Enable or disable debug mode.")
         layout.addWidget(self.debug_enabled_checkbox)
 
+        layout.addWidget(QLabel("Max Debug Log Size (MB):"))
+        self.log_size_spin = QSpinBox()
+        self.log_size_spin.setRange(1, 100)
+        self.log_size_spin.setValue(getattr(self.parent, 'log_size_mb', 10))
+        self.log_size_spin.setToolTip("Maximum size of debug log before truncation")
+        layout.addWidget(self.log_size_spin)
+
         # --- Ollama Updates ---
         update_label = QLabel("Update Ollama and Models:")
         layout.addWidget(update_label)
@@ -263,7 +270,8 @@ class SettingsDialog(QDialog):
             "dark_mode": self.dark_mode_checkbox.isChecked(),
             "user_name": self.user_name_edit.text().strip(),
             "user_color": self.parent.user_color,  # Color is already updated
-            "debug_enabled": self.debug_enabled_checkbox.isChecked()
+            "debug_enabled": self.debug_enabled_checkbox.isChecked(),
+            "log_size_mb": self.log_size_spin.value()
         }
 
     def update_ollama(self):
@@ -305,4 +313,28 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", "Ollama executable not found.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to update model: {e}")
+
+
+class DebugLogDialog(QDialog):
+    """Simple viewer for the debug log."""
+
+    def __init__(self, parent, log_path):
+        super().__init__(parent)
+        self.setWindowTitle("Debug Log")
+        layout = QVBoxLayout(self)
+        self.text_edit = QTextEdit()
+        self.text_edit.setReadOnly(True)
+        layout.addWidget(self.text_edit)
+        btn_refresh = QPushButton("Refresh")
+        btn_refresh.clicked.connect(self.load_log)
+        layout.addWidget(btn_refresh)
+        self.log_path = log_path
+        self.load_log()
+
+    def load_log(self):
+        try:
+            with open(self.log_path, "r", encoding="utf-8") as f:
+                self.text_edit.setPlainText(f.read())
+        except Exception as e:
+            self.text_edit.setPlainText(f"Failed to load log: {e}")
 

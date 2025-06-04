@@ -7,6 +7,7 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QThread, Qt, QTimer
 
 from screenshot import ScreenshotManager
+from debug_logger import log_debug, set_log_size_limit, LOG_FILE
 from PyQt5.QtWidgets import (
     QMainWindow, QTabWidget, QMessageBox, QApplication, QAction, QMenu, QDialog,
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget, QStackedWidget,
@@ -62,6 +63,8 @@ class AIChatApp(QMainWindow):
         self.user_name = "You"
         self.user_color = "#0000FF"
         self.dark_mode = False
+        self.log_size_mb = 10
+        set_log_size_limit(self.log_size_mb)
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
         
@@ -203,7 +206,7 @@ class AIChatApp(QMainWindow):
         menubar.setObjectName("mainMenuBar")
         file_menu = menubar.addMenu('File')
         view_menu = menubar.addMenu('View')
-        help_menu = menubar.addMenu('Help')
+        self.help_menu = menubar.addMenu('Help')
         
         # File menu actions
         settings_action = QAction('Settings', self)
@@ -228,11 +231,16 @@ class AIChatApp(QMainWindow):
         keyboard_shortcuts_action = QAction('Keyboard Shortcuts', self)
         keyboard_shortcuts_action.setShortcut('Ctrl+K')
         keyboard_shortcuts_action.triggered.connect(self.show_keyboard_shortcuts)
-        help_menu.addAction(keyboard_shortcuts_action)
+        self.help_menu.addAction(keyboard_shortcuts_action)
         
         about_action = QAction('About Cerebro', self)
         about_action.triggered.connect(self.show_about_dialog)
-        help_menu.addAction(about_action)
+        self.help_menu.addAction(about_action)
+
+        self.view_log_action = QAction('View Debug Log', self)
+        self.view_log_action.triggered.connect(self.show_debug_log)
+        if self.debug_enabled:
+            self.help_menu.addAction(self.view_log_action)
 
         # Apply dark mode if relevant
         if self.dark_mode:
@@ -323,6 +331,12 @@ class AIChatApp(QMainWindow):
                        "<h2>Cerebro</h2>"
                        "<p>Version 1.0.0</p>"
                        "<p>A multi-agent AI chat application</p>")
+
+    def show_debug_log(self):
+        """Display the debug log in a dialog."""
+        from dialogs import DebugLogDialog
+        dlg = DebugLogDialog(self, LOG_FILE)
+        dlg.exec_()
                        
     def show_notification(self, message, type="info"):
         """Show a toast notification."""
@@ -413,6 +427,13 @@ class AIChatApp(QMainWindow):
             self.user_name = settings_data["user_name"]
             self.user_color = settings_data["user_color"]
             self.debug_enabled = settings_data["debug_enabled"]
+            self.log_size_mb = settings_data.get("log_size_mb", 10)
+            set_log_size_limit(self.log_size_mb)
+            if self.debug_enabled:
+                if self.view_log_action not in self.help_menu.actions():
+                    self.help_menu.addAction(self.view_log_action)
+            else:
+                self.help_menu.removeAction(self.view_log_action)
             self.apply_updated_styles()
             self.agents_tab.load_global_preferences()
             self.save_settings()
@@ -1184,7 +1205,8 @@ class AIChatApp(QMainWindow):
             "image_path": "",
             "user_name": self.user_name,
             "user_color": self.user_color,
-            "dark_mode": self.dark_mode
+            "dark_mode": self.dark_mode,
+            "log_size_mb": self.log_size_mb
         }
         try:
             with open(SETTINGS_FILE, "w") as f:
@@ -1206,6 +1228,8 @@ class AIChatApp(QMainWindow):
                 self.user_name = settings.get("user_name", "You")
                 self.user_color = settings.get("user_color", "#0000FF")
                 self.dark_mode = settings.get("dark_mode", False)
+                self.log_size_mb = settings.get("log_size_mb", 10)
+                set_log_size_limit(self.log_size_mb)
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
             except Exception as e:

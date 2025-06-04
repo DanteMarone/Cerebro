@@ -52,7 +52,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Light and dark mode support.
     *   Configurable user name and color.
 *   **Debug Mode:**
-    *   Enables verbose logging for debugging purposes.
+    *   Enables verbose logging and writes to `debug.log`.
+    *   View the log from the Help menu when debug mode is on.
 *   **Metrics Dashboard:**
     *   View tool usage frequency, completed tasks, and agent response times.
 *   **Documentation Tab:**
@@ -171,6 +172,7 @@ settings.json
 This file stores global application settings.
 
 debug_enabled: Enables debug mode (boolean).
+log_size_mb: Maximum size of debug log before truncation.
 include_image: Currently unused.
 include_screenshot: Deprecated.
 image_path: Currently unused.

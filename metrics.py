@@ -1,5 +1,6 @@
 import json
 import os
+from debug_logger import log_debug
 
 METRICS_FILE = "metrics.json"
 
@@ -12,10 +13,10 @@ def load_metrics(debug_enabled=False):
         with open(METRICS_FILE, "r") as f:
             data = json.load(f)
         if debug_enabled:
-            print("[Debug] Metrics loaded", data)
+            log_debug(f"Metrics loaded {data}", True)
         return data
     except Exception as e:
-        print(f"[Error] Failed to load metrics: {e}")
+        log_debug(f"[Error] Failed to load metrics: {e}", True)
         return {"tool_usage": {}, "task_completion_counts": {}, "response_times": {}}
 
 
@@ -25,9 +26,9 @@ def save_metrics(metrics, debug_enabled=False):
         with open(METRICS_FILE, "w") as f:
             json.dump(metrics, f, indent=2)
         if debug_enabled:
-            print("[Debug] Metrics saved")
+            log_debug("Metrics saved", True)
     except Exception as e:
-        print(f"[Error] Failed to save metrics: {e}")
+        log_debug(f"[Error] Failed to save metrics: {e}", True)
 
 
 def record_tool_usage(metrics, tool_name, debug_enabled=False):

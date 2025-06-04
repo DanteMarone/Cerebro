@@ -2,6 +2,7 @@
 
 import json
 import requests
+from debug_logger import log_debug
 from PyQt5.QtCore import QObject, pyqtSignal
 
 # API Configuration
@@ -25,7 +26,7 @@ class AIWorker(QObject):
     def run(self):
         try:
             if self.debug_enabled:
-                print(f"[Debug] Worker run started for agent '{self.agent_name}'.")
+                log_debug(f"Worker run started for agent '{self.agent_name}'", True)
 
             # Access agent settings using the provided agents_data
             agent_settings = self.agents_data.get(self.agent_name, {})
@@ -34,7 +35,7 @@ class AIWorker(QObject):
                 # Check if the last message indicates that this specialist should respond
                 if not self.chat_history[-1]['content'].endswith(f"Next Response By: {self.agent_name}"):
                     if self.debug_enabled:
-                        print(f"[Debug] Specialist '{self.agent_name}' not addressed. Skipping response.")
+                        log_debug(f"Specialist '{self.agent_name}' not addressed. Skipping response.", True)
                     self.finished.emit()
                     return
 
@@ -57,7 +58,7 @@ class AIWorker(QObject):
                 for message in payload_copy.get('messages', []):
                     if 'images' in message:
                         message['images'] = ['[Image data omitted in debug output]']
-                print("[Debug] Sending request to Ollama API:", json.dumps(payload_copy, indent=2))
+                log_debug("Sending request to Ollama API: " + json.dumps(payload_copy, indent=2), True)
 
             response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
             response.raise_for_status()  # Raise an exception for bad status codes
@@ -65,7 +66,7 @@ class AIWorker(QObject):
             for line in response.iter_lines(decode_unicode=True):
                 if line:
                     if self.debug_enabled:
-                        print(f"[Debug] Received line: {line}")
+                        log_debug(f"Received line: {line}", True)
                     try:
                         line_data = json.loads(line)
                         if "message" in line_data and "content" in line_data["message"]:
@@ -75,29 +76,29 @@ class AIWorker(QObject):
                             error_msg = line_data["error"]
                             self.error_occurred.emit(f"[Error] {error_msg}")
                             if self.debug_enabled:
-                                print(f"[Debug] Error in response: {error_msg}")
+                                log_debug(f"Error in response: {error_msg}", True)
                             break
                         elif line_data.get("done"):
                             if self.debug_enabled:
-                                print(f"[Debug] Stream finished for agent '{self.agent_name}'.")
+                                log_debug(f"Stream finished for agent '{self.agent_name}'.", True)
                             break
                     except ValueError as e:
                         error_msg = f"[Error] Failed to parse line as JSON: {e}"
                         if self.debug_enabled:
-                            print(error_msg)
+                            log_debug(error_msg, True)
                         self.error_occurred.emit(error_msg)
             self.finished.emit()
 
         except requests.exceptions.RequestException as e:
             error_msg = f"[Error] Request error: {e}"
             if self.debug_enabled:
-                print(error_msg)
+                log_debug(error_msg, True)
             self.error_occurred.emit(error_msg)
             self.finished.emit()
 
         except Exception as e:
             error_msg = f"[Error] Exception in worker run: {e}"
             if self.debug_enabled:
-                print(error_msg)
+                log_debug(error_msg, True)
             self.error_occurred.emit(error_msg)
             self.finished.emit()

@@ -3,6 +3,7 @@
 import os
 import json
 import uuid
+from debug_logger import log_debug
 from datetime import datetime
 
 TASKS_FILE = "tasks.json"
@@ -17,10 +18,10 @@ def load_tasks(debug_enabled=False):
                 t.setdefault("status", "pending")
                 t.setdefault("repeat_interval", 0)
             if debug_enabled:
-                print("[Debug] Tasks loaded:", tasks)
+                log_debug(f"Tasks loaded: {tasks}", True)
             return tasks
     except Exception as e:
-        print(f"[Error] Failed to load tasks: {e}")
+        log_debug(f"[Error] Failed to load tasks: {e}", True)
         return []
 
 def save_tasks(tasks, debug_enabled=False):
@@ -28,9 +29,9 @@ def save_tasks(tasks, debug_enabled=False):
         with open(TASKS_FILE, "w") as f:
             json.dump(tasks, f, indent=2)
         if debug_enabled:
-            print("[Debug] Tasks saved.")
+            log_debug("Tasks saved", True)
     except Exception as e:
-        print(f"[Error] Failed to save tasks: {e}")
+        log_debug(f"[Error] Failed to save tasks: {e}", True)
 
 def add_task(tasks, agent_name, prompt, due_time, creator="user", repeat_interval=0, debug_enabled=False):
     """
