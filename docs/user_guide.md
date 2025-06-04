@@ -47,7 +47,7 @@ Agents with tool use enabled can invoke these tools by returning a JSON block in
 ## Tasks Tab
 The Tasks tab manages scheduled prompts. Tasks are displayed in a list and on a calendar. The current day is highlighted and dates with tasks show a red dot in the corner. You can drag tasks to different dates to reschedule them. Double-clicking a task toggles its status between **pending** and **completed**. Buttons allow you to:
 
-- **Add Task** – create a new task specifying agent, prompt and due time.
+- **Add Task** – create a new task specifying agent, prompt and due time. The due time defaults to one minute from now.
 - **Edit** – change an existing task.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark the selected task as completed or pending.

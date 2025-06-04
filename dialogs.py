@@ -131,11 +131,11 @@ class TaskDialog(QDialog):
                 print(f"Error parsing due time: {due_time}")
                 # Handle invalid date time format
                 QMessageBox.warning(
-                    self, "Error", "Invalid due time format. Using current time."
+                    self, "Error", "Invalid due time format. Using current time + 1 minute."
                 )
-                self.due_time_edit.setDateTime(QDateTime.currentDateTime())
-        else: 
-            self.due_time_edit.setDateTime(QDateTime.currentDateTime())
+                self.due_time_edit.setDateTime(QDateTime.currentDateTime().addSecs(60))
+        else:
+            self.due_time_edit.setDateTime(QDateTime.currentDateTime().addSecs(60))
 
         self.due_time_edit.setToolTip("Select the due time for the task.")
         self.due_time_edit.setCalendarPopup(True)  # Enable calendar popup
