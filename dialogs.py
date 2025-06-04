@@ -1,8 +1,21 @@
 # dialogs.py
 
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QLineEdit, QTextEdit, QLabel, QPushButton, QHBoxLayout,
-    QComboBox, QStyle, QColorDialog, QCheckBox, QDateTimeEdit, QDialogButtonBox, QMessageBox
+    QDialog,
+    QVBoxLayout,
+    QLineEdit,
+    QTextEdit,
+    QLabel,
+    QPushButton,
+    QHBoxLayout,
+    QComboBox,
+    QStyle,
+    QColorDialog,
+    QCheckBox,
+    QDateTimeEdit,
+    QDialogButtonBox,
+    QMessageBox,
+    QSpinBox,
 )
 from PyQt5.QtCore import Qt, QDateTime
 
