@@ -145,7 +145,7 @@ class ChatTab(QWidget):
         self.send_button = QPushButton("Send")
         self.send_button.setObjectName("sendButton")
         self.send_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_ArrowRight')))
-        self.send_button.setToolTip("Send the message (Ctrl+Enter)")
+        self.send_button.setToolTip("Send the message (Enter)")
         btn_layout.addWidget(self.send_button)
         
         # Create clear button
