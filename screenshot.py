@@ -1,6 +1,7 @@
 """Screenshot capture utilities."""
 
 import os
+import base64
 from datetime import datetime
 from PyQt5.QtCore import QObject, QTimer
 from PyQt5.QtGui import QGuiApplication
@@ -30,7 +31,7 @@ class ScreenshotManager(QObject):
         self.timer.stop()
 
     def capture(self):
-        """Capture the current screen and store the file path."""
+        """Capture the current screen and store the image as base64."""
         screen = QGuiApplication.primaryScreen()
         if not screen:
             return None
@@ -38,12 +39,14 @@ class ScreenshotManager(QObject):
         path = os.path.join(self.output_dir, f"screenshot_{timestamp}.png")
         pixmap = screen.grabWindow(0)
         if pixmap.save(path, "png"):
-            self.images.append(path)
+            with open(path, "rb") as f:
+                b64_data = base64.b64encode(f.read()).decode("utf-8")
+            self.images.append(b64_data)
             if len(self.images) > self.max_images:
                 self.images.pop(0)
-            return path
+            return b64_data
         return None
 
     def get_images(self):
-        """Return list of recently captured images."""
+        """Return list of recently captured images as base64 strings."""
         return list(self.images)
