@@ -110,6 +110,10 @@ This file stores the configuration for each agent.
 *   **`screenshot_interval`:**  Interval in seconds between captured screenshots.
 *   **`tool_use`:** Boolean value to enable or disable an agent's access to tools.
 *   **`tools_enabled`:** A list of tools that an agent can access, assuming `tool_use` is set to true.
+*   **`permissions`:** Optional dictionary controlling advanced features:
+    *   `schedule_tasks` - allow scheduling new tasks.
+    *   `use_tools` - allow tool execution.
+    *   `access_screenshots` - allow receiving desktop screenshots.
 
 **Example:**
 

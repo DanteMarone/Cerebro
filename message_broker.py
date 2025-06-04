@@ -215,49 +215,61 @@ class MessageBroker:
                 error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{next_agent}' is not managed by Coordinator '{agent_name}'.</span>"
                 self.app.chat_tab.append_message_html(error_msg)
 
-        # Handle any tool request
-        if tool_request and agent_settings.get("tool_use", False):
+        # Handle any tool request with permission checks
+        perms = agent_settings.get("permissions", {})
+        if tool_request and agent_settings.get("tool_use", False) and perms.get("use_tools", True):
             tool_name = tool_request.get("name", "")
             tool_args = tool_request.get("args", {})
 
-            enabled_tools = agent_settings.get("tools_enabled", [])
-            if tool_name not in enabled_tools:
-                error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
+            if tool_name == "schedule-task" and not perms.get("schedule_tasks", True):
+                error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Agent '{agent_name}' cannot schedule tasks.</span>"
                 self.app.chat_tab.append_message_html(error_msg)
                 self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
                 append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
             else:
-                tool_result = run_tool(self.app.tools, tool_name, tool_args, self.app.debug_enabled)
-                if tool_result.startswith("[Tool Error]"):
-                    error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+                enabled_tools = agent_settings.get("tools_enabled", [])
+                if tool_name not in enabled_tools:
+                    error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                     self.app.chat_tab.append_message_html(error_msg)
                     self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
                     append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
                 else:
-                    display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-                    self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
-                    self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
-                    append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
+                    tool_result = run_tool(self.app.tools, tool_name, tool_args, self.app.debug_enabled)
+                    if tool_result.startswith("[Tool Error]"):
+                        error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+                        self.app.chat_tab.append_message_html(error_msg)
+                        self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                        append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
+                    else:
+                        display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
+                        self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                        self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+                        append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.app.debug_enabled if self.app else False)
 
-        # Handle any task request
+        # Handle any task request with permission checks
         if task_request:
-            agent_for_task = task_request.get("agent_name", "Default Agent")
-            prompt_for_task = task_request.get("prompt", "No prompt provided")
-            due_time = task_request.get("due_time", "")
-            if due_time:
-                add_task(
-                    self.app.tasks,
-                    agent_for_task,
-                    prompt_for_task,
-                    due_time,
-                    creator="agent",
-                    debug_enabled=self.app.debug_enabled
-                )
-                note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
-                self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")
-            else:
-                warn_msg = "[Task Error] Missing due_time in request."
+            perms = agent_settings.get("permissions", {})
+            if not perms.get("schedule_tasks", True):
+                warn_msg = f"[Task Error] Agent '{agent_name}' is not allowed to schedule tasks."
                 self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{warn_msg}</span>")
+            else:
+                agent_for_task = task_request.get("agent_name", "Default Agent")
+                prompt_for_task = task_request.get("prompt", "No prompt provided")
+                due_time = task_request.get("due_time", "")
+                if due_time:
+                    add_task(
+                        self.app.tasks,
+                        agent_for_task,
+                        prompt_for_task,
+                        due_time,
+                        creator="agent",
+                        debug_enabled=self.app.debug_enabled
+                    )
+                    note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
+                    self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")
+                else:
+                    warn_msg = "[Task Error] Missing due_time in request."
+                    self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{warn_msg}</span>")
 
         if self.app.debug_enabled and agent_name:
             print(f"[Debug] Worker for agent '{agent_name}' finished.")

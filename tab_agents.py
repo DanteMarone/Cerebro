@@ -130,6 +130,16 @@ class AgentsTab(QWidget):
         self.tool_use_checkbox = QCheckBox("Enable Tool Use")
         self.tool_use_checkbox.setToolTip("Allow this agent to use tools.")
         self.agent_settings_layout.addRow("", self.tool_use_checkbox)
+
+        # Task scheduling permission
+        self.schedule_tasks_checkbox = QCheckBox("Allow Task Scheduling")
+        self.schedule_tasks_checkbox.setToolTip("Permit this agent to schedule tasks.")
+        self.agent_settings_layout.addRow("", self.schedule_tasks_checkbox)
+
+        # Screenshot permission
+        self.screenshot_checkbox = QCheckBox("Access Screenshots")
+        self.screenshot_checkbox.setToolTip("Allow this agent to receive desktop screenshots.")
+        self.agent_settings_layout.addRow("", self.screenshot_checkbox)
         
         # Tools enabled
         self.tools_label = QLabel("Enabled Tools:")
@@ -149,6 +159,8 @@ class AgentsTab(QWidget):
         self.description_input.textChanged.connect(self.save_agent_settings)
         self.role_combo.currentIndexChanged.connect(self.save_agent_settings)
         self.tool_use_checkbox.stateChanged.connect(self.save_agent_settings)
+        self.schedule_tasks_checkbox.stateChanged.connect(self.save_agent_settings)
+        self.screenshot_checkbox.stateChanged.connect(self.save_agent_settings)
         self.managed_agents_list.itemSelectionChanged.connect(self.save_agent_settings)
         self.tools_list.itemSelectionChanged.connect(self.save_agent_settings)
         
@@ -188,6 +200,8 @@ class AgentsTab(QWidget):
         self.role_combo.blockSignals(True)
         self.managed_agents_list.blockSignals(True)
         self.tool_use_checkbox.blockSignals(True)
+        self.schedule_tasks_checkbox.blockSignals(True)
+        self.screenshot_checkbox.blockSignals(True)
         self.tools_list.blockSignals(True)
         
         # Set form values
@@ -219,6 +233,9 @@ class AgentsTab(QWidget):
         
         # Update tool use settings
         self.tool_use_checkbox.setChecked(agent_settings.get("tool_use", False))
+        perms = agent_settings.get("permissions", {})
+        self.schedule_tasks_checkbox.setChecked(perms.get("schedule_tasks", True))
+        self.screenshot_checkbox.setChecked(perms.get("access_screenshots", False))
         
         # Update tools list
         self.tools_list.clear()
@@ -240,6 +257,8 @@ class AgentsTab(QWidget):
         self.role_combo.blockSignals(False)
         self.managed_agents_list.blockSignals(False)
         self.tool_use_checkbox.blockSignals(False)
+        self.schedule_tasks_checkbox.blockSignals(False)
+        self.screenshot_checkbox.blockSignals(False)
         self.tools_list.blockSignals(False)
         
         # Update visibility based on current settings
@@ -294,6 +313,11 @@ class AgentsTab(QWidget):
             "description": self.description_input.text(),
             "role": self.role_combo.currentText(),
             "tool_use": self.tool_use_checkbox.isChecked(),
+            "permissions": {
+                "schedule_tasks": self.schedule_tasks_checkbox.isChecked(),
+                "use_tools": self.tool_use_checkbox.isChecked(),
+                "access_screenshots": self.screenshot_checkbox.isChecked(),
+            },
         }
         
         # Get color from button

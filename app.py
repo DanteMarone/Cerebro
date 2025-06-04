@@ -665,59 +665,70 @@ class AIChatApp(QMainWindow):
         elif process_next_agent is not None and index is not None:
             process_next_agent(index + 1)
 
-        # Handle tool request if any, only if the agent is allowed to use tools
-        if tool_request and agent_settings.get("tool_use", False):
+        # Handle tool request if any, honoring permissions
+        perms = agent_settings.get("permissions", {})
+        if tool_request and agent_settings.get("tool_use", False) and perms.get("use_tools", True):
             tool_name = tool_request.get("name", "")
             tool_args = tool_request.get("args", {})
-            
-            # Check if the requested tool is enabled for the agent
-            enabled_tools = agent_settings.get("tools_enabled", [])
-            if tool_name not in enabled_tools:
-                error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
+
+            if tool_name == "schedule-task" and not perms.get("schedule_tasks", True):
+                error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Agent '{agent_name}' cannot schedule tasks.</span>"
                 self.chat_tab.append_message_html(error_msg)
                 self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
                 append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
-                self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
+                self.show_notification("Permission denied for scheduling", "error")
             else:
-                self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
-                tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
-
-                # Check for tool errors and handle them
-                if tool_result.startswith("[Tool Error]"):
-                    error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+                enabled_tools = agent_settings.get("tools_enabled", [])
+                if tool_name not in enabled_tools:
+                    error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                     self.chat_tab.append_message_html(error_msg)
-                    # Append error message to chat history
                     self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
                     append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
-                    self.show_notification(f"Tool Error: {tool_result}", "error")
+                    self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
                 else:
-                    display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-                    self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
-                    self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
-                    append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.debug_enabled)
-                    self.show_notification(f"Tool executed successfully: {tool_name}", "info")
+                    self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
+                    tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
+
+                    if tool_result.startswith("[Tool Error]"):
+                        error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
+                        self.chat_tab.append_message_html(error_msg)
+                        self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
+                        append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
+                        self.show_notification(f"Tool Error: {tool_result}", "error")
+                    else:
+                        display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
+                        self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                        self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
+                        append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.debug_enabled)
+                        self.show_notification(f"Tool executed successfully: {tool_name}", "info")
 
         # Handle task request if any
         if task_request:
-            agent_for_task = task_request.get("agent_name", "Default Agent")
-            prompt_for_task = task_request.get("prompt", "No prompt provided")
-            due_time = task_request.get("due_time", "")
-            if due_time:
-                add_task(
-                    self.tasks,
-                    agent_for_task,
-                    prompt_for_task,
-                    due_time,
-                    creator="agent",
-                    debug_enabled=self.debug_enabled
-                )
-                note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
-                self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")
-                self.show_notification(f"New task scheduled for {due_time}", "info")
-            else:
-                warn_msg = "[Task Error] Missing due_time in request."
+            perms = agent_settings.get('permissions', {})
+            if not perms.get('schedule_tasks', True):
+                warn_msg = f"[Task Error] Agent '{agent_name}' is not allowed to schedule tasks."
                 self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{warn_msg}</span>")
-                self.show_notification("Task Error: Missing due time", "error")
+                self.show_notification(warn_msg, "error")
+            else:
+                agent_for_task = task_request.get("agent_name", "Default Agent")
+                prompt_for_task = task_request.get("prompt", "No prompt provided")
+                due_time = task_request.get("due_time", "")
+                if due_time:
+                    add_task(
+                        self.tasks,
+                        agent_for_task,
+                        prompt_for_task,
+                        due_time,
+                        creator="agent",
+                        debug_enabled=self.debug_enabled
+                    )
+                    note = f"Agent '{agent_name}' scheduled a new task for '{agent_for_task}' at {due_time}."
+                    self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{note}</span>")
+                    self.show_notification(f"New task scheduled for {due_time}", "info")
+                else:
+                    warn_msg = "[Task Error] Missing due_time in request."
+                    self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:red;'>{warn_msg}</span>")
+                    self.show_notification("Task Error: Missing due time", "error")
 
         if self.debug_enabled and agent_name:
             print(f"[Debug] Worker for agent '{agent_name}' finished.")
@@ -796,6 +807,7 @@ class AIChatApp(QMainWindow):
                     self.agents_data = json.load(f)
                 if self.debug_enabled:
                     print("[Debug] Agents loaded.")
+                self.ensure_permissions()
             except Exception as e:
                 print(f"[Debug] Failed to load agents: {e}")
         else:
@@ -812,11 +824,18 @@ class AIChatApp(QMainWindow):
                 "role": "Assistant",  # Default role
                 "description": "A general-purpose assistant.", # Default description
                 "tool_use": False,
-                "tools_enabled": []
+                "tools_enabled": [],
+                "permissions": {
+                    "schedule_tasks": True,
+                    "use_tools": False,
+                    "access_screenshots": False,
+                }
             }
             self.agents_data["Default Agent"] = default_agent_settings
             if self.debug_enabled:
                 print("[Debug] Default agent added.")
+
+        self.ensure_permissions()
 
         self.agents_tab.agent_selector.clear()
         for agent_name in self.agents_data.keys():
@@ -844,7 +863,12 @@ class AIChatApp(QMainWindow):
                     "role": "Assistant",
                     "description": "A new assistant agent.",
                     "tool_use": False,
-                    "tools_enabled": []
+                    "tools_enabled": [],
+                    "permissions": {
+                        "schedule_tasks": True,
+                        "use_tools": False,
+                        "access_screenshots": False,
+                    }
                 }
                 self.agents_tab.agent_selector.addItem(agent_name)
                 self.save_agents()
@@ -870,6 +894,7 @@ class AIChatApp(QMainWindow):
 
     def save_agents(self):
         try:
+            self.ensure_permissions()
             with open(AGENTS_SAVE_FILE, "w") as f:
                 json.dump(self.agents_data, f, indent=4)
             if self.debug_enabled:
@@ -899,6 +924,14 @@ class AIChatApp(QMainWindow):
 
         interval = min(a.get("screenshot_interval", 5) for a in enabled_agents)
         self.screenshot_manager.start(interval)
+
+    def ensure_permissions(self):
+        """Ensure permission dictionaries exist for all agents."""
+        for agent in self.agents_data.values():
+            perms = agent.setdefault("permissions", {})
+            perms.setdefault("schedule_tasks", True)
+            perms.setdefault("use_tools", agent.get("tool_use", False))
+            perms.setdefault("access_screenshots", agent.get("desktop_history_enabled", False))
 
     # -------------------------------------------------------------------------
     # Tools Management
