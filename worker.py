@@ -3,6 +3,7 @@
 import json
 import requests
 from PyQt5.QtCore import QObject, pyqtSignal
+from transcripts import append_message
 
 # API Configuration
 OLLAMA_API_URL = "http://localhost:11434/api/chat"
@@ -12,7 +13,8 @@ class AIWorker(QObject):
     error_occurred = pyqtSignal(str)
     finished = pyqtSignal()
 
-    def __init__(self, model_name, chat_history, temperature, max_tokens, debug_enabled, agent_name, agents_data):
+    def __init__(self, model_name, chat_history, temperature, max_tokens,
+                 debug_enabled, agent_name, agents_data):
         super().__init__()
         self.model_name = model_name
         self.chat_history = chat_history
@@ -21,6 +23,9 @@ class AIWorker(QObject):
         self.debug_enabled = debug_enabled
         self.agent_name = agent_name
         self.agents_data = agents_data  # Store a reference to agents_data
+        settings = self.agents_data.get(self.agent_name, {})
+        self.thinking_enabled = settings.get("thinking_enabled", False)
+        self.thinking_steps = int(settings.get("thinking_steps", 0))
 
     def run(self):
         try:
@@ -37,6 +42,52 @@ class AIWorker(QObject):
                         print(f"[Debug] Specialist '{self.agent_name}' not addressed. Skipping response.")
                     self.finished.emit()
                     return
+
+            if self.thinking_enabled and self.thinking_steps > 0:
+                original_prompt = self.chat_history[-1]["content"]
+                thoughts = []
+
+                def single_request(history):
+                    payload = {
+                        "model": self.model_name,
+                        "messages": history,
+                        "temperature": self.temperature,
+                        "max_tokens": self.max_tokens,
+                        "stream": False,
+                    }
+                    resp = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    return data.get("message", {}).get("content", "")
+
+                for step in range(1, self.thinking_steps + 1):
+                    prompt = f"{original_prompt}\nStep {step} of {self.thinking_steps}: think about the task."
+                    if thoughts:
+                        previous = "\n".join(
+                            f"Step {i + 1}: {t}" for i, t in enumerate(thoughts)
+                        )
+                        prompt += f"\nPrevious steps:\n{previous}"
+                    step_history = self.chat_history[:-1] + [
+                        {"role": "user", "content": prompt}
+                    ]
+                    thought = single_request(step_history).strip()
+                    thoughts.append(thought)
+                    append_message(
+                        self.chat_history,
+                        "assistant",
+                        f"<thought>Step {step}: {thought}</thought>",
+                        self.agent_name,
+                        debug_enabled=self.debug_enabled,
+                    )
+
+                thinking_text = "\n".join(
+                    f"Step {i + 1}: {t}" for i, t in enumerate(thoughts)
+                )
+                final_prompt = (
+                    f"{original_prompt}\nHere is your thinking:\n{thinking_text}\n"
+                    "Answer the original prompt using this context."
+                )
+                self.chat_history[-1]["content"] = final_prompt
 
             payload = {
                 "model": self.model_name,

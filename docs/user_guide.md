@@ -63,6 +63,9 @@ settings:
 - **Managed Agents** – for Coordinators, choose which agents they can delegate to.
 - **Tool Use** – allow the agent to call tools.
 - **Enabled Tools** – choose which tools are available when tool use is on.
+- **Enable Thinking** – if checked, the agent will generate intermediate
+  thoughts before answering.
+- **Thinking Steps** – number of thinking iterations.
 - **Desktop History Enabled** – capture screenshots to give the model visual context.
 - **Screenshot Interval** – seconds between captures when desktop history is on.
 

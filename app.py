@@ -887,7 +887,9 @@ class AIChatApp(QMainWindow):
                 "role": "Assistant",  # Default role
                 "description": "A general-purpose assistant.", # Default description
                 "tool_use": False,
-                "tools_enabled": []
+                "tools_enabled": [],
+                "thinking_enabled": False,
+                "thinking_steps": 3
             }
             self.agents_data["Default Agent"] = default_agent_settings
             if self.debug_enabled:
@@ -912,11 +914,13 @@ class AIChatApp(QMainWindow):
                     "include_image": False,
                     "desktop_history_enabled": False,
                     "screenshot_interval": 5,
-                    "role": "Assistant",
-                    "description": "A new assistant agent.",
-                    "tool_use": False,
-                    "tools_enabled": []
-                }
+                "role": "Assistant",
+                "description": "A new assistant agent.",
+                "tool_use": False,
+                "tools_enabled": [],
+                "thinking_enabled": False,
+                "thinking_steps": 3
+            }
                 self.save_agents()
                 if self.debug_enabled:
                     print(f"[Debug] Agent '{agent_name}' added.")
