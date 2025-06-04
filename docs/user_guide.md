@@ -23,6 +23,9 @@ The Agents tab lets you create and configure AI agents. Every agent stores the f
 Changes are saved automatically when you modify a field. New agents can be added with **Add New Agent**. Select an existing agent and click **Delete Agent** to remove it.
 
 ## Tools Tab
+Manage the tools that agents can invoke. Add new tools or edit existing ones.
+The built-in **File Summarizer** tool can create short summaries of text files for quick reference.
+
 Tools extend Cerebro with custom Python scripts. The Tools tab shows all tools loaded from `tools.json` and any plugin modules. You can:
 
 1. **Add Tool** – open a dialog to provide a name, description and Python script. The script must define a `run_tool(args)` function.
@@ -30,6 +33,7 @@ Tools extend Cerebro with custom Python scripts. The Tools tab shows all tools l
 3. **Delete** – permanently remove a tool and its script file.
 
 Agents with tool use enabled can invoke these tools by returning a JSON block in the format described in `generate_tool_instructions_message()`.
+
 
 ## Tasks Tab
 The Tasks tab manages scheduled prompts. Tasks are displayed in a list and on a calendar. You can drag tasks to different dates to reschedule them. Double-clicking a task toggles its status between **pending** and **completed**. Buttons allow you to:

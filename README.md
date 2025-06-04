@@ -25,6 +25,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Each agent can enable or disable individual tools.
     *   Tools can also be discovered automatically from the `tool_plugins` directory
         or from packages exposing the `cerebro_tools` entry point.
+    *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time.
     *   Tasks are stored in `tasks.json`.
