@@ -9,7 +9,7 @@ Interact with your agents in a conversational interface. Send messages, receive 
 Create, configure, and remove AI agents. Each agent can use different models and settings.
 
 ## Tools Tab
-Manage the tools that agents can invoke. Add new tools or edit existing ones.
+Manage the tools that agents can invoke. Add new tools or edit existing ones. Built-in plugins include `math-solver` for solving equations.
 
 ## Tasks Tab
 Schedule tasks for agents and mark them complete using the calendar interface.
