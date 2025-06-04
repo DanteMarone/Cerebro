@@ -5,8 +5,8 @@ from PyQt5.QtWidgets import (
     QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView, QCalendarWidget,
     QInputDialog
 )
-from PyQt5.QtCore import Qt, QDate, QDateTime  # Import Qt from PyQt5.QtCore
-from PyQt5.QtGui import QDrag, QMimeData, QTextCharFormat, QBrush, QColor
+from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData
+from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
 from dialogs import TaskDialog
 from tasks import (
     add_task,
