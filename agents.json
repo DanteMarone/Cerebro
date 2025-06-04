@@ -151,5 +151,50 @@
         "include_image": false,
         "desktop_history_enabled": false,
         "screenshot_interval": 5
+    },
+    "Example Assistant": {
+        "model": "gemma3:12b",
+        "temperature": 0.7,
+        "max_tokens": 512,
+        "system_prompt": "You are a helpful assistant.",
+        "enabled": false,
+        "description": "Demonstrates a basic assistant.",
+        "role": "Assistant",
+        "tool_use": false,
+        "color": "#123456",
+        "managed_agents": [],
+        "tools_enabled": [],
+        "desktop_history_enabled": false,
+        "screenshot_interval": 5
+    },
+    "Example Coordinator": {
+        "model": "gemma3:12b",
+        "temperature": 0.7,
+        "max_tokens": 512,
+        "system_prompt": "Coordinate tasks and delegate. End with 'Next Response By: [Agent Name]'.",
+        "enabled": false,
+        "description": "Demonstrates delegating tasks to other agents.",
+        "role": "Coordinator",
+        "tool_use": false,
+        "color": "#654321",
+        "managed_agents": ["Example Specialist", "Example Assistant"],
+        "tools_enabled": [],
+        "desktop_history_enabled": false,
+        "screenshot_interval": 5
+    },
+    "Example Specialist": {
+        "model": "gemma3:12b",
+        "temperature": 0.7,
+        "max_tokens": 512,
+        "system_prompt": "Answer only when instructed by a Coordinator.",
+        "enabled": false,
+        "description": "Demonstrates a specialist agent.",
+        "role": "Specialist",
+        "tool_use": false,
+        "color": "#abcdef",
+        "managed_agents": [],
+        "tools_enabled": [],
+        "desktop_history_enabled": false,
+        "screenshot_interval": 5
     }
 }
