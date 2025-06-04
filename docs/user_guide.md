@@ -3,7 +3,7 @@
 This guide provides a detailed overview of Cerebro's features. Each section corresponds to one of the application's tabs.
 
 ## Chat Tab
-The Chat tab is the primary interface for interacting with your agents. Use the text box at the bottom to send a prompt. Messages appear in a scrollable window above the input field. The chat history can be copied, exported or cleared using the menu in the top right corner. While an agent is generating a response a "typing" indicator is displayed.
+The Chat tab is the primary interface for interacting with your agents. Use the text box at the bottom to send a prompt. Messages appear in a scrollable window above the input field. The chat history can be copied, exported or cleared using the menu in the top right corner. Each time the application starts you begin with a fresh conversation. While an agent is generating a response a "typing" indicator is displayed.
 
 ## Agents Tab
 The Agents tab lets you create and configure AI agents. Every agent stores the following settings:

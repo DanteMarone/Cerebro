@@ -39,9 +39,9 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Tasks can optionally repeat at a set interval.
         Today's date is highlighted and any date with tasks shows a small red dot.
     *   The included **Windows Notifier** tool can display Windows 11 notifications when a scheduled task runs.
-*   **Chat History Persistence:**
-    *   Conversations are saved to `chat_history.json` for each session.
-    *   History can be exported or cleared from the chat menu.
+*   **Chat History Management:**
+    *   Each session begins with a blank conversation.
+    *   History can be exported or cleared from the chat menu if desired.
 *   **Conversation Summaries:**
     *   Older messages are automatically condensed when a chat grows large to
         keep prompts short.

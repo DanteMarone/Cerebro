@@ -52,8 +52,8 @@ class AIChatApp(QMainWindow):
         self.setGeometry(100, 100, 1000, 700)  # Larger default window
 
         # Variables
-        self.chat_history = load_history(self.debug_enabled)
-        self.chat_history = summarize_history(self.chat_history)
+        clear_history(self.debug_enabled)
+        self.chat_history = []
         self.current_responses = {}
         self.agents_data = {}
         self.include_image = False
@@ -516,6 +516,7 @@ class AIChatApp(QMainWindow):
         if self.debug_enabled:
             print("[Debug] Clearing chat.")
         self.chat_tab.chat_display.clear()
+        clear_history(self.debug_enabled)
         self.chat_history = []
         self.show_notification("Chat cleared")
 
