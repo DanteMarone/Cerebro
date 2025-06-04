@@ -23,6 +23,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Agents can invoke tools by including a specific JSON format in their response.
     *   Each agent has an individual setting to toggle tool usage on or off.
     *   Each agent can enable or disable individual tools.
+    *   Tools can also be discovered automatically from the `tool_plugins` directory
+        or from packages exposing the `cerebro_tools` entry point.
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time.
     *   Tasks are stored in `tasks.json`.
@@ -163,6 +165,8 @@ name: The name of the tool.
 description: A brief description of the tool.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
 script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
+Tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point
+are loaded automatically on startup.
 Example:
 
 '''JSON

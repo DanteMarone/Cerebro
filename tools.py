@@ -5,21 +5,79 @@ import json
 import subprocess
 import sys
 import tempfile
+import importlib.util
+from importlib import metadata
 
 TOOLS_FILE = "tools.json"
+PLUGIN_DIR = "tool_plugins"
+
+ENTRY_POINT_GROUP = "cerebro_tools"
+
+def discover_plugin_tools(debug_enabled=False):
+    """Return a list of plugin-based tool definitions."""
+    tools = []
+
+    # Load tools from local plugin directory
+    if os.path.isdir(PLUGIN_DIR):
+        for fname in os.listdir(PLUGIN_DIR):
+            if not fname.endswith(".py"):
+                continue
+            path = os.path.join(PLUGIN_DIR, fname)
+            try:
+                spec = importlib.util.spec_from_file_location(fname[:-3], path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                meta = getattr(module, "TOOL_METADATA", None)
+                if not meta or "name" not in meta:
+                    continue
+                tools.append({
+                    "name": meta["name"],
+                    "description": meta.get("description", ""),
+                    "plugin_module": module,
+                })
+                if debug_enabled:
+                    print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
+            except Exception as e:
+                print(f"[Error] Failed to load plugin '{path}': {e}")
+
+    # Load tools registered via entry points
+    try:
+        eps = metadata.entry_points()
+        for ep in eps.select(group=ENTRY_POINT_GROUP):
+            try:
+                module = ep.load()
+                meta = getattr(module, "TOOL_METADATA", None)
+                if not meta or "name" not in meta:
+                    continue
+                tools.append({
+                    "name": meta["name"],
+                    "description": meta.get("description", ""),
+                    "plugin_module": module,
+                })
+                if debug_enabled:
+                    print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")
+            except Exception as e:
+                print(f"[Error] Failed to load entry point '{ep.name}': {e}")
+    except Exception as e:
+        if debug_enabled:
+            print(f"[Error] Failed to inspect entry points: {e}")
+
+    return tools
 
 def load_tools(debug_enabled=False):
-    if not os.path.exists(TOOLS_FILE):
-        return []
-    try:
-        with open(TOOLS_FILE, "r") as f:
-            tools = json.load(f)
-            if debug_enabled:
-                print("[Debug] Tools loaded:", tools)
-            return tools
-    except Exception as e:
-        print(f"[Error] Failed to load tools: {e}")
-        return []
+    """Load tools from tools.json and any installed plugins."""
+    tools = []
+    if os.path.exists(TOOLS_FILE):
+        try:
+            with open(TOOLS_FILE, "r") as f:
+                tools = json.load(f)
+                if debug_enabled:
+                    print("[Debug] Tools loaded:", tools)
+        except Exception as e:
+            print(f"[Error] Failed to load tools: {e}")
+
+    tools.extend(discover_plugin_tools(debug_enabled))
+    return tools
 
 def save_tools(tools, debug_enabled=False):
     try:
@@ -34,6 +92,16 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     tool = next((t for t in tools if t["name"] == tool_name), None)
     if not tool:
         return f"[Tool Error] Tool '{tool_name}' not found."
+
+    plugin_module = tool.get("plugin_module")
+    if plugin_module:
+        try:
+            return plugin_module.run_tool(args)
+        except Exception as e:
+            error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
+            if debug_enabled:
+                print(f"[Debug] {error_msg}")
+            return error_msg
 
     script_path = tool.get("script_path", "")
     cleanup_tmp = False

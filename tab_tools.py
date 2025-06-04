@@ -68,15 +68,16 @@ class ToolsTab(QWidget):
 
     def refresh_tools_list(self):
         self.tools_list.clear()
-        if not self.tools:  # Check if the list is empty
+        user_tools = [t for t in self.tools if 'plugin_module' not in t]
+        if not user_tools:
             label = QLabel("No tools available.")
             label.setAlignment(Qt.AlignCenter)
             self.layout.addWidget(label)
         else:
-            for t in self.tools:
+            for t in user_tools:
                 item = QListWidgetItem()
                 item.setText(f"{t['name']}: {t['description']}")
-                item.setData(Qt.UserRole, t['name'])  # Store the tool name in the item's data
+                item.setData(Qt.UserRole, t['name'])
                 self.tools_list.addItem(item)
 
     def add_tool_ui(self):
