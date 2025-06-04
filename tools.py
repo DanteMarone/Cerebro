@@ -4,6 +4,7 @@ import os
 import json
 import subprocess
 import sys
+import tempfile
 
 TOOLS_FILE = "tools.json"
 
@@ -35,8 +36,19 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
         return f"[Tool Error] Tool '{tool_name}' not found."
 
     script_path = tool.get("script_path", "")
+    cleanup_tmp = False
+
     if not script_path:
-        return f"[Tool Error] Tool '{tool_name}' has no script path."
+        script_content = tool.get("script")
+        if not script_content:
+            return f"[Tool Error] Tool '{tool_name}' has no script."
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".py")
+        tmp_file.write(script_content.encode())
+        tmp_file.close()
+        script_path = tmp_file.name
+        cleanup_tmp = True
+        if debug_enabled:
+            print(f"[Debug] Created temporary script for '{tool_name}' at: {script_path}")
 
     if not os.path.exists(script_path):
         return f"[Tool Error] Script path for tool '{tool_name}' does not exist: {script_path}"
@@ -71,6 +83,14 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
         if debug_enabled:
             print(f"[Debug] {error_msg}")
         return error_msg
+    finally:
+        if cleanup_tmp:
+            try:
+                os.remove(script_path)
+                if debug_enabled:
+                    print(f"[Debug] Deleted temporary script: {script_path}")
+            except Exception:
+                pass
 
 def add_tool(tools, name, description, script, debug_enabled=False):
     if any(t['name'] == name for t in tools):
@@ -91,7 +111,12 @@ def add_tool(tools, name, description, script, debug_enabled=False):
     except Exception as e:
         return f"[Tool Error] Failed to create script file: {e}"
 
-    tools.append({"name": name, "description": description, "script_path": script_path})
+    tools.append({
+        "name": name,
+        "description": description,
+        "script": script,
+        "script_path": script_path,
+    })
     save_tools(tools, debug_enabled)
     return None
 
@@ -108,6 +133,7 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
         try:
             with open(tool["script_path"], "w") as f:
                 f.write(script)
+            tool["script"] = script
             if debug_enabled:
                 print(f"[Debug] Updated script file at: {tool['script_path']}")
         except Exception as e:
