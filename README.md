@@ -12,7 +12,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         *   **Coordinator:** Manages other agents and delegates tasks.
         *   **Assistant:** Responds directly to user queries.
         *   **Specialist:** Responds only to requests from a Coordinator.
-    *   Configurable color in the chat UI.
+     *   Configurable color in the chat UI.
+     *   Rename agents on the edit page and press **Save** to apply changes.
 *   **Agent Roles:**
     *   **Coordinator:**  The Coordinator agent acts as a central hub. It receives user input, intelligently selects the most appropriate Specialist or Assistant agent to handle the request (based on agent descriptions and the nature of the query), and then displays the chosen agent's response. The Coordinator can also add context or modify the user's prompt before passing it on. When a Coordinator is done, it will pass the conversation on to another agent by specifying the phrase "Next Response By: [Agent Name]".
     *   **Assistant:** Assistant agents behave like traditional chatbots, responding directly to user input in the chat window.

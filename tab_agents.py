@@ -15,6 +15,7 @@ class AgentsTab(QWidget):
         super().__init__()
         self.parent_app = parent_app
         self.current_agent = None
+        self.unsaved_changes = False
 
         self.global_agent_preferences = {}
 
@@ -58,10 +59,13 @@ class AgentsTab(QWidget):
         nav_layout = QHBoxLayout()
         self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(self.show_agent_list)
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.on_save_agent_clicked)
         self.delete_button = QPushButton("Delete Agent")
         self.delete_button.clicked.connect(self.on_delete_agent_clicked)
         nav_layout.addWidget(self.back_button)
         nav_layout.addStretch()
+        nav_layout.addWidget(self.save_button)
         nav_layout.addWidget(self.delete_button)
         edit_layout.addLayout(nav_layout)
 
@@ -73,7 +77,13 @@ class AgentsTab(QWidget):
 
         # Agent settings form
         self.agent_settings_layout = QFormLayout()
-        
+
+        # Agent name
+        self.name_label = QLabel("Agent Name:")
+        self.name_input = QLineEdit()
+        self.name_input.setToolTip("Unique name for this agent.")
+        self.agent_settings_layout.addRow(self.name_label, self.name_input)
+
         # --- Basic Settings ---
         self.model_label = QLabel("Model:")
         self.model_combo = QComboBox()
@@ -160,17 +170,18 @@ class AgentsTab(QWidget):
 
         self.stacked.addWidget(self.edit_page)
         
-        # Connect change events
-        self.model_combo.currentIndexChanged.connect(self.save_agent_settings)
-        self.temperature_input.valueChanged.connect(self.save_agent_settings)
-        self.max_tokens_input.valueChanged.connect(self.save_agent_settings)
-        self.system_prompt_input.textChanged.connect(self.save_agent_settings)
-        self.enabled_checkbox.stateChanged.connect(self.save_agent_settings)
-        self.description_input.textChanged.connect(self.save_agent_settings)
-        self.role_combo.currentIndexChanged.connect(self.save_agent_settings)
-        self.tool_use_checkbox.stateChanged.connect(self.save_agent_settings)
-        self.managed_agents_list.itemSelectionChanged.connect(self.save_agent_settings)
-        self.tools_list.itemSelectionChanged.connect(self.save_agent_settings)
+        # Track unsaved changes without immediately writing to disk
+        self.model_combo.currentIndexChanged.connect(self.mark_unsaved)
+        self.temperature_input.valueChanged.connect(self.mark_unsaved)
+        self.max_tokens_input.valueChanged.connect(self.mark_unsaved)
+        self.system_prompt_input.textChanged.connect(self.mark_unsaved)
+        self.enabled_checkbox.stateChanged.connect(self.mark_unsaved)
+        self.description_input.textChanged.connect(self.mark_unsaved)
+        self.role_combo.currentIndexChanged.connect(self.mark_unsaved)
+        self.tool_use_checkbox.stateChanged.connect(self.mark_unsaved)
+        self.managed_agents_list.itemSelectionChanged.connect(self.mark_unsaved)
+        self.tools_list.itemSelectionChanged.connect(self.mark_unsaved)
+        self.name_input.textChanged.connect(self.mark_unsaved)
         
         # Initially hide the managed agents list
         self.managed_agents_label.setVisible(False)
@@ -192,6 +203,7 @@ class AgentsTab(QWidget):
             return
             
         # Block signals during loading
+        self.name_input.blockSignals(True)
         self.model_combo.blockSignals(True)
         self.temperature_input.blockSignals(True)
         self.max_tokens_input.blockSignals(True)
@@ -204,6 +216,7 @@ class AgentsTab(QWidget):
         self.tools_list.blockSignals(True)
         
         # Set form values
+        self.name_input.setText(agent_name)
         self.update_model_dropdown()
         model_value = agent_settings.get("model", "")
         index = self.model_combo.findText(model_value)
@@ -251,6 +264,7 @@ class AgentsTab(QWidget):
                     item.setSelected(True)
         
         # Unblock signals
+        self.name_input.blockSignals(False)
         self.model_combo.blockSignals(False)
         self.temperature_input.blockSignals(False)
         self.max_tokens_input.blockSignals(False)
@@ -265,6 +279,7 @@ class AgentsTab(QWidget):
         # Update visibility based on current settings
         self.update_managed_agents_visibility()
         self.update_tools_visibility()
+        self.unsaved_changes = False
     
     def update_managed_agents_visibility(self):
         is_coordinator = self.role_combo.currentText() == "Coordinator"
@@ -287,21 +302,34 @@ class AgentsTab(QWidget):
         if color.isValid():
             color_hex = color.name()
             self.update_color_button(color_hex)
-            
-            # Save color to agent settings
+
+            # Update color but defer saving until Save is clicked
             if agent_name in self.parent_app.agents_data:
                 self.parent_app.agents_data[agent_name]["color"] = color_hex
-                self.parent_app.save_agents()
+                self.mark_unsaved()
     
     def update_color_button(self, color_hex):
         """Update the color button with the selected color."""
         self.color_button.setStyleSheet(f"background-color: {color_hex}; color: white;")
         self.color_button.setText(color_hex)
-    
+
+    def mark_unsaved(self, *_):
+        """Flag that there are unsaved changes."""
+        self.unsaved_changes = True
+
     def save_agent_settings(self):
         """Save agent settings from the form."""
         agent_name = self.current_agent
         if not agent_name or agent_name not in self.parent_app.agents_data:
+            return
+
+        new_name = self.name_input.text().strip()
+        if not new_name:
+            QMessageBox.warning(self, "Invalid Name", "Agent name cannot be empty.")
+            return
+
+        if new_name != agent_name and new_name in self.parent_app.agents_data:
+            QMessageBox.warning(self, "Name Exists", "An agent with this name already exists.")
             return
             
         # Build settings dictionary
@@ -344,11 +372,22 @@ class AgentsTab(QWidget):
         for key, value in self.parent_app.agents_data[agent_name].items():
             if key not in updated_settings:
                 updated_settings[key] = value
-        
-        # Update settings
-        self.parent_app.agents_data[agent_name] = updated_settings
+
+        # Rename if needed and update settings
+        if new_name != agent_name:
+            del self.parent_app.agents_data[agent_name]
+            self.parent_app.agents_data[new_name] = updated_settings
+            self.current_agent = new_name
+        else:
+            self.parent_app.agents_data[agent_name] = updated_settings
         self.parent_app.save_agents()
         self.parent_app.update_send_button_state()
+        self.refresh_agent_table()
+        self.unsaved_changes = False
+
+    def on_save_agent_clicked(self):
+        """Handle Save button press."""
+        self.save_agent_settings()
     
     def on_delete_agent_clicked(self):
         agent_name = self.current_agent
