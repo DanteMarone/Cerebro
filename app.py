@@ -1,6 +1,7 @@
 #app.py
 import os
 import json
+import time
 from datetime import datetime
 from PyQt5 import QtCore
 from PyQt5.QtCore import QThread, Qt, QTimer
@@ -27,6 +28,8 @@ from tab_chat import ChatTab
 from tab_agents import AgentsTab
 from tab_tools import ToolsTab
 from tab_tasks import TasksTab
+from tab_metrics import MetricsTab
+from metrics import load_metrics, record_tool_usage, record_response_time
 
 AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
@@ -67,9 +70,11 @@ class AIChatApp(QMainWindow):
         self.notification_timer.timeout.connect(self.process_notifications)
         self.notification_timer.start(3000)  # Check every 3 seconds
 
-        # Load Tools and Tasks
+        # Load Tools, Tasks, and Metrics
         self.tools = load_tools(self.debug_enabled)
         self.tasks = load_tasks(self.debug_enabled)
+        self.metrics = load_metrics(self.debug_enabled)
+        self.response_start_times = {}
         
         # Create main layout with sidebar
         central_widget = QWidget()
@@ -124,6 +129,10 @@ class AIChatApp(QMainWindow):
         # Tasks button
         self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 3)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
+
+        # Metrics button
+        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 4)
+        sidebar_layout.addWidget(self.nav_buttons["metrics"])
         
         # Add stretcher to push settings button to bottom
         sidebar_layout.addStretch(1)
@@ -153,12 +162,14 @@ class AIChatApp(QMainWindow):
         self.agents_tab = AgentsTab(self)
         self.tools_tab = ToolsTab(self)
         self.tasks_tab = TasksTab(self)
+        self.metrics_tab = MetricsTab(self)
         
         # Add pages to stacked widget
         self.content_stack.addWidget(self.chat_tab)
         self.content_stack.addWidget(self.agents_tab)
         self.content_stack.addWidget(self.tools_tab)
         self.content_stack.addWidget(self.tasks_tab)
+        self.content_stack.addWidget(self.metrics_tab)
         
         main_layout.addWidget(self.content_stack)
         
@@ -261,7 +272,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4']):
+        for i, key in enumerate(['1', '2', '3', '4', '5']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
@@ -289,6 +300,7 @@ class AIChatApp(QMainWindow):
                               "Ctrl+2: Agents Tab\n"
                               "Ctrl+3: Tools Tab\n"
                               "Ctrl+4: Tasks Tab\n"
+                              "Ctrl+5: Metrics Tab\n"
                               "Ctrl+S: Send Message\n"
                               "Ctrl+L: Clear Chat\n"
                               "Ctrl+T: Toggle Theme\n"
@@ -488,6 +500,7 @@ class AIChatApp(QMainWindow):
 
             thread.started.connect(worker.run)
             thread.start()
+            self.response_start_times[worker] = time.time()
 
         process_next_agent(0)
 
@@ -688,6 +701,8 @@ class AIChatApp(QMainWindow):
             else:
                 self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
                 tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
+                record_tool_usage(self.metrics, tool_name, self.debug_enabled)
+                self.refresh_metrics_display()
 
                 # Check for tool errors and handle them
                 if tool_result.startswith("[Tool Error]"):
@@ -728,6 +743,11 @@ class AIChatApp(QMainWindow):
 
         if self.debug_enabled and agent_name:
             print(f"[Debug] Worker for agent '{agent_name}' finished.")
+
+        if sender_worker in self.response_start_times:
+            elapsed = time.time() - self.response_start_times.pop(sender_worker)
+            record_response_time(self.metrics, agent_name, elapsed, self.debug_enabled)
+            self.refresh_metrics_display()
 
         thread.quit()
         thread.wait()
@@ -787,6 +807,7 @@ class AIChatApp(QMainWindow):
 
             thread.started.connect(worker.run)
             thread.start()
+            self.response_start_times[worker] = time.time()
         else:
             error_msg = f"[{timestamp}] <span style='color:red;'>[Error] Agent '{agent_name}' is not enabled.</span>"
             self.chat_tab.append_message_html(error_msg)
@@ -917,6 +938,10 @@ class AIChatApp(QMainWindow):
             self.tools_tab.refresh_tools_list()
             self.show_notification("Tools list refreshed", "info")
 
+    def refresh_metrics_display(self):
+        if hasattr(self.metrics_tab, "refresh_metrics"):
+            self.metrics_tab.refresh_metrics()
+
     # -------------------------------------------------------------------------
     # Tasks / Scheduling
     # -------------------------------------------------------------------------
@@ -985,6 +1010,7 @@ class AIChatApp(QMainWindow):
 
         thread.started.connect(worker.run)
         thread.start()
+        self.response_start_times[worker] = time.time()
 
     # -------------------------------------------------------------------------
     # Chat History Helpers
