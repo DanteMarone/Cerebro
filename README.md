@@ -34,6 +34,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Tasks are stored in `tasks.json`.
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
     *   Tasks can optionally repeat at a set interval.
+        Today's date is highlighted and any date with tasks shows a small red dot.
     *   The included **Windows Notifier** tool can display Windows 11 notifications when a scheduled task runs.
 *   **Chat History Persistence:**
     *   Conversations are saved to `chat_history.json` for each session.

@@ -855,12 +855,8 @@ class AIChatApp(QMainWindow):
             if self.debug_enabled:
                 print("[Debug] Default agent added.")
 
-        self.agents_tab.agent_selector.clear()
-        for agent_name in self.agents_data.keys():
-            self.agents_tab.agent_selector.addItem(agent_name)
-
-        if self.agents_tab.agent_selector.count() > 0:
-            self.agents_tab.load_agent_settings(self.agents_tab.agent_selector.currentText())
+        if hasattr(self.agents_tab, "refresh_agent_table"):
+            self.agents_tab.refresh_agent_table()
 
     def add_agent(self):
         from PyQt5.QtWidgets import QInputDialog
@@ -883,26 +879,27 @@ class AIChatApp(QMainWindow):
                     "tool_use": False,
                     "tools_enabled": []
                 }
-                self.agents_tab.agent_selector.addItem(agent_name)
                 self.save_agents()
                 if self.debug_enabled:
                     print(f"[Debug] Agent '{agent_name}' added.")
                 self.show_notification(f"Agent '{agent_name}' created successfully", "info")
+                if hasattr(self.agents_tab, "refresh_agent_table"):
+                    self.agents_tab.refresh_agent_table()
             else:
                 QMessageBox.warning(self, "Agent Exists", "Agent already exists.")
         self.update_send_button_state()
 
-    def delete_agent(self):
-        current_agent = self.agents_tab.agent_selector.currentText()
-        if current_agent:
-            if current_agent in self.agents_data:
-                del self.agents_data[current_agent]
-                idx = self.agents_tab.agent_selector.currentIndex()
-                self.agents_tab.agent_selector.removeItem(idx)
-                self.save_agents()
-                if self.debug_enabled:
-                    print(f"[Debug] Agent '{current_agent}' removed.")
-                self.show_notification(f"Agent '{current_agent}' deleted", "info")
+    def delete_agent(self, agent_name=None):
+        if agent_name is None:
+            agent_name = self.agents_tab.current_agent
+        if agent_name and agent_name in self.agents_data:
+            del self.agents_data[agent_name]
+            self.save_agents()
+            if self.debug_enabled:
+                print(f"[Debug] Agent '{agent_name}' removed.")
+            self.show_notification(f"Agent '{agent_name}' deleted", "info")
+            if hasattr(self.agents_tab, "refresh_agent_table"):
+                self.agents_tab.refresh_agent_table()
         self.update_send_button_state()
 
     def save_agents(self):
