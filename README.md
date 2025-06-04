@@ -27,8 +27,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Agents can schedule tasks to be executed at a specific time.
     *   Tasks are stored in `tasks.json`.
 *   **Desktop History:**
-    *   Agents can be granted access to screenshots of the user's desktop.
-    *   Currently, this feature is not implemented, but the groundwork has been laid.
+    *   Agents with `desktop_history_enabled` set to true will receive recent screenshots
+        of your desktop. The capture interval is controlled by `screenshot_interval`.
 *   **Customizable UI:**
     *   Light and dark mode support.
     *   Configurable user name and color.
@@ -103,8 +103,8 @@ This file stores the configuration for each agent.
 *   **`role`:** Defines the agent's role: "Coordinator", "Assistant", or "Specialist".
 *   **`description`:** A brief description of the agent's capabilities (used by Coordinators).
 *   **`managed_agents`:** (Coordinator only) A list of agents managed by this Coordinator.
-*   **`desktop_history_enabled`:** Enables access to desktop screenshots (currently not implemented).
-*   **`screenshot_interval`:**  Sets the screenshot interval (currently not implemented).
+*   **`desktop_history_enabled`:** Enables access to desktop screenshots.
+*   **`screenshot_interval`:**  Interval in seconds between captured screenshots.
 *   **`tool_use`:** Boolean value to enable or disable an agent's access to tools.
 *   **`tools_enabled`:** A list of tools that an agent can access, assuming `tool_use` is set to true.
 
@@ -144,7 +144,7 @@ This file stores global application settings.
 
 debug_enabled: Enables debug mode (boolean).
 include_image: Currently unused.
-include_screenshot: Currently unused.
+include_screenshot: Deprecated.
 image_path: Currently unused.
 user_name: The user's display name.
 user_color: The user's chat message color.
