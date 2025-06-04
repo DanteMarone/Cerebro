@@ -42,23 +42,23 @@ class ToolsTab(QWidget):
         btn_layout.addWidget(self.add_button)
         self.layout.addLayout(btn_layout)
 
-        # Edit, Delete and Run Buttons (initially hidden)
+        # Edit, Delete and Run Buttons (start disabled)
         self.edit_tool_button = QPushButton("Edit Tool")
         self.edit_tool_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogDetailedView')))
         self.edit_tool_button.setToolTip("Edit the selected tool.")
-        self.edit_tool_button.hide()
+        self.edit_tool_button.setEnabled(False)
         btn_layout.addWidget(self.edit_tool_button)
 
         self.delete_button = QPushButton("Delete")
         self.delete_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_TrashIcon')))
         self.delete_button.setToolTip("Delete the selected tool.")
-        self.delete_button.hide()
+        self.delete_button.setEnabled(False)
         btn_layout.addWidget(self.delete_button)
 
         self.run_button = QPushButton("Run")
         self.run_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_MediaPlay')))
         self.run_button.setToolTip("Run the selected tool for testing.")
-        self.run_button.hide()
+        self.run_button.setEnabled(False)
         btn_layout.addWidget(self.run_button)
 
         # Connect signals
@@ -71,28 +71,31 @@ class ToolsTab(QWidget):
 
     def on_item_selection_changed(self):
         """
-        Show or hide the Edit/Delete buttons based on whether an item is selected.
+        Enable or disable buttons based on whether an item is selected.
         """
         selected_items = self.tools_list.selectedItems()
         if not selected_items:
-            self.edit_tool_button.hide()
-            self.delete_button.hide()
-            self.run_button.hide()
+            self.edit_tool_button.setEnabled(False)
+            self.delete_button.setEnabled(False)
+            self.run_button.setEnabled(False)
             return
 
         item = selected_items[0]
         is_plugin = item.data(Qt.UserRole + 1)
-        self.run_button.show()
+        self.run_button.setEnabled(True)
         if is_plugin:
-            self.edit_tool_button.hide()
-            self.delete_button.hide()
+            self.edit_tool_button.setEnabled(False)
+            self.delete_button.setEnabled(False)
         else:
-            self.edit_tool_button.show()
-            self.delete_button.show()
+            self.edit_tool_button.setEnabled(True)
+            self.delete_button.setEnabled(True)
 
     def refresh_tools_list(self):
         self.tools_list.clear()
         self.no_tools_label.hide()
+        self.edit_tool_button.setEnabled(False)
+        self.delete_button.setEnabled(False)
+        self.run_button.setEnabled(False)
 
         if not self.tools:
             self.no_tools_label.show()
