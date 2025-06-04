@@ -79,3 +79,12 @@ def set_task_status(tasks, task_id, status, debug_enabled=False):
     task["status"] = status
     save_tasks(tasks, debug_enabled)
     return None
+
+def update_task_due_time(tasks, task_id, due_time, debug_enabled=False):
+    """Update the due time for a task."""
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if not task:
+        return f"[Task Error] Task '{task_id}' not found."
+    task["due_time"] = due_time
+    save_tasks(tasks, debug_enabled)
+    return None

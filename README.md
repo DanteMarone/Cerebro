@@ -26,6 +26,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time.
     *   Tasks are stored in `tasks.json`.
+    *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
 *   **Chat History Persistence:**
     *   Conversations are saved to `chat_history.json` for each session.
     *   History can be exported or cleared from the chat menu.
