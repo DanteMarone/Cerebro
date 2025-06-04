@@ -155,6 +155,7 @@ This file defines available tools.
 name: The name of the tool.
 description: A brief description of the tool.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
+script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
 Example:
 
 '''JSON
