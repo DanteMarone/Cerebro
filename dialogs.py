@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLineEdit, QTextEdit, QLabel, QPushButton, QHBoxLayout,
     QComboBox, QStyle, QColorDialog, QCheckBox, QDateTimeEdit, QDialogButtonBox, QMessageBox
 )
+import subprocess
 from PyQt5.QtCore import Qt, QDateTime
 
 class ToolDialog(QDialog):
@@ -212,6 +213,26 @@ class SettingsDialog(QDialog):
         self.debug_enabled_checkbox.setToolTip("Enable or disable debug mode.")
         layout.addWidget(self.debug_enabled_checkbox)
 
+        # --- Ollama Updates ---
+        update_label = QLabel("Update Ollama and Models:")
+        layout.addWidget(update_label)
+
+        update_layout = QHBoxLayout()
+        self.update_ollama_button = QPushButton("Update Ollama")
+        self.update_ollama_button.clicked.connect(self.update_ollama)
+        update_layout.addWidget(self.update_ollama_button)
+
+        self.model_combo = QComboBox()
+        models = self.parent.agents_tab.fetch_available_models()
+        self.model_combo.addItems(models)
+        update_layout.addWidget(self.model_combo)
+
+        self.update_model_button = QPushButton("Update Model")
+        self.update_model_button.clicked.connect(self.update_selected_model)
+        update_layout.addWidget(self.update_model_button)
+
+        layout.addLayout(update_layout)
+
         # Buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
@@ -231,3 +252,34 @@ class SettingsDialog(QDialog):
             "user_color": self.parent.user_color,  # Color is already updated
             "debug_enabled": self.debug_enabled_checkbox.isChecked()
         }
+
+    def update_ollama(self):
+        """Run 'ollama update' and show the result."""
+        try:
+            result = subprocess.run(
+                ["ollama", "update"], capture_output=True, text=True, timeout=300
+            )
+            output = result.stdout.strip() or "Update complete."
+            QMessageBox.information(self, "Ollama Update", output)
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Error", "Ollama executable not found.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to update Ollama: {e}")
+
+    def update_selected_model(self):
+        """Run 'ollama pull <model>' for the selected model."""
+        model = self.model_combo.currentText().strip()
+        if not model:
+            QMessageBox.warning(self, "Error", "No model selected.")
+            return
+        try:
+            result = subprocess.run(
+                ["ollama", "pull", model], capture_output=True, text=True, timeout=600
+            )
+            output = result.stdout.strip() or f"Model {model} updated."
+            QMessageBox.information(self, "Model Update", output)
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Error", "Ollama executable not found.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to update model: {e}")
+
