@@ -119,14 +119,13 @@ class MessageBroker:
 
         thread = QThread()
         worker = AIWorker(
-            model_name=model_name,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            debug_enabled=self.app.debug_enabled if self.app else False,
-            agent_name=recipient,
-            agents_data=self.app.agents_data if self.app else {},
-            tools=self.app.tools if self.app else [],
-            message_broker=self
+            model_name,
+            chat_history,
+            temperature,
+            max_tokens,
+            self.app.debug_enabled if self.app else False,
+            recipient,
+            self.app.agents_data if self.app else {}
         )
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
@@ -464,14 +463,13 @@ class MessageBroker:
 
         thread = QThread()
         worker = AIWorker(
-            model_name=model_name,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            debug_enabled=self.app.debug_enabled,
-            agent_name=agent_name,
-            agents_data=self.app.agents_data,
-            tools=self.app.tools,
-            message_broker=self
+            model_name,
+            chat_history,
+            temperature,
+            max_tokens,
+            self.app.debug_enabled,
+            agent_name,
+            self.app.agents_data
         )
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
