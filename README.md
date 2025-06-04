@@ -30,7 +30,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
 
 *   **Task Scheduling:**
-    *   Agents can schedule tasks to be executed at a specific time.
+    *   Agents can schedule tasks to be executed at a specific time. New tasks default to one minute from the current time.
     *   Tasks are stored in `tasks.json`.
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
     *   Tasks can optionally repeat at a set interval.
