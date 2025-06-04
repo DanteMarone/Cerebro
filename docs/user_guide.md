@@ -8,7 +8,7 @@ The Chat tab is the primary interface for interacting with your agents. Use the 
 ## Agents Tab
 The Agents tab lets you create and configure AI agents. Every agent stores the following settings:
 
-- **Model** – name of the language model (for example `llava` or `llama3.2-vision`).
+- **Model** – select the language model from a dropdown of installed Ollama models (for example `llava` or `llama3.2-vision`).
 - **Temperature** – controls randomness of the output.
 - **Max Tokens** – maximum length of a single response.
 - **Custom System Prompt** – additional instructions sent before every conversation.

@@ -1,6 +1,7 @@
 #tab_agents.py
 import os
 import json
+import requests
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton,
     QHBoxLayout, QComboBox, QFrame, QLineEdit, QTextEdit, QCheckBox,
@@ -75,9 +76,9 @@ class AgentsTab(QWidget):
         
         # --- Basic Settings ---
         self.model_label = QLabel("Model:")
-        self.model_input = QLineEdit()
-        self.model_input.setToolTip("Enter the model name to use for this agent.")
-        self.agent_settings_layout.addRow(self.model_label, self.model_input)
+        self.model_combo = QComboBox()
+        self.model_combo.setToolTip("Select the model to use for this agent.")
+        self.agent_settings_layout.addRow(self.model_label, self.model_combo)
         
         # --- Prompt Settings Group ---
         self.prompt_settings_group = QGroupBox("Prompt Settings")
@@ -160,7 +161,7 @@ class AgentsTab(QWidget):
         self.stacked.addWidget(self.edit_page)
         
         # Connect change events
-        self.model_input.textChanged.connect(self.save_agent_settings)
+        self.model_combo.currentIndexChanged.connect(self.save_agent_settings)
         self.temperature_input.valueChanged.connect(self.save_agent_settings)
         self.max_tokens_input.valueChanged.connect(self.save_agent_settings)
         self.system_prompt_input.textChanged.connect(self.save_agent_settings)
@@ -191,7 +192,7 @@ class AgentsTab(QWidget):
             return
             
         # Block signals during loading
-        self.model_input.blockSignals(True)
+        self.model_combo.blockSignals(True)
         self.temperature_input.blockSignals(True)
         self.max_tokens_input.blockSignals(True)
         self.system_prompt_input.blockSignals(True)
@@ -203,7 +204,14 @@ class AgentsTab(QWidget):
         self.tools_list.blockSignals(True)
         
         # Set form values
-        self.model_input.setText(agent_settings.get("model", ""))
+        self.update_model_dropdown()
+        model_value = agent_settings.get("model", "")
+        index = self.model_combo.findText(model_value)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+        elif model_value:
+            self.model_combo.addItem(model_value)
+            self.model_combo.setCurrentIndex(self.model_combo.count() - 1)
         self.temperature_input.setValue(agent_settings.get("temperature", 0.7))
         self.max_tokens_input.setValue(agent_settings.get("max_tokens", 512))
         self.system_prompt_input.setText(agent_settings.get("system_prompt", ""))
@@ -243,7 +251,7 @@ class AgentsTab(QWidget):
                     item.setSelected(True)
         
         # Unblock signals
-        self.model_input.blockSignals(False)
+        self.model_combo.blockSignals(False)
         self.temperature_input.blockSignals(False)
         self.max_tokens_input.blockSignals(False)
         self.system_prompt_input.blockSignals(False)
@@ -298,7 +306,7 @@ class AgentsTab(QWidget):
             
         # Build settings dictionary
         updated_settings = {
-            "model": self.model_input.text(),
+            "model": self.model_combo.currentText(),
             "temperature": self.temperature_input.value(),
             "max_tokens": self.max_tokens_input.value(),
             "system_prompt": self.system_prompt_input.toPlainText(),
@@ -380,20 +388,41 @@ class AgentsTab(QWidget):
     
     def load_global_preferences(self):
         """Load global preferences like model list."""
-        # Use the hardcoded filename directly 
-        if os.path.exists("agents.json"):
+        models = self.fetch_available_models()
+        if not models and os.path.exists("agents.json"):
             try:
-                with open("agents.json", 'r') as f:
+                with open("agents.json", "r") as f:
                     agents_data = json.load(f)
-                
-                # Extract unique models from agents
-                models = set()
-                for agent_settings in agents_data.values():
-                    model = agent_settings.get("model", "")
-                    if model:
-                        models.add(model)
-                
-                self.global_agent_preferences["available_models"] = list(models)
+
+                models = {
+                    settings.get("model", "")
+                    for settings in agents_data.values()
+                    if settings.get("model", "")
+                }
             except Exception as e:
                 if self.parent_app.debug_enabled:
                     print(f"[Debug] Error loading agent preferences: {str(e)}")
+
+        self.global_agent_preferences["available_models"] = list(models)
+        self.update_model_dropdown()
+
+    def fetch_available_models(self):
+        """Fetch installed Ollama models via the tags API."""
+        url = "http://localhost:11434/api/tags"
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            return [m.get("name") for m in data.get("models", []) if m.get("name")]
+        except Exception as e:
+            if self.parent_app.debug_enabled:
+                print(f"[Debug] Failed to fetch models: {e}")
+            return []
+
+    def update_model_dropdown(self):
+        """Populate the model combo box with available models."""
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+        models = self.global_agent_preferences.get("available_models", [])
+        self.model_combo.addItems(models)
+        self.model_combo.blockSignals(False)
