@@ -23,6 +23,7 @@ Follow these guidelines when modifying the project.
 
 ## Documentation
 - Update `README.md` when behavior or configuration changes.
+- Keep `docs/user_guide.md` current with any new features.
 
 ## Pull Request
 - The PR summary should describe the change.
