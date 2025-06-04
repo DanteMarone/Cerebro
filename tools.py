@@ -2,7 +2,6 @@
 
 import os
 import json
-import subprocess
 import sys
 import tempfile
 import importlib.util
@@ -105,30 +104,29 @@ def save_tools(tools, debug_enabled=False):
         print(f"[Error] Failed to save tools: {e}")
 
 def run_tool(tools, tool_name, args, debug_enabled=False):
+    """Execute the specified tool with the provided arguments."""
+
     tool = next((t for t in tools if t["name"] == tool_name), None)
     if not tool:
         return f"[Tool Error] Tool '{tool_name}' not found."
 
-    script_path = tool.get("script_path", "")
     plugin_module = tool.get("plugin_module")
+    script_path = tool.get("script_path", "")
     cleanup_tmp = False
 
-    if not script_path and plugin_module:
-        script_path = getattr(plugin_module, "__file__", "")
-        if script_path and os.path.exists(script_path):
-            tool["script_path"] = script_path
-        else:
-            script_content = tool.get("script")
-            if not script_content:
-                return f"[Tool Error] Tool '{tool_name}' has no script."
-            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".py")
-            tmp_file.write(script_content.encode())
-            tmp_file.close()
-            script_path = tmp_file.name
-            cleanup_tmp = True
-            if debug_enabled:
-                print(f"[Debug] Created temporary script for '{tool_name}' at: {script_path}")
-    elif not script_path:
+    # Prefer a loaded plugin module when available
+    if plugin_module:
+        if hasattr(plugin_module, "run_tool"):
+            try:
+                return plugin_module.run_tool(args)
+            except Exception as exc:
+                error_msg = f"[Tool Error] Exception running tool '{tool_name}': {exc}"
+                if debug_enabled:
+                    print(f"[Debug] {error_msg}")
+                return error_msg
+        # Fall back to script loading if module lacks run_tool
+
+    if not script_path:
         script_content = tool.get("script")
         if not script_content:
             return f"[Tool Error] Tool '{tool_name}' has no script."
@@ -143,37 +141,26 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     if not os.path.exists(script_path):
         return f"[Tool Error] Script path for tool '{tool_name}' does not exist: {script_path}"
 
+    module_name = f"_tool_{tool_name}"
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if not spec or not spec.loader:
+        return f"[Tool Error] Failed to load script for tool '{tool_name}'"
+
+    module = importlib.util.module_from_spec(spec)
     try:
-        # Use subprocess.run with a timeout and capture output
-        result = subprocess.run(
-            [sys.executable, script_path] + [json.dumps(args)],
-            capture_output=True,
-            text=True,
-            check=True,  # Raise an exception if the subprocess fails
-            timeout=10,  # Set a timeout (e.g., 10 seconds)
-        )
-
-        if debug_enabled:
-            print(f"[Debug] Tool '{tool_name}' output: {result.stdout}")
-
-        return result.stdout
-
-    except subprocess.CalledProcessError as e:
-        error_msg = f"[Tool Error] Error running tool '{tool_name}': {e.stderr}"
-        if debug_enabled:
-            print(f"[Debug] {error_msg}")
-        return error_msg
-    except subprocess.TimeoutExpired as e:
-        error_msg = f"[Tool Error] Tool '{tool_name}' timed out."
-        if debug_enabled:
-            print(f"[Debug] {error_msg}")
-        return error_msg
-    except Exception as e:
-        error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
+        spec.loader.exec_module(module)
+        if not hasattr(module, "run_tool"):
+            return f"[Tool Error] Tool '{tool_name}' has no run_tool function."
+        result = module.run_tool(args)
+        return result
+    except Exception as exc:
+        error_msg = f"[Tool Error] Exception running tool '{tool_name}': {exc}"
         if debug_enabled:
             print(f"[Debug] {error_msg}")
         return error_msg
     finally:
+        # Clean up loaded module and temporary script if needed
+        sys.modules.pop(module_name, None)
         if cleanup_tmp:
             try:
                 os.remove(script_path)
