@@ -114,7 +114,7 @@ class AIChatApp(QMainWindow):
         self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 3)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
         
-        # Add stretcher to push settings button to bottom
+        # Add spacer to push settings button to bottom
         sidebar_layout.addStretch(1)
         
         # Settings button

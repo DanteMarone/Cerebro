@@ -131,7 +131,7 @@ class ChatTab(QWidget):
         btn_layout = QHBoxLayout()
         input_layout.addLayout(btn_layout)
         
-        # Add stretcher to push buttons to the right
+        # Add spacer to push buttons to the right
         btn_layout.addStretch()
         
         # Helper text for keyboard shortcut
