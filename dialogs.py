@@ -272,8 +272,16 @@ class SettingsDialog(QDialog):
             result = subprocess.run(
                 ["ollama", "update"], capture_output=True, text=True, timeout=300
             )
-            output = result.stdout.strip() or "Update complete."
-            QMessageBox.information(self, "Ollama Update", output)
+            if result.returncode == 0:
+                output = (
+                    result.stdout.strip()
+                    or result.stderr.strip()
+                    or "Update complete."
+                )
+                QMessageBox.information(self, "Ollama Update", output)
+            else:
+                error_msg = result.stderr.strip() or "Ollama update failed."
+                QMessageBox.warning(self, "Ollama Update", error_msg)
         except FileNotFoundError:
             QMessageBox.warning(self, "Error", "Ollama executable not found.")
         except Exception as e:

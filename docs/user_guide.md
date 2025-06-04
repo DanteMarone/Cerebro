@@ -74,5 +74,6 @@ The Settings dialog contains global preferences for the application.
 
 - Toggle dark mode and set your user name.
 - Use **Update Ollama** to download the latest Ollama release.
+- If the update fails, an error message will be displayed.
 - Select a model in the drop-down and click **Update Model** to pull its newest version.
 
