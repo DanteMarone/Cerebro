@@ -438,8 +438,7 @@ class AIChatApp(QMainWindow):
         user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
         self.chat_tab.append_message_html(user_message_html)
 
-        user_message = {"role": "user", "content": user_text}
-        self.chat_history.append(user_message)
+        # Persist the user message once
         append_message(self.chat_history, "user", user_text, debug_enabled=self.debug_enabled)
 
         # If a Coordinator agent is enabled, send the message to the Coordinator agents only.
@@ -644,8 +643,13 @@ class AIChatApp(QMainWindow):
                 )
                 
                 # Store only the clean content without thoughts in history
-                self.chat_history.append({"role": "assistant", "content": clean_content, "agent": agent_name})
-                append_message(self.chat_history, "assistant", clean_content, agent_name, debug_enabled=self.debug_enabled)
+                append_message(
+                    self.chat_history,
+                    "assistant",
+                    clean_content,
+                    agent_name,
+                    debug_enabled=self.debug_enabled,
+                )
         
         # Display the message from a Specialist if specified by Coordinator
         elif agent_settings.get('role') == 'Specialist' and any(msg['content'].strip().endswith(f"Next Response By: {agent_name}") for msg in self.chat_history):
@@ -673,8 +677,13 @@ class AIChatApp(QMainWindow):
             )
             
             # Store only the clean content without thoughts in history
-            self.chat_history.append({"role": "assistant", "content": clean_content, "agent": agent_name})
-            append_message(self.chat_history, "assistant", clean_content, agent_name, debug_enabled=self.debug_enabled)
+            append_message(
+                self.chat_history,
+                "assistant",
+                clean_content,
+                agent_name,
+                debug_enabled=self.debug_enabled,
+            )
 
         # If there's a next agent specified and it's managed by the Coordinator, process it.
         if next_agent:
@@ -704,8 +713,13 @@ class AIChatApp(QMainWindow):
             if tool_name not in enabled_tools:
                 error_msg = f"[{timestamp}] <span style='color:red;'>[Tool Error] Tool '{tool_name}' is not enabled for agent '{agent_name}'.</span>"
                 self.chat_tab.append_message_html(error_msg)
-                self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
-                append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
+                append_message(
+                    self.chat_history,
+                    "assistant",
+                    error_msg,
+                    agent_name,
+                    debug_enabled=self.debug_enabled,
+                )
                 self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
             else:
                 self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
@@ -718,14 +732,24 @@ class AIChatApp(QMainWindow):
                     error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
                     self.chat_tab.append_message_html(error_msg)
                     # Append error message to chat history
-                    self.chat_history.append({"role": "assistant", "content": error_msg, "agent": agent_name})
-                    append_message(self.chat_history, "assistant", error_msg, agent_name, debug_enabled=self.debug_enabled)
+                    append_message(
+                        self.chat_history,
+                        "assistant",
+                        error_msg,
+                        agent_name,
+                        debug_enabled=self.debug_enabled,
+                    )
                     self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
                     display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
                     self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
-                    self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
-                    append_message(self.chat_history, "assistant", display_message, agent_name, debug_enabled=self.debug_enabled)
+                    append_message(
+                        self.chat_history,
+                        "assistant",
+                        display_message,
+                        agent_name,
+                        debug_enabled=self.debug_enabled,
+                    )
                     self.show_notification(f"Tool executed successfully: {tool_name}", "info")
 
         # Handle task request if any
@@ -783,7 +807,6 @@ class AIChatApp(QMainWindow):
         formatted_message = f"{message}\nNext Response By: {agent_name}"
 
         # Add this message to the chat history
-        self.chat_history.append({"role": "user", "content": formatted_message})
         append_message(self.chat_history, "user", formatted_message, debug_enabled=self.debug_enabled)
 
         # Find the agent settings
@@ -994,8 +1017,8 @@ class AIChatApp(QMainWindow):
         message_html = f'<span style="color:{self.user_color};">[{timestamp}] (Scheduled) {self.user_name}:</span> {prompt}'
         self.chat_tab.append_message_html(message_html)
 
-        user_message = {"role": "user", "content": prompt}
-        self.chat_history.append(user_message)
+        # Persist the scheduled user message
+        append_message(self.chat_history, "user", prompt, debug_enabled=self.debug_enabled)
 
         agent_settings = self.agents_data.get(agent_name, None)
         if not agent_settings:
