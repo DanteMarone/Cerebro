@@ -33,6 +33,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Agents can schedule tasks to be executed at a specific time.
     *   Tasks are stored in `tasks.json`.
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
+    *   The included **Windows Notifier** tool can display Windows 11 notifications when a scheduled task runs.
 *   **Chat History Persistence:**
     *   Conversations are saved to `chat_history.json` for each session.
     *   History can be exported or cleared from the chat menu.
@@ -60,6 +61,7 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
 *   Python 3.7 or higher
 *   PyQt5
 *   Requests
+*   win10toast (required for Windows notification support)
 *   SymPy
 *   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 
@@ -189,7 +191,12 @@ Example:
     "script": "def run_tool(args):\\n  import os\\n  import sys\\n  from tasks import load_tasks, save_tasks, add_task\\n  # The agent will pass arguments like:\\n  # {\\n  # \\"agent_name\\": \\"Agent X\\",\\n  # \\"prompt\\": \\"some scheduled prompt\\",\\n  # \\"due_time\\": \\"2024-12-31T23:59:59\\"\\n  # }\\n  agent_name = args.get(\\"agent_name\\", \\"Default Agent\\")\\n  prompt = args.get(\\"prompt\\", \\"No prompt provided\\")\\n  due_time = args.get(\\"due_time\\", \\"\\")\\n  tasks = load_tasks(False) #\\n  # load current tasks\\n  if not due_time:\\n   return \\"[schedule-task Error] No due_time provided.\\"\\n  # Add the task, marking creator as 'agent' or 'user' as you prefer.\\n  add_task(tasks, agent_name, prompt, due_time, creator=\\"agent\\", debug_enabled=False)\\n  return f\\"Task scheduled: Agent '{agent_name}' at '{due_time}' with prompt '{prompt}'.\\""
   }
 ]
+
 Another bundled plugin named `web-scraper` fetches and sanitizes text from a URL.
+The repository also provides a `windows-notifier` plugin that relies on the
+`win10toast` package to display a Windows 11 notification. Pair it with the
+`schedule-task` tool to create reminders or daily summaries.
+
 tasks.json
 This file stores the list of scheduled tasks. Each task entry includes an ``id``, ``creator``,
 ``agent_name``, ``prompt``, ``due_time`` and ``status`` field. The status field defaults to ``pending``.
