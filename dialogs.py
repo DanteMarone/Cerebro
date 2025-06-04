@@ -85,11 +85,12 @@ class TaskDialog(QDialog):
     """
     A dialog to create or edit a task.
     """
-    def __init__(self, parent, agents_data, task_id=None, agent_name="", prompt="", due_time=""):
+    def __init__(self, parent, agents_data, task_id=None, agent_name="", prompt="", due_time="", repeat_interval=0):
         super().__init__(parent)
         self.setWindowTitle("Add/Edit Task")
         self.agents_data = agents_data
         self.task_id = task_id
+        self.repeat_interval = repeat_interval
 
         layout = QVBoxLayout(self)
 
@@ -139,6 +140,15 @@ class TaskDialog(QDialog):
         self.due_time_edit.setToolTip("Select the due time for the task.")
         self.due_time_edit.setCalendarPopup(True)  # Enable calendar popup
         layout.addWidget(self.due_time_edit)
+
+        # Repeat Interval
+        layout.addWidget(QLabel("Repeat Interval (min):"))
+        self.repeat_spin = QSpinBox()
+        self.repeat_spin.setMinimum(0)
+        self.repeat_spin.setMaximum(525600)  # up to a year
+        self.repeat_spin.setValue(self.repeat_interval)
+        self.repeat_spin.setToolTip("Minutes between repetitions. 0 for none.")
+        layout.addWidget(self.repeat_spin)
         
 
         # Buttons
@@ -151,7 +161,8 @@ class TaskDialog(QDialog):
         return {
             "agent_name": self.agent_selector.currentText(),
             "prompt": self.prompt_edit.toPlainText().strip(),
-            "due_time": self.due_time_edit.dateTime().toString(Qt.ISODate)
+            "due_time": self.due_time_edit.dateTime().toString(Qt.ISODate),
+            "repeat_interval": self.repeat_spin.value(),
         }
 
     def accept(self):

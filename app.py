@@ -2,7 +2,7 @@
 import os
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from PyQt5 import QtCore
 from PyQt5.QtCore import QThread, Qt, QTimer
 
@@ -16,7 +16,7 @@ from PyQt5.QtGui import QKeySequence
 
 from worker import AIWorker
 from tools import load_tools, run_tool
-from tasks import load_tasks, save_tasks, add_task, delete_task
+from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
 from transcripts import (
     load_history,
     append_message,
@@ -971,12 +971,26 @@ class AIChatApp(QMainWindow):
                 agent_name = t.get("agent_name", "")
                 prompt = t.get("prompt", "")
                 self.schedule_user_message(agent_name, prompt, t["id"])
-                to_remove.append(t["id"])
-                self.show_notification(f"Executing scheduled task for {agent_name}", "info")
+                repeat = t.get("repeat_interval", 0)
+                if repeat:
+                    new_due = (due_dt + timedelta(minutes=repeat)).isoformat()
+                    update_task_due_time(
+                        self.tasks,
+                        t["id"],
+                        new_due,
+                        debug_enabled=self.debug_enabled,
+                    )
+                else:
+                    to_remove.append(t["id"])
+                self.show_notification(
+                    f"Executing scheduled task for {agent_name}", "info"
+                )
 
         for task_id in to_remove:
             delete_task(self.tasks, task_id, debug_enabled=self.debug_enabled)
-            save_tasks(self.tasks, debug_enabled=self.debug_enabled)
+        save_tasks(self.tasks, debug_enabled=self.debug_enabled)
+        if hasattr(self, "tasks_tab"):
+            self.tasks_tab.refresh_tasks_list()
 
     def schedule_user_message(self, agent_name, prompt, task_id=None):
         timestamp = datetime.now().strftime("%H:%M:%S")
