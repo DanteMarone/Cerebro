@@ -20,7 +20,10 @@ The Agents tab lets you create and configure AI agents. Every agent stores the f
 - **Tool Use** – allow the agent to call tools.
 - **Enabled Tools** – choose which tools are available when tool use is on.
 
-Changes are saved automatically when you modify a field. New agents can be added with **Add New Agent**. Select an existing agent and click **Delete Agent** to remove it.
+Changes are saved automatically when you modify a field. The Agents tab opens to
+a table listing all agents with an **Edit** button next to each one. Use
+**Add New Agent** to create a new entry. When editing an agent you can return to
+the list with **Back** or remove it with **Delete Agent**.
 
 ## Tools Tab
 Manage the tools that agents can invoke. Add new tools or edit existing ones. 
@@ -42,7 +45,7 @@ Agents with tool use enabled can invoke these tools by returning a JSON block in
 
 
 ## Tasks Tab
-The Tasks tab manages scheduled prompts. Tasks are displayed in a list and on a calendar. You can drag tasks to different dates to reschedule them. Double-clicking a task toggles its status between **pending** and **completed**. Buttons allow you to:
+The Tasks tab manages scheduled prompts. Tasks are displayed in a list and on a calendar. The current day is highlighted and dates with tasks show a red dot in the corner. You can drag tasks to different dates to reschedule them. Double-clicking a task toggles its status between **pending** and **completed**. Buttons allow you to:
 
 - **Add Task** – create a new task specifying agent, prompt and due time.
 - **Edit** – change an existing task.

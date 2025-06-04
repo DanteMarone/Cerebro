@@ -119,6 +119,7 @@ QMainWindow {
     border-radius: 5px;
     padding: 8px;
     color: #ffffff;
+    min-height: 50px; /* Prevent placeholder clipping */
 }
 
 #shortcutLabel {
