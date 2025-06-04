@@ -1,12 +1,11 @@
 #tab_agents.py
-from datetime import datetime
 import os
 import json
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton,
     QHBoxLayout, QComboBox, QFrame, QLineEdit, QTextEdit, QCheckBox,
     QColorDialog, QFormLayout, QGroupBox, QDoubleSpinBox, QSpinBox,
-    QListWidget, QListWidgetItem, QMessageBox # Make sure QListWidgetItem is here
+    QListWidget, QListWidgetItem, QMessageBox, QStackedWidget
 )
 from PyQt5.QtCore import Qt
 
@@ -14,45 +13,63 @@ class AgentsTab(QWidget):
     def __init__(self, parent_app):
         super().__init__()
         self.parent_app = parent_app
-        
-        self.init_ui()
+        self.current_agent = None
+
         self.global_agent_preferences = {}
+
+        self.init_ui()
         self.load_global_preferences()
+        self.show_agent_list()
 
     def init_ui(self):
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        main_layout = QVBoxLayout(self)
+        self.stacked = QStackedWidget()
+        main_layout.addWidget(self.stacked)
 
-        # Agent selector
-        selector_layout = QHBoxLayout()
-        self.agent_selector = QComboBox()
-        self.agent_selector.setToolTip("Select an agent to configure.")
-        self.agent_selector.currentIndexChanged.connect(self.on_agent_selected)
-        selector_layout.addWidget(QLabel("Current Agent:"))
-        selector_layout.addWidget(self.agent_selector, 1)
-        
-        # Add/Delete buttons
-        add_agent_btn = QPushButton("Add New Agent")
-        add_agent_btn.setToolTip("Create a new agent.")
-        add_agent_btn.clicked.connect(self.parent_app.add_agent)
-        
-        delete_agent_btn = QPushButton("Delete Agent")
-        delete_agent_btn.setToolTip("Delete the selected agent.")
-        delete_agent_btn.clicked.connect(self.on_delete_agent_clicked)
-        
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(add_agent_btn)
-        button_layout.addWidget(delete_agent_btn)
-        
-        layout.addLayout(selector_layout)
-        layout.addLayout(button_layout)
-        
-        # Add a separator
+        # ------------------------------------------------------------------
+        # Agent list page
+        # ------------------------------------------------------------------
+        self.list_page = QWidget()
+        list_layout = QVBoxLayout(self.list_page)
+
+        self.agent_table = QTableWidget(0, 5)
+        self.agent_table.setHorizontalHeaderLabels([
+            "Name",
+            "Description",
+            "Role",
+            "Model",
+            "",
+        ])
+        list_layout.addWidget(self.agent_table)
+
+        self.add_agent_btn = QPushButton("Add New Agent")
+        self.add_agent_btn.clicked.connect(self.parent_app.add_agent)
+        list_layout.addWidget(self.add_agent_btn, alignment=Qt.AlignLeft)
+
+        self.stacked.addWidget(self.list_page)
+
+        # ------------------------------------------------------------------
+        # Agent edit page
+        # ------------------------------------------------------------------
+        self.edit_page = QWidget()
+        edit_layout = QVBoxLayout(self.edit_page)
+
+        nav_layout = QHBoxLayout()
+        self.back_button = QPushButton("Back")
+        self.back_button.clicked.connect(self.show_agent_list)
+        self.delete_button = QPushButton("Delete Agent")
+        self.delete_button.clicked.connect(self.on_delete_agent_clicked)
+        nav_layout.addWidget(self.back_button)
+        nav_layout.addStretch()
+        nav_layout.addWidget(self.delete_button)
+        edit_layout.addLayout(nav_layout)
+
+        # Add a separator below navigation
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(separator)
-        
+        edit_layout.addWidget(separator)
+
         # Agent settings form
         self.agent_settings_layout = QFormLayout()
         
@@ -138,7 +155,9 @@ class AgentsTab(QWidget):
         self.tools_list.setSelectionMode(QListWidget.MultiSelection)
         self.agent_settings_layout.addRow(self.tools_label, self.tools_list)
         
-        layout.addLayout(self.agent_settings_layout)
+        edit_layout.addLayout(self.agent_settings_layout)
+
+        self.stacked.addWidget(self.edit_page)
         
         # Connect change events
         self.model_input.textChanged.connect(self.save_agent_settings)
@@ -162,13 +181,6 @@ class AgentsTab(QWidget):
         # Connect tool use checkbox to tools list visibility
         self.tool_use_checkbox.stateChanged.connect(self.update_tools_visibility)
 
-    def on_agent_selected(self, index):
-        if index < 0:
-            return
-        
-        agent_name = self.agent_selector.currentText()
-        self.load_agent_settings(agent_name)
-    
     def load_agent_settings(self, agent_name):
         """Load agent settings into the form."""
         if not agent_name:
@@ -257,7 +269,7 @@ class AgentsTab(QWidget):
         self.tools_list.setVisible(tool_use_enabled)
     
     def on_color_button_clicked(self):
-        agent_name = self.agent_selector.currentText()
+        agent_name = self.current_agent
         if not agent_name:
             return
             
@@ -280,7 +292,7 @@ class AgentsTab(QWidget):
     
     def save_agent_settings(self):
         """Save agent settings from the form."""
-        agent_name = self.agent_selector.currentText()
+        agent_name = self.current_agent
         if not agent_name or agent_name not in self.parent_app.agents_data:
             return
             
@@ -331,7 +343,7 @@ class AgentsTab(QWidget):
         self.parent_app.update_send_button_state()
     
     def on_delete_agent_clicked(self):
-        agent_name = self.agent_selector.currentText()
+        agent_name = self.current_agent
         if not agent_name:
             return
             
@@ -339,7 +351,32 @@ class AgentsTab(QWidget):
         if QMessageBox.question(self, "Confirm Deletion", 
                                f"Are you sure you want to delete the agent '{agent_name}'?",
                                QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
-            self.parent_app.delete_agent()
+            self.parent_app.delete_agent(agent_name)
+            self.show_agent_list()
+
+    def show_agent_list(self):
+        """Display the list of agents."""
+        self.refresh_agent_table()
+        self.stacked.setCurrentWidget(self.list_page)
+
+    def edit_agent(self, agent_name):
+        """Open the edit page for the specified agent."""
+        self.current_agent = agent_name
+        self.load_agent_settings(agent_name)
+        self.stacked.setCurrentWidget(self.edit_page)
+
+    def refresh_agent_table(self):
+        """Populate the agent table with current data."""
+        self.agent_table.setRowCount(0)
+        for row, (name, settings) in enumerate(self.parent_app.agents_data.items()):
+            self.agent_table.insertRow(row)
+            self.agent_table.setItem(row, 0, QTableWidgetItem(name))
+            self.agent_table.setItem(row, 1, QTableWidgetItem(settings.get("description", "")))
+            self.agent_table.setItem(row, 2, QTableWidgetItem(settings.get("role", "")))
+            self.agent_table.setItem(row, 3, QTableWidgetItem(settings.get("model", "")))
+            edit_btn = QPushButton("Edit")
+            edit_btn.clicked.connect(lambda _ , n=name: self.edit_agent(n))
+            self.agent_table.setCellWidget(row, 4, edit_btn)
     
     def load_global_preferences(self):
         """Load global preferences like model list."""
