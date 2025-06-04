@@ -16,7 +16,13 @@ from PyQt5.QtGui import QKeySequence
 from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task
-from transcripts import load_history, append_message, clear_history, export_history
+from transcripts import (
+    load_history,
+    append_message,
+    clear_history,
+    export_history,
+    summarize_history,
+)
 from tab_chat import ChatTab
 from tab_agents import AgentsTab
 from tab_tools import ToolsTab
@@ -43,6 +49,7 @@ class AIChatApp(QMainWindow):
 
         # Variables
         self.chat_history = load_history(self.debug_enabled)
+        self.chat_history = summarize_history(self.chat_history)
         self.current_responses = {}
         self.agents_data = {}
         self.include_image = False
@@ -985,6 +992,7 @@ class AIChatApp(QMainWindow):
     def build_agent_chat_history(self, agent_name, user_message=None, is_screenshot=False):
         # Reload history from disk to ensure persistence
         self.chat_history = load_history(self.debug_enabled)
+        self.chat_history = summarize_history(self.chat_history)
 
         system_prompt = ""
         agent_settings = self.agents_data.get(agent_name, {})

@@ -30,6 +30,9 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Chat History Persistence:**
     *   Conversations are saved to `chat_history.json` for each session.
     *   History can be exported or cleared from the chat menu.
+*   **Conversation Summaries:**
+    *   Older messages are automatically condensed when a chat grows large to
+        keep prompts short.
 *   **Desktop History:**
     *   Agents with `desktop_history_enabled` set to true will receive recent screenshots
         of your desktop. The capture interval is controlled by `screenshot_interval`.
