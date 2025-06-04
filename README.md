@@ -24,6 +24,9 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Agents can invoke tools by including a specific JSON format in their response.
     *   Each agent has an individual setting to toggle tool usage on or off.
 *   Each agent can enable or disable individual tools.
+*   **Thinking Mode:** When enabled, an agent iteratively generates a series of
+    thoughts before producing its final answer. The number of thinking steps is
+    configurable per agent.
 *   Tools can also be discovered automatically from the `tool_plugins` directory
         or from packages exposing the `cerebro_tools` entry point.
     *   The distribution includes a `web-scraper` plugin for retrieving text

@@ -167,6 +167,18 @@ class AgentsTab(QWidget):
         self.tools_list.setToolTip("Select tools that this agent can use.")
         self.tools_list.setSelectionMode(QListWidget.MultiSelection)
         self.agent_settings_layout.addRow(self.tools_label, self.tools_list)
+
+        # Thinking options
+        self.thinking_checkbox = QCheckBox("Enable Thinking")
+        self.thinking_checkbox.setToolTip("Allow the agent to think in steps before answering.")
+        self.agent_settings_layout.addRow("", self.thinking_checkbox)
+
+        self.thinking_steps_label = QLabel("Thinking Steps:")
+        self.thinking_steps_input = QSpinBox()
+        self.thinking_steps_input.setMinimum(1)
+        self.thinking_steps_input.setMaximum(10)
+        self.thinking_steps_input.setToolTip("Number of thinking iterations before responding.")
+        self.agent_settings_layout.addRow(self.thinking_steps_label, self.thinking_steps_input)
         
         edit_layout.addLayout(self.agent_settings_layout)
 
@@ -183,6 +195,8 @@ class AgentsTab(QWidget):
         self.tool_use_checkbox.stateChanged.connect(self.mark_unsaved)
         self.managed_agents_list.itemSelectionChanged.connect(self.mark_unsaved)
         self.tools_list.itemSelectionChanged.connect(self.mark_unsaved)
+        self.thinking_checkbox.stateChanged.connect(self.mark_unsaved)
+        self.thinking_steps_input.valueChanged.connect(self.mark_unsaved)
         self.name_input.textChanged.connect(self.mark_unsaved)
         
         # Initially hide the managed agents list
@@ -216,6 +230,8 @@ class AgentsTab(QWidget):
         self.managed_agents_list.blockSignals(True)
         self.tool_use_checkbox.blockSignals(True)
         self.tools_list.blockSignals(True)
+        self.thinking_checkbox.blockSignals(True)
+        self.thinking_steps_input.blockSignals(True)
         
         # Set form values
         self.name_input.setText(agent_name)
@@ -254,6 +270,9 @@ class AgentsTab(QWidget):
         
         # Update tool use settings
         self.tool_use_checkbox.setChecked(agent_settings.get("tool_use", False))
+
+        self.thinking_checkbox.setChecked(agent_settings.get("thinking_enabled", False))
+        self.thinking_steps_input.setValue(agent_settings.get("thinking_steps", 3))
         
         # Update tools list
         self.tools_list.clear()
@@ -277,6 +296,8 @@ class AgentsTab(QWidget):
         self.managed_agents_list.blockSignals(False)
         self.tool_use_checkbox.blockSignals(False)
         self.tools_list.blockSignals(False)
+        self.thinking_checkbox.blockSignals(False)
+        self.thinking_steps_input.blockSignals(False)
         
         # Update visibility based on current settings
         self.update_managed_agents_visibility()
@@ -344,6 +365,8 @@ class AgentsTab(QWidget):
             "description": self.description_input.text(),
             "role": self.role_combo.currentText(),
             "tool_use": self.tool_use_checkbox.isChecked(),
+            "thinking_enabled": self.thinking_checkbox.isChecked(),
+            "thinking_steps": self.thinking_steps_input.value(),
         }
         
         # Get color from button
