@@ -10,6 +10,7 @@ Create, configure, and remove AI agents. Each agent can use different models and
 
 ## Tools Tab
 Manage the tools that agents can invoke. Add new tools or edit existing ones.
+The app ships with a `web-scraper` plugin that fetches text from a URL.
 
 ## Tasks Tab
 Schedule tasks for agents and mark them complete using the calendar interface.
