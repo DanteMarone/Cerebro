@@ -29,6 +29,7 @@ from tab_agents import AgentsTab
 from tab_tools import ToolsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
+from tab_docs import DocumentationTab
 from metrics import load_metrics, record_tool_usage, record_response_time
 
 AGENTS_SAVE_FILE = "agents.json"
@@ -133,6 +134,10 @@ class AIChatApp(QMainWindow):
         # Metrics button
         self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 4)
         sidebar_layout.addWidget(self.nav_buttons["metrics"])
+
+        # Docs button
+        self.nav_buttons["docs"] = self.create_nav_button("Docs", 5)
+        sidebar_layout.addWidget(self.nav_buttons["docs"])
         
         # Add stretcher to push settings button to bottom
         sidebar_layout.addStretch(1)
@@ -163,6 +168,7 @@ class AIChatApp(QMainWindow):
         self.tools_tab = ToolsTab(self)
         self.tasks_tab = TasksTab(self)
         self.metrics_tab = MetricsTab(self)
+        self.docs_tab = DocumentationTab(self)
         
         # Add pages to stacked widget
         self.content_stack.addWidget(self.chat_tab)
@@ -170,6 +176,7 @@ class AIChatApp(QMainWindow):
         self.content_stack.addWidget(self.tools_tab)
         self.content_stack.addWidget(self.tasks_tab)
         self.content_stack.addWidget(self.metrics_tab)
+        self.content_stack.addWidget(self.docs_tab)
         
         main_layout.addWidget(self.content_stack)
         
@@ -272,7 +279,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4', '5']):
+        for i, key in enumerate(['1', '2', '3', '4', '5', '6']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
@@ -291,6 +298,7 @@ class AIChatApp(QMainWindow):
                               "• Agents: Configure your AI assistants\n"
                               "• Tools: Manage tools for agents to use\n"
                               "• Tasks: Schedule future agent actions\n\n"
+                              "• Docs: View the built-in user guide\n\n"
                               "Press Ctrl+K to view keyboard shortcuts.")
     
     def show_keyboard_shortcuts(self):
@@ -301,6 +309,7 @@ class AIChatApp(QMainWindow):
                               "Ctrl+3: Tools Tab\n"
                               "Ctrl+4: Tasks Tab\n"
                               "Ctrl+5: Metrics Tab\n"
+                              "Ctrl+6: Docs Tab\n"
                               "Ctrl+S: Send Message\n"
                               "Ctrl+L: Clear Chat\n"
                               "Ctrl+T: Toggle Theme\n"
