@@ -20,10 +20,11 @@ The Agents tab lets you create and configure AI agents. Every agent stores the f
 - **Tool Use** – allow the agent to call tools.
 - **Enabled Tools** – choose which tools are available when tool use is on.
 
-Changes are saved automatically when you modify a field. The Agents tab opens to
-a table listing all agents with an **Edit** button next to each one. Use
-**Add New Agent** to create a new entry. When editing an agent you can return to
-the list with **Back** or remove it with **Delete Agent**.
+After adjusting any fields press **Save** to store your changes. You can also
+rename an agent using the **Agent Name** field. The Agents tab opens to a table
+listing all agents with an **Edit** button next to each one. Use **Add New
+Agent** to create a new entry. When editing an agent you can return to the list
+with **Back** or remove it with **Delete Agent**.
 
 ## Tools Tab
 Manage the tools that agents can invoke. Add new tools or edit existing ones. 
