@@ -43,11 +43,11 @@ class ToolsTab(QWidget):
         self.layout.addLayout(btn_layout)
 
         # Edit, Delete and Run Buttons (initially hidden)
-        self.edit_button = QPushButton("Edit")
-        self.edit_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogDetailedView')))
-        self.edit_button.setToolTip("Edit the selected tool.")
-        self.edit_button.hide()
-        btn_layout.addWidget(self.edit_button)
+        self.edit_tool_button = QPushButton("Edit Tool")
+        self.edit_tool_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogDetailedView')))
+        self.edit_tool_button.setToolTip("Edit the selected tool.")
+        self.edit_tool_button.hide()
+        btn_layout.addWidget(self.edit_tool_button)
 
         self.delete_button = QPushButton("Delete")
         self.delete_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_TrashIcon')))
@@ -63,7 +63,7 @@ class ToolsTab(QWidget):
 
         # Connect signals
         self.add_button.clicked.connect(self.add_tool_ui)
-        self.edit_button.clicked.connect(self.edit_tool_ui)
+        self.edit_tool_button.clicked.connect(self.edit_tool_ui)
         self.delete_button.clicked.connect(self.delete_tool_ui)
         self.run_button.clicked.connect(self.run_tool_ui)
 
@@ -75,7 +75,7 @@ class ToolsTab(QWidget):
         """
         selected_items = self.tools_list.selectedItems()
         if not selected_items:
-            self.edit_button.hide()
+            self.edit_tool_button.hide()
             self.delete_button.hide()
             self.run_button.hide()
             return
@@ -84,10 +84,10 @@ class ToolsTab(QWidget):
         is_plugin = item.data(Qt.UserRole + 1)
         self.run_button.show()
         if is_plugin:
-            self.edit_button.hide()
+            self.edit_tool_button.hide()
             self.delete_button.hide()
         else:
-            self.edit_button.show()
+            self.edit_tool_button.show()
             self.delete_button.show()
 
     def refresh_tools_list(self):

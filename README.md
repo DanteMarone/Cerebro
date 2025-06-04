@@ -28,6 +28,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   The distribution includes a `web-scraper` plugin for retrieving text
         from websites.
     *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
+    *   Tools can be updated using the **Edit Tool** button in the Tools tab.
 
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time.

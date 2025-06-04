@@ -35,7 +35,7 @@ Manage the tools that agents can invoke. Add new tools or edit existing ones.
 Tools extend Cerebro with custom Python scripts. The Tools tab shows all tools loaded from `tools.json` and any plugin modules. You can:
 
 1. **Add Tool** – open a dialog to provide a name, description and Python script. The script must define a `run_tool(args)` function.
-2. **Edit** – modify the selected tool's metadata or script.
+2. **Edit Tool** – modify the selected tool's metadata or script.
 3. **Delete** – permanently remove a tool and its script file.
 4. **Run** – test a tool by providing JSON arguments.
 
