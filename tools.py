@@ -30,10 +30,14 @@ def discover_plugin_tools(debug_enabled=False):
                 meta = getattr(module, "TOOL_METADATA", None)
                 if not meta or "name" not in meta:
                     continue
+                with open(path, "r", encoding="utf-8") as f:
+                    script_text = f.read()
                 tools.append({
                     "name": meta["name"],
                     "description": meta.get("description", ""),
                     "plugin_module": module,
+                    "script_path": path,
+                    "script": script_text,
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
@@ -49,10 +53,20 @@ def discover_plugin_tools(debug_enabled=False):
                 meta = getattr(module, "TOOL_METADATA", None)
                 if not meta or "name" not in meta:
                     continue
+                path = getattr(module, "__file__", None)
+                script_text = ""
+                if path and os.path.exists(path):
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            script_text = f.read()
+                    except Exception:
+                        pass
                 tools.append({
                     "name": meta["name"],
                     "description": meta.get("description", ""),
                     "plugin_module": module,
+                    "script_path": path,
+                    "script": script_text,
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")
@@ -93,20 +107,26 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
     if not tool:
         return f"[Tool Error] Tool '{tool_name}' not found."
 
-    plugin_module = tool.get("plugin_module")
-    if plugin_module:
-        try:
-            return plugin_module.run_tool(args)
-        except Exception as e:
-            error_msg = f"[Tool Error] Exception running tool '{tool_name}': {e}"
-            if debug_enabled:
-                print(f"[Debug] {error_msg}")
-            return error_msg
-
     script_path = tool.get("script_path", "")
+    plugin_module = tool.get("plugin_module")
     cleanup_tmp = False
 
-    if not script_path:
+    if not script_path and plugin_module:
+        script_path = getattr(plugin_module, "__file__", "")
+        if script_path and os.path.exists(script_path):
+            tool["script_path"] = script_path
+        else:
+            script_content = tool.get("script")
+            if not script_content:
+                return f"[Tool Error] Tool '{tool_name}' has no script."
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".py")
+            tmp_file.write(script_content.encode())
+            tmp_file.close()
+            script_path = tmp_file.name
+            cleanup_tmp = True
+            if debug_enabled:
+                print(f"[Debug] Created temporary script for '{tool_name}' at: {script_path}")
+    elif not script_path:
         script_content = tool.get("script")
         if not script_content:
             return f"[Tool Error] Tool '{tool_name}' has no script."
@@ -202,6 +222,9 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
             with open(tool["script_path"], "w") as f:
                 f.write(script)
             tool["script"] = script
+            if "plugin_module" in tool:
+                # convert plugin tool to local script-based tool
+                del tool["plugin_module"]
             if debug_enabled:
                 print(f"[Debug] Updated script file at: {tool['script_path']}")
         except Exception as e:

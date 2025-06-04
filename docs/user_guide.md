@@ -40,7 +40,8 @@ Tools extend Cerebro with custom Python scripts. The Tools tab shows all tools l
 3. **Delete** – permanently remove a tool and its script file.
 4. **Run** – test a tool by providing JSON arguments.
 
-Plugin tools are listed alongside your own but cannot be edited or deleted.
+Plugin tools are loaded automatically from the `tool_plugins` directory or entry points.
+They behave like regular tools and can be edited or removed from the UI.
 
 Agents with tool use enabled can invoke these tools by returning a JSON block in the format described in `generate_tool_instructions_message()`.
 
