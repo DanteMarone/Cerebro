@@ -270,7 +270,12 @@ class SettingsDialog(QDialog):
         """Run 'ollama update' and show the result."""
         try:
             result = subprocess.run(
-                ["ollama", "update"], capture_output=True, text=True, timeout=300
+                ["ollama", "update"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
             )
             output = result.stdout.strip() or "Update complete."
             QMessageBox.information(self, "Ollama Update", output)
@@ -287,7 +292,12 @@ class SettingsDialog(QDialog):
             return
         try:
             result = subprocess.run(
-                ["ollama", "pull", model], capture_output=True, text=True, timeout=600
+                ["ollama", "pull", model],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=600,
             )
             output = result.stdout.strip() or f"Model {model} updated."
             QMessageBox.information(self, "Model Update", output)
