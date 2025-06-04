@@ -1,11 +1,13 @@
 #tab_tools.py
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QPushButton, QListWidgetItem,
-    QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView
+    QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView, QInputDialog,
+    QLineEdit
 )
-from PyQt5.QtCore import Qt  # Import Qt from PyQt5.QtCore
+from PyQt5.QtCore import Qt
 from dialogs import ToolDialog
-from tools import add_tool, edit_tool, delete_tool
+from tools import add_tool, edit_tool, delete_tool, run_tool
+import json
 
 
 class ToolsTab(QWidget):
@@ -26,6 +28,12 @@ class ToolsTab(QWidget):
         self.tools_list.itemSelectionChanged.connect(self.on_item_selection_changed) # Connect selection change
         self.layout.addWidget(self.tools_list)
 
+        # Label shown when no tools are present
+        self.no_tools_label = QLabel("No tools available.")
+        self.no_tools_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.no_tools_label)
+        self.no_tools_label.hide()
+
         # Buttons
         btn_layout = QHBoxLayout()
         self.add_button = QPushButton("Add Tool")
@@ -34,7 +42,7 @@ class ToolsTab(QWidget):
         btn_layout.addWidget(self.add_button)
         self.layout.addLayout(btn_layout)
 
-        # Edit and Delete Buttons (initially hidden)
+        # Edit, Delete and Run Buttons (initially hidden)
         self.edit_button = QPushButton("Edit")
         self.edit_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogDetailedView')))
         self.edit_button.setToolTip("Edit the selected tool.")
@@ -47,10 +55,17 @@ class ToolsTab(QWidget):
         self.delete_button.hide()
         btn_layout.addWidget(self.delete_button)
 
+        self.run_button = QPushButton("Run")
+        self.run_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_MediaPlay')))
+        self.run_button.setToolTip("Run the selected tool for testing.")
+        self.run_button.hide()
+        btn_layout.addWidget(self.run_button)
+
         # Connect signals
         self.add_button.clicked.connect(self.add_tool_ui)
         self.edit_button.clicked.connect(self.edit_tool_ui)
         self.delete_button.clicked.connect(self.delete_tool_ui)
+        self.run_button.clicked.connect(self.run_tool_ui)
 
         self.refresh_tools_list()
 
@@ -59,26 +74,37 @@ class ToolsTab(QWidget):
         Show or hide the Edit/Delete buttons based on whether an item is selected.
         """
         selected_items = self.tools_list.selectedItems()
-        if selected_items:
-            self.edit_button.show()
-            self.delete_button.show()
-        else:
+        if not selected_items:
             self.edit_button.hide()
             self.delete_button.hide()
+            self.run_button.hide()
+            return
+
+        item = selected_items[0]
+        is_plugin = item.data(Qt.UserRole + 1)
+        self.run_button.show()
+        if is_plugin:
+            self.edit_button.hide()
+            self.delete_button.hide()
+        else:
+            self.edit_button.show()
+            self.delete_button.show()
 
     def refresh_tools_list(self):
         self.tools_list.clear()
-        user_tools = [t for t in self.tools if 'plugin_module' not in t]
-        if not user_tools:
-            label = QLabel("No tools available.")
-            label.setAlignment(Qt.AlignCenter)
-            self.layout.addWidget(label)
-        else:
-            for t in user_tools:
-                item = QListWidgetItem()
-                item.setText(f"{t['name']}: {t['description']}")
-                item.setData(Qt.UserRole, t['name'])
-                self.tools_list.addItem(item)
+        self.no_tools_label.hide()
+
+        if not self.tools:
+            self.no_tools_label.show()
+            return
+
+        for tool in self.tools:
+            item = QListWidgetItem(f"{tool['name']}: {tool['description']}")
+            item.setData(Qt.UserRole, tool['name'])
+            item.setData(Qt.UserRole + 1, 'plugin_module' in tool)
+            if 'plugin_module' in tool:
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            self.tools_list.addItem(item)
 
     def add_tool_ui(self):
         dialog = ToolDialog(title="Add Tool")
@@ -143,3 +169,29 @@ class ToolsTab(QWidget):
                 self.parent_app.refresh_tools_list()
                 self.tools = self.parent_app.tools
                 self.refresh_tools_list()
+
+    def run_tool_ui(self):
+        selected_items = self.tools_list.selectedItems()
+        if not selected_items:
+            return
+
+        tool_name = selected_items[0].data(Qt.UserRole)
+
+        text, ok = QInputDialog.getText(
+            self,
+            "Run Tool",
+            "Arguments (JSON):",
+            QLineEdit.Normal,
+            "{}",
+        )
+        if not ok:
+            return
+
+        try:
+            args = json.loads(text) if text.strip() else {}
+        except json.JSONDecodeError:
+            QMessageBox.warning(self, "Invalid Input", "Arguments must be valid JSON.")
+            return
+
+        output = run_tool(self.tools, tool_name, args, self.parent_app.debug_enabled)
+        QMessageBox.information(self, "Tool Output", output)
