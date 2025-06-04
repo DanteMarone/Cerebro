@@ -26,6 +26,7 @@ Changes are saved automatically when you modify a field. New agents can be added
 Manage the tools that agents can invoke. Add new tools or edit existing ones. 
 - The built-in **File Summarizer** tool can create short summaries of text files for quick reference.
 - Built-in plugins include `math-solver` for solving equations.
+- The app ships with a `web-scraper` plugin that fetches text from a URL.
 
 Tools extend Cerebro with custom Python scripts. The Tools tab shows all tools loaded from `tools.json` and any plugin modules. You can:
 
