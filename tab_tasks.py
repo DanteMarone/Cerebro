@@ -62,7 +62,6 @@ class TasksTab(QWidget):
         super().__init__()
         self.parent_app = parent_app
         self.tasks = self.parent_app.tasks
-        self.agents_data = self.parent_app.agents_data
 
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
@@ -172,7 +171,7 @@ class TasksTab(QWidget):
         """
         Display a dialog to add a new task.
         """
-        dialog = TaskDialog(self, self.agents_data)
+        dialog = TaskDialog(self, self.parent_app.agents_data)
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
             agent_name = data["agent_name"]
@@ -208,7 +207,7 @@ class TasksTab(QWidget):
             return
         dialog = TaskDialog(
             self,
-            self.agents_data,
+            self.parent_app.agents_data,
             task_id=task_id,
             agent_name=existing_task.get("agent_name", ""),
             prompt=existing_task.get("prompt", ""),
