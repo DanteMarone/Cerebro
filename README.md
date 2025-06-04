@@ -182,6 +182,7 @@ This file defines available tools.
 
 name: The name of the tool.
 description: A brief description of the tool.
+args: (optional) List of argument names the tool accepts.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
 script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
 Tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point
@@ -193,6 +194,7 @@ Example:
   {
     "name": "schedule-task",
     "description": "Schedule a future prompt to run at the specified time.",
+    "args": ["agent_name", "prompt", "due_time"],
     "script": "def run_tool(args):\\n  import os\\n  import sys\\n  from tasks import load_tasks, save_tasks, add_task\\n  # The agent will pass arguments like:\\n  # {\\n  # \\"agent_name\\": \\"Agent X\\",\\n  # \\"prompt\\": \\"some scheduled prompt\\",\\n  # \\"due_time\\": \\"2024-12-31T23:59:59\\"\\n  # }\\n  agent_name = args.get(\\"agent_name\\", \\"Default Agent\\")\\n  prompt = args.get(\\"prompt\\", \\"No prompt provided\\")\\n  due_time = args.get(\\"due_time\\", \\"\\")\\n  tasks = load_tasks(False) #\\n  # load current tasks\\n  if not due_time:\\n   return \\"[schedule-task Error] No due_time provided.\\"\\n  # Add the task, marking creator as 'agent' or 'user' as you prefer.\\n  add_task(tasks, agent_name, prompt, due_time, creator=\\"agent\\", debug_enabled=False)\\n  return f\\"Task scheduled: Agent '{agent_name}' at '{due_time}' with prompt '{prompt}'.\\""
   }
 ]
