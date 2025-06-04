@@ -9,7 +9,13 @@ def noop_save(tasks_, debug_enabled=False):
 def test_add_task(monkeypatch):
     task_list = []
     monkeypatch.setattr(tasks, "save_tasks", noop_save)
-    task_id = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00")
+    task_id = tasks.add_task(
+        task_list,
+        "agent1",
+        "do work",
+        "2024-01-01 10:00",
+        repeat_interval=30,
+    )
     assert len(task_list) == 1
     task = task_list[0]
     assert task["id"] == task_id
@@ -18,19 +24,28 @@ def test_add_task(monkeypatch):
     assert task["prompt"] == "do work"
     assert task["due_time"] == "2024-01-01 10:00"
     assert task["status"] == "pending"
+    assert task["repeat_interval"] == 30
 
 
 def test_edit_task(monkeypatch):
     task_list = []
     monkeypatch.setattr(tasks, "save_tasks", noop_save)
     task_id = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00")
-    err = tasks.edit_task(task_list, task_id, "agent2", "new", "2024-02-01 12:00")
+    err = tasks.edit_task(
+        task_list,
+        task_id,
+        "agent2",
+        "new",
+        "2024-02-01 12:00",
+        repeat_interval=15,
+    )
     assert err is None
     task = task_list[0]
     assert task["id"] == task_id
     assert task["agent_name"] == "agent2"
     assert task["prompt"] == "new"
     assert task["due_time"] == "2024-02-01 12:00"
+    assert task["repeat_interval"] == 15
 
 
 def test_edit_task_missing(monkeypatch):

@@ -15,6 +15,7 @@ def load_tasks(debug_enabled=False):
             tasks = json.load(f)
             for t in tasks:
                 t.setdefault("status", "pending")
+                t.setdefault("repeat_interval", 0)
             if debug_enabled:
                 print("[Debug] Tasks loaded:", tasks)
             return tasks
@@ -31,7 +32,7 @@ def save_tasks(tasks, debug_enabled=False):
     except Exception as e:
         print(f"[Error] Failed to save tasks: {e}")
 
-def add_task(tasks, agent_name, prompt, due_time, creator="user", debug_enabled=False):
+def add_task(tasks, agent_name, prompt, due_time, creator="user", repeat_interval=0, debug_enabled=False):
     """
     Creates a new task and saves to tasks.json
     :param tasks: current list of tasks in memory
@@ -39,6 +40,7 @@ def add_task(tasks, agent_name, prompt, due_time, creator="user", debug_enabled=
     :param prompt: the text to send
     :param due_time: ISO 8601 string or "YYYY-MM-DD HH:MM:SS" local time
     :param creator: "user" or "agent"
+    :param repeat_interval: minutes between repeats, 0 for none
     """
     task_id = str(uuid.uuid4())
     new_task = {
@@ -48,18 +50,21 @@ def add_task(tasks, agent_name, prompt, due_time, creator="user", debug_enabled=
         "prompt": prompt,
         "due_time": due_time,
         "status": "pending",
+        "repeat_interval": repeat_interval,
     }
     tasks.append(new_task)
     save_tasks(tasks, debug_enabled)
     return task_id
 
-def edit_task(tasks, task_id, agent_name, prompt, due_time, debug_enabled=False):
+def edit_task(tasks, task_id, agent_name, prompt, due_time, repeat_interval=0, debug_enabled=False):
+    """Edit an existing task."""
     task = next((t for t in tasks if t["id"] == task_id), None)
     if not task:
         return f"[Task Error] Task '{task_id}' not found."
     task["agent_name"] = agent_name
     task["prompt"] = prompt
     task["due_time"] = due_time
+    task["repeat_interval"] = repeat_interval
     save_tasks(tasks, debug_enabled)
     return None
 

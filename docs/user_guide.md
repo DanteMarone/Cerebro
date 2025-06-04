@@ -52,6 +52,8 @@ The Tasks tab manages scheduled prompts. Tasks are displayed in a list and on a 
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark the selected task as completed or pending.
 
+Tasks may also be set to repeat automatically after a specified number of minutes.
+
 When a task reaches its due time the associated prompt is automatically sent to the chosen agent.
 
 ## Metrics Tab

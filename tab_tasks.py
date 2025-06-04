@@ -169,7 +169,9 @@ class TasksTab(QWidget):
                 agent_name = t.get("agent_name", "")
                 prompt = t.get("prompt", "")
                 status = t.get("status", "pending")
-                summary = f"[{due_time}] {agent_name} ({status}) - {prompt[:30]}..."
+                repeat = t.get("repeat_interval", 0)
+                repeat_str = f" every {repeat}m" if repeat else ""
+                summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
                 item.setText(summary)
                 item.setData(Qt.UserRole, t['id'])  # Store the task ID in the item's data
                 self.tasks_list.addItem(item)
@@ -203,6 +205,7 @@ class TasksTab(QWidget):
             agent_name = data["agent_name"]
             prompt = data["prompt"]
             due_time = data["due_time"]
+            repeat_interval = data.get("repeat_interval", 0)
             if not due_time:
                 QMessageBox.warning(self, "Error", "Please specify a valid due time.")
                 return
@@ -212,6 +215,7 @@ class TasksTab(QWidget):
                 prompt,
                 due_time,
                 creator="user",
+                repeat_interval=repeat_interval,
                 debug_enabled=self.parent_app.debug_enabled
             )
             self.refresh_tasks_list()
@@ -237,7 +241,8 @@ class TasksTab(QWidget):
             task_id=task_id,
             agent_name=existing_task.get("agent_name", ""),
             prompt=existing_task.get("prompt", ""),
-            due_time=existing_task.get("due_time", "")
+            due_time=existing_task.get("due_time", ""),
+            repeat_interval=existing_task.get("repeat_interval", 0),
         )
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
@@ -247,6 +252,7 @@ class TasksTab(QWidget):
                 data["agent_name"],
                 data["prompt"],
                 data["due_time"],
+                data.get("repeat_interval", 0),
                 debug_enabled=self.parent_app.debug_enabled
             )
             if err:
