@@ -378,18 +378,25 @@ class AIChatApp(QMainWindow):
         QTimer.singleShot(5000, lambda: self.remove_notification(toast))
     
     def remove_notification(self, toast):
-        """Remove a notification toast."""
-        if toast and not sip.isdeleted(toast) and toast.parentWidget() == self.notification_area:
-            self.notification_layout.removeWidget(toast)
-            toast.deleteLater()
+        """Safely remove a notification toast."""
+        if not toast or sip.isdeleted(toast):
+            return
 
-            # Hide notification area if empty
-            if self.notification_layout.count() == 0:
-                self.notification_area.hide()
-            else:
-                self.notification_area.setFixedHeight(
-                    min(self.height() - 100,
-                        self.notification_layout.count() * 80))
+        try:
+            if toast.parentWidget() == self.notification_area:
+                self.notification_layout.removeWidget(toast)
+                toast.deleteLater()
+
+                # Hide notification area if empty
+                if self.notification_layout.count() == 0:
+                    self.notification_area.hide()
+                else:
+                    self.notification_area.setFixedHeight(
+                        min(self.height() - 100,
+                            self.notification_layout.count() * 80))
+        except RuntimeError:
+            # The widget was already destroyed
+            pass
     
     def toggle_theme(self):
         """Toggle between dark and light mode."""
