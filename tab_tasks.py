@@ -200,4 +200,8 @@ class TasksTab(QWidget):
         if err:
             QMessageBox.warning(self, "Error Updating Status", err)
         else:
+            if new_status == "completed":
+                from metrics import record_task_completion
+                record_task_completion(self.parent_app.metrics, task.get("agent_name", "unknown"), self.parent_app.debug_enabled)
+                self.parent_app.refresh_metrics_display()
             self.refresh_tasks_list()
