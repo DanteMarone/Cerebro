@@ -120,6 +120,11 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
         *   **Linux/macOS:** `DEBUG_MODE=1 python main.py`
         *   **Windows:** `set DEBUG_MODE=1 & python main.py`
 
+## Windows Installer
+
+Use PyInstaller to create a stand-alone Windows build. First install PyInstaller and then run `build_windows_installer.bat` from a command prompt. The executable will be created in the `dist` directory.
+
+
 ## Configuration
 
 ### `agents.json`
