@@ -147,6 +147,7 @@ Cerebro stores its data in several JSON files located in the application directo
 
 ### agents.json
 Defines every agent and their settings. See the fields listed in the Agents Tab section for details.
+The default configuration includes a **Default Agent** enabled with all bundled tools for everyday tasks.
 
 ### tools.json
 Contains tool metadata and Python code. Plugins placed in `tool_plugins` or installed with the

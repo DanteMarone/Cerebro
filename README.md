@@ -159,6 +159,7 @@ This file stores the configuration for each agent.
 *   **`screenshot_interval`:**  Interval in seconds between captured screenshots.
 *   **`tool_use`:** Boolean value to enable or disable an agent's access to tools.
 *   **`tools_enabled`:** A list of tools that an agent can access, assuming `tool_use` is set to true.
+*   The bundled `Default Agent` comes enabled with all built-in tools for general use.
 
 **Example:**
 
