@@ -98,6 +98,11 @@ class TasksTab(QWidget):
         self.tasks_list.itemDoubleClicked.connect(self.toggle_status_ui)
         self.layout.addWidget(self.tasks_list)
 
+        # Label shown when there are no tasks
+        self.empty_label = QLabel("No tasks available.")
+        self.empty_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.empty_label)
+
         # Calendar view
         self.calendar = DroppableCalendarWidget(self)
         self.calendar.activated.connect(self.on_date_activated)
@@ -158,11 +163,11 @@ class TasksTab(QWidget):
         Refresh the tasks list in the UI.
         """
         self.tasks_list.clear()
-        if not self.tasks:  # Check if the list is empty
-            label = QLabel("No tasks available.")
-            label.setAlignment(Qt.AlignCenter)
-            self.layout.addWidget(label)
+        if not self.tasks:
+            self.tasks_list.hide()
+            self.empty_label.show()
         else:
+            self.empty_label.hide()
             for t in self.tasks:
                 item = QListWidgetItem()
                 due_time = t.get("due_time", "")
@@ -173,8 +178,10 @@ class TasksTab(QWidget):
                 repeat_str = f" every {repeat}m" if repeat else ""
                 summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
                 item.setText(summary)
-                item.setData(Qt.UserRole, t['id'])  # Store the task ID in the item's data
+                item.setData(Qt.UserRole, t['id'])
                 self.tasks_list.addItem(item)
+            self.tasks_list.show()
+
         self.highlight_task_dates()
 
     def highlight_task_dates(self):

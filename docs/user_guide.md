@@ -103,7 +103,7 @@ Agents call tools by returning a JSON block in the format produced by
 ## Tasks Tab
 
 Scheduled prompts appear in both a list and calendar view. Dates with tasks display a red dot and the
-current day is highlighted.
+current day is highlighted. When there are no tasks a message labeled "No tasks available." appears below the calendar.
 
 - **Add Task** – create a prompt for a specific agent. The default due time is one minute from now.
 - **Edit** – change an existing task.
