@@ -94,6 +94,7 @@ Bundled plugins include:
 - **web-scraper** – download and sanitize text from a URL.
 - **math-solver** – evaluate mathematical expressions.
 - **windows-notifier** – display a Windows 11 notification using `win10toast`.
+- **desktop-automation** – launch programs or move files through OS commands.
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
@@ -110,7 +111,8 @@ current day is highlighted.
 - **Repeat Interval** – optional number of minutes after which the task should repeat.
 
 When a task’s due time arrives the associated prompt is sent automatically. Combine this feature with
-the `windows-notifier` tool to create desktop reminders on Windows 11. Tasks can optionally register with
+the `windows-notifier` tool to create desktop reminders on Windows 11. Use `desktop-automation` to act on
+screenshot analysis when needed. Tasks can optionally register with
 the operating system scheduler so they run even if Cerebro is not open. Windows uses Task Scheduler while
 Unix-like systems use cron.
 

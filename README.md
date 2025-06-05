@@ -32,6 +32,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   The distribution includes a `web-scraper` plugin for retrieving text
         from websites.
     *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
+    *   Provides a **Desktop Automation** plugin for launching programs or moving files via OS commands.
     *   Tools can be updated using the **Edit Tool** button in the Tools tab.
     *   The Settings dialog provides buttons to update the Ollama runtime and refresh individual models.
 
@@ -223,6 +224,8 @@ Another bundled plugin named `web-scraper` fetches and sanitizes text from a URL
 The repository also provides a `windows-notifier` plugin that relies on the
 `win10toast` package to display a Windows 11 notification. Pair it with the
 `schedule-task` tool to create reminders or daily summaries.
+The `desktop-automation` plugin can launch programs or move files after a model
+analyzes your screen captures.
 Scheduled tasks are also written to the OS task scheduler using the helper
 script `run_task.py` so they execute even when Cerebro is not running.
 
