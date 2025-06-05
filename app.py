@@ -423,7 +423,7 @@ class AIChatApp(QMainWindow):
             self.user_color = settings_data["user_color"]
             self.debug_enabled = settings_data["debug_enabled"]
             self.apply_updated_styles()
-            self.agents_tab.load_global_preferences()
+            self.agents_tab.update_model_dropdown()
             self.save_settings()
             self.show_notification("Settings updated successfully")
 
