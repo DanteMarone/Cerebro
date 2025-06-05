@@ -591,14 +591,13 @@ class AIChatApp(QMainWindow):
                     process_next_agent(index + 1)
                 return
 
-        # Parse the content as JSON if it's a Coordinator or Specialist response
+        # Parse JSON content for any agent
         parsed = None
-        if agent_settings.get('role') in ['Coordinator', 'Specialist']:
-            if content.startswith("{") and content.endswith("}"):
-                try:
-                    parsed = json.loads(content)
-                except json.JSONDecodeError:
-                    parsed = None
+        if content.startswith("{") and content.endswith("}"):
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                parsed = None
 
         if parsed is not None:
             if "tool_request" in parsed:
