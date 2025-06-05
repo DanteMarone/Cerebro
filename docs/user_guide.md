@@ -23,7 +23,12 @@ Cerebro and describes every tab and feature so you can quickly become productive
    ```bash
    pip install -r requirements.txt
    ```
-4. Start the Ollama server separately and then run the application:
+4. (Optional) Use the helper script to install Ollama and download a model:
+   ```bash
+   python local_llm_helper.py install
+   python local_llm_helper.py download llama3
+   ```
+5. Start the Ollama server separately and then run the application:
    ```bash
    python main.py
    ```

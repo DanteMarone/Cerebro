@@ -105,10 +105,21 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
     pip install -r requirements.txt
     ```
 
+5.  *(Optional)* **Install the Ollama runtime and a model:**
+
+    ```bash
+    python local_llm_helper.py install
+    python local_llm_helper.py download llama3
+    ```
+
 ## Usage
 
 1.  **Start the Ollama server:**
-    Make sure your Ollama server is running in the background. Refer to the Ollama documentation for instructions. You can use the command `ollama serve` to start it.
+    Make sure your Ollama server is running in the background. You can launch it manually with `ollama serve` or run:
+
+    ```bash
+    python local_llm_helper.py serve
+    ```
 
 2.  **Run the Cerebro application:**
 
