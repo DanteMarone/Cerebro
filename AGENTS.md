@@ -8,13 +8,18 @@ Follow these guidelines when modifying the project.
 - Follow basic PEP8 conventions where practical.
 - Document public functions with docstrings.
 - Keep line length under 120 characters.
+- Aim for compatibility with Windows 11 whenever possible.
 
 ## Testing
-- Install test dependencies with `pip install -r requirements-dev.txt`.
-- Run the test suite before committing using:
+- Install dependencies with `pip install -r requirements.txt` and
+  `pip install -r requirements-dev.txt`.
+- Run the linter and test suite before committing using:
   ```bash
+  flake8 .
   PYTHONPATH=. pytest -q
   ```
+- Skip linting and tests only when modifying comments or documentation.
+- Ensure new functionality includes corresponding tests.
 - Only commit changes when all tests pass.
 
 ## Commit Messages
