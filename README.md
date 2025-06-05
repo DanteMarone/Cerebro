@@ -234,6 +234,17 @@ This file stores the list of scheduled tasks. Each task entry includes an ``id``
 ``agent_name``, ``prompt``, ``due_time`` and ``status`` field. The status field defaults to ``pending``.
 You typically won't edit this file directly.
 
+## Testing
+Install the dependencies and run the linter and test suite before submitting
+changes:
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+flake8 .
+PYTHONPATH=. pytest -q
+```
+
 ## Contributing
 Contributions are welcome! Please feel free to submit pull requests or open issues.
 
