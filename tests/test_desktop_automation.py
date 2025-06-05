@@ -25,3 +25,13 @@ def test_move_file(monkeypatch, tmp_path):
     result = da.run_tool({"action": "move", "target": str(src), "destination": str(dst_dir)})
     assert "Moved" in result
     assert moved["args"] == (str(src), str(dst_dir))
+
+
+def test_launch_linux_fallback(monkeypatch):
+    called = {}
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(shutil, "which", lambda cmd: None)
+    monkeypatch.setattr(subprocess, "Popen", lambda args: called.setdefault("args", args))
+    result = da.run_tool({"action": "launch", "target": "myapp"})
+    assert "Launched" in result
+    assert called["args"] == ["myapp"]

@@ -74,7 +74,7 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
 *   Python 3.7 or higher
 *   PyQt5
 *   Requests
-*   win10toast (required for Windows notification support)
+*   win10toast (only needed on Windows for notification support)
 *   SymPy
 *   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 

@@ -25,7 +25,11 @@ def run_tool(args):
             elif platform.system() == "Darwin":
                 subprocess.Popen(["open", target])
             else:
-                subprocess.Popen(["xdg-open", target])
+                opener = shutil.which("xdg-open")
+                if opener:
+                    subprocess.Popen([opener, target])
+                else:
+                    subprocess.Popen([target])
             return f"Launched {target}"
         except Exception as e:
             return f"[desktop-automation Error] {e}"
