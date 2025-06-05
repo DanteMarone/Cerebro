@@ -80,3 +80,54 @@ def test_handle_worker_finished_runs_tool_for_assistant(monkeypatch):
     assert called['name'] == 'echo-plugin'
     assert called['args'] == {'msg': 'hi'}
 
+
+def test_delivers_tool_result(monkeypatch):
+    app = DummyApp()
+    app.agents_data['agent1']['role'] = 'Assistant'
+    app.agents_data['agent1']['tool_use'] = True
+    app.chat_tab = type('Tab', (), {'append_message_html': lambda self, html: None})()
+    app.current_responses = {
+        'agent1': (
+            '{"role": "assistant", "content": "hi", '
+            '"tool_request": {"name": "echo-plugin", "args": {"msg": "hi"}}}'
+        )
+    }
+
+    broker = message_broker.MessageBroker(app)
+
+    monkeypatch.setattr(message_broker, 'append_message', lambda *a, **k: None)
+    monkeypatch.setattr(message_broker, 'run_tool', lambda *a, **k: 'ok')
+
+    delivered = {}
+
+    def fake_deliver(agent, name, result):
+        delivered['agent'] = agent
+        delivered['name'] = name
+        delivered['result'] = result
+
+    monkeypatch.setattr(broker, 'deliver_tool_result', fake_deliver)
+
+    class DummyThread:
+        def quit(self):
+            pass
+
+        def wait(self):
+            pass
+
+        def deleteLater(self):
+            pass
+
+    class DummyWorker:
+        def deleteLater(self):
+            pass
+
+    thread = DummyThread()
+    worker = DummyWorker()
+    broker.active_worker_threads = [(worker, thread)]
+
+    broker.worker_finished_sequential(worker, thread, 'agent1')
+
+    assert delivered['agent'] == 'agent1'
+    assert delivered['name'] == 'echo-plugin'
+    assert delivered['result'] == 'ok'
+

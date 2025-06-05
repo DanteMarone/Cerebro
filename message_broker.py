@@ -284,6 +284,8 @@ class MessageBroker:
                         agent_name,
                         debug_enabled=self.app.debug_enabled if self.app else False,
                     )
+                # Send the tool result back to the agent for a follow-up response
+                self.deliver_tool_result(agent_name, tool_name, tool_result)
 
         # Handle any task request
         if task_request:
@@ -506,3 +508,15 @@ class MessageBroker:
 
         thread.started.connect(worker.run)
         thread.start()
+
+    def deliver_tool_result(self, agent_name, tool_name, result):
+        """Send a tool's output back to the requesting agent."""
+        info = f"Tool {tool_name} result:\n{result}"
+        append_message(
+            self.chat_history,
+            "user",
+            info,
+            debug_enabled=self.app.debug_enabled if self.app else False,
+        )
+        # Route as if coming from a Coordinator so Specialists can receive it
+        self._route_message("Coordinator", agent_name, info)
