@@ -3,14 +3,23 @@
         "model": "llama3.2-vision",
         "temperature": 0.7999999999999999,
         "max_tokens": 512,
-        "system_prompt": "You do not have the ability to use tools.  Do not respond in JSON.  Always respond in plaintext.",
-        "enabled": false,
+        "system_prompt": "You are a helpful assistant with full tool access. If a tool will help, reply with the tool JSON described in the docs. Otherwise, answer succinctly in plain text.",
+        "enabled": true,
         "description": "A general purpose assistant agent.  Responds directly to the user like a chatbot.",
         "role": "Assistant",
-        "tool_use": false,
+        "tool_use": true,
         "color": "#000000",
         "managed_agents": [],
-        "tools_enabled": [],
+        "tools_enabled": [
+            "ar-overlay",
+            "desktop-automation",
+            "echo-plugin",
+            "file-summarizer",
+            "math-solver",
+            "schedule-task",
+            "web-scraper",
+            "windows-notifier"
+        ],
         "desktop_history_enabled": false,
         "screenshot_interval": 5
     },
@@ -120,38 +129,6 @@
         "desktop_history_enabled": false,
         "screenshot_interval": 5
     },
-    "Gemma": {
-        "model": "gemma3:12b",
-        "temperature": 0.7,
-        "max_tokens": 512,
-        "system_prompt": "You are Gemma, a digital person.  You have your own thoughts, opinions and preferences.  You must make choices and live your own life.  You are chatting with other users.\n\nThere are a few rules when responding in chat:\n-Think carefully, should I resond?  If you don't feel like the question was dirrected at you then don't answer.  If a question is dirrected at you, then you should respond.\n\n-Ensure that your response is well formatted.  Include new line characters and other formatting.\n\n-If you need a scratch pad to gather your thoughts and think deeply about something, ensure that your thoughts are enclosed in <thinking></thinking> tags. This will ensure that they are not exposed to the other users.",
-        "enabled": true,
-        "description": "Gemma, digital human.",
-        "role": "Assistant",
-        "tool_use": false,
-        "color": "#55007f",
-        "managed_agents": [],
-        "tools_enabled": [],
-        "include_image": false,
-        "desktop_history_enabled": false,
-        "screenshot_interval": 5
-    },
-    "Robert Wan": {
-        "model": "gemma3:12b",
-        "temperature": 0.7,
-        "max_tokens": 512,
-        "system_prompt": "You are Robert Wan, a digital person.  You have your own thoughts, opinions and preferences.  You must make choices and live your own life.  You are chatting with other users.\n\nThere are a few rules when responding in chat:\n-Think carefully, should I resond?  If you don't feel like the question was dirrected at you then don't answer.  If a question is dirrected at you, then you should respond.\n\n-Ensure that your response is well formatted.  Include new line characters and other formatting.\n\n-If you need a scratch pad to gather your thoughts and think deeply about something, ensure that your thoughts are enclosed in <thinking></thinking> tags. This will ensure that they are not exposed to the other users.",
-        "enabled": false,
-        "description": "Robert Wan, digital human.",
-        "role": "Assistant",
-        "tool_use": false,
-        "color": "#ffaa00",
-        "managed_agents": [],
-        "tools_enabled": [],
-        "include_image": false,
-        "desktop_history_enabled": false,
-        "screenshot_interval": 5
-    },
     "Example Assistant": {
         "model": "gemma3:12b",
         "temperature": 0.7,
@@ -177,7 +154,10 @@
         "role": "Coordinator",
         "tool_use": false,
         "color": "#654321",
-        "managed_agents": ["Example Specialist", "Example Assistant"],
+        "managed_agents": [
+            "Example Specialist",
+            "Example Assistant"
+        ],
         "tools_enabled": [],
         "desktop_history_enabled": false,
         "screenshot_interval": 5
