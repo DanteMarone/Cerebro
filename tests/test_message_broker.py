@@ -32,3 +32,51 @@ def test_build_agent_chat_history(monkeypatch):
     assert chat[1]['role'] == 'user'
     assert chat[2]['role'] == 'assistant'
 
+
+def test_handle_worker_finished_runs_tool_for_assistant(monkeypatch):
+    app = DummyApp()
+    app.agents_data['agent1']['role'] = 'Assistant'
+    app.agents_data['agent1']['tool_use'] = True
+    app.chat_tab = type('Tab', (), {'append_message_html': lambda self, html: None})()
+    app.current_responses = {
+        'agent1': (
+            '{"role": "assistant", "content": "hi", '
+            '"tool_request": {"name": "echo-plugin", "args": {"msg": "hi"}}}'
+        )
+    }
+
+    broker = message_broker.MessageBroker(app)
+
+    called = {}
+
+    def fake_run_tool(tools, name, args, debug):
+        called['name'] = name
+        called['args'] = args
+        return 'ok'
+
+    monkeypatch.setattr(message_broker, 'run_tool', fake_run_tool)
+    monkeypatch.setattr(message_broker, 'append_message', lambda *a, **k: None)
+
+    class DummyThread:
+        def quit(self):
+            pass
+
+        def wait(self):
+            pass
+
+        def deleteLater(self):
+            pass
+
+    class DummyWorker:
+        def deleteLater(self):
+            pass
+
+    thread = DummyThread()
+    worker = DummyWorker()
+    broker.active_worker_threads = [(worker, thread)]
+
+    broker.worker_finished_sequential(worker, thread, 'agent1')
+
+    assert called['name'] == 'echo-plugin'
+    assert called['args'] == {'msg': 'hi'}
+

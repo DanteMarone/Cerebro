@@ -180,14 +180,13 @@ class MessageBroker:
             if not last_message.endswith(f"Next Response By: {agent_name}"):
                 return
 
-        # Attempt to parse if agent is "Coordinator" or "Specialist" and returned JSON
+        # Attempt to parse JSON responses for any agent when tool use is enabled
         parsed = None
-        if agent_settings.get('role') in ['Coordinator', 'Specialist']:
-            if content.startswith("{") and content.endswith("}"):
-                try:
-                    parsed = json.loads(content)
-                except json.JSONDecodeError:
-                    parsed = None
+        if content.startswith("{") and content.endswith("}"):
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                parsed = None
 
         if parsed is not None:
             if "tool_request" in parsed:
