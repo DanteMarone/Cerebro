@@ -99,6 +99,8 @@ Bundled plugins include:
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
+When a tool is executed, the conversation view renders a small 🛠️ icon with the
+function call followed by the result on its own line.
 
 ## Tasks Tab
 

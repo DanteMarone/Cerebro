@@ -30,3 +30,16 @@ def test_generate_tool_instructions_disabled():
     instructions = tool_utils.generate_tool_instructions_message(app, 'agent2')
     assert instructions == ''
 
+
+def test_format_tool_call_html():
+    html = tool_utils.format_tool_call_html('echo-plugin', {'msg': 'hi'})
+    assert 'echo-plugin' in html
+    assert 'msg' in html
+    assert 'toolCall' in html
+
+
+def test_format_tool_result_html():
+    html = tool_utils.format_tool_result_html('ok')
+    assert 'ok' in html
+    assert 'toolResult' in html
+
