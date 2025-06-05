@@ -32,7 +32,11 @@ from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
 from tab_docs import DocumentationTab
 from metrics import load_metrics, record_tool_usage, record_response_time
-from tool_utils import generate_tool_instructions_message
+from tool_utils import (
+    generate_tool_instructions_message,
+    format_tool_call_html,
+    format_tool_result_html,
+)
 
 AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
@@ -743,10 +747,20 @@ class AIChatApp(QMainWindow):
                 self.refresh_metrics_display()
 
                 # Check for tool errors and handle them
+                call_html = format_tool_call_html(tool_name, tool_args)
+                self.chat_tab.append_message_html(
+                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {call_html}"
+                )
+                append_message(
+                    self.chat_history,
+                    "assistant",
+                    f"{agent_name} called {tool_name}",
+                    agent_name,
+                    debug_enabled=self.debug_enabled,
+                )
                 if tool_result.startswith("[Tool Error]"):
                     error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
                     self.chat_tab.append_message_html(error_msg)
-                    # Append error message to chat history
                     append_message(
                         self.chat_history,
                         "assistant",
@@ -756,12 +770,14 @@ class AIChatApp(QMainWindow):
                     )
                     self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
-                    display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-                    self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                    result_html = format_tool_result_html(tool_result)
+                    self.chat_tab.append_message_html(
+                        f"[{timestamp}] <span style='color:{agent_color};'>{result_html}</span>"
+                    )
                     append_message(
                         self.chat_history,
                         "assistant",
-                        display_message,
+                        tool_result,
                         agent_name,
                         debug_enabled=self.debug_enabled,
                     )

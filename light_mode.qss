@@ -113,6 +113,19 @@ QMainWindow {
     padding: 5px 10px;
 }
 
+.toolCall {
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-family: "Segoe UI", monospace;
+}
+
+.toolResult {
+    color: #006400;
+    font-family: "Segoe UI", monospace;
+    padding-left: 8px;
+}
+
 #inputContainer {
     background-color: #f8f8f8;
     border-radius: 8px;

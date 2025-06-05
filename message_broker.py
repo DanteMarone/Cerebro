@@ -4,7 +4,11 @@ from datetime import datetime
 from PyQt5.QtCore import QThread
 from worker import AIWorker
 from tools import run_tool
-from tool_utils import generate_tool_instructions_message
+from tool_utils import (
+    generate_tool_instructions_message,
+    format_tool_call_html,
+    format_tool_result_html,
+)
 from tasks import add_task, delete_task, save_tasks
 from transcripts import (
     load_history,
@@ -248,6 +252,17 @@ class MessageBroker:
                 )
             else:
                 tool_result = run_tool(self.app.tools, tool_name, tool_args, self.app.debug_enabled)
+                call_html = format_tool_call_html(tool_name, tool_args)
+                self.app.chat_tab.append_message_html(
+                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {call_html}"
+                )
+                append_message(
+                    self.chat_history,
+                    "assistant",
+                    f"{agent_name} called {tool_name}",
+                    agent_name,
+                    debug_enabled=self.app.debug_enabled if self.app else False,
+                )
                 if tool_result.startswith("[Tool Error]"):
                     error_msg = f"[{timestamp}] <span style='color:red;'>{tool_result}</span>"
                     self.app.chat_tab.append_message_html(error_msg)
@@ -259,12 +274,14 @@ class MessageBroker:
                         debug_enabled=self.app.debug_enabled if self.app else False,
                     )
                 else:
-                    display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-                    self.app.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                    result_html = format_tool_result_html(tool_result)
+                    self.app.chat_tab.append_message_html(
+                        f"[{timestamp}] <span style='color:{agent_color};'>{result_html}</span>"
+                    )
                     append_message(
                         self.chat_history,
                         "assistant",
-                        display_message,
+                        tool_result,
                         agent_name,
                         debug_enabled=self.app.debug_enabled if self.app else False,
                     )

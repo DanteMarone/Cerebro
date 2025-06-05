@@ -1,6 +1,6 @@
 """Utility functions for tool handling."""
 
-from typing import Any
+from typing import Any, Dict
 
 
 def generate_tool_instructions_message(app: Any, agent_name: str) -> str:
@@ -33,3 +33,14 @@ def generate_tool_instructions_message(app: Any, agent_name: str) -> str:
         )
         return instructions
     return ""
+
+
+def format_tool_call_html(tool_name: str, tool_args: Dict[str, Any]) -> str:
+    """Return HTML snippet representing a tool invocation."""
+    arg_list = ", ".join(f"{k}={v!r}" for k, v in tool_args.items())
+    return f"<span class='toolCall'>\ud83d\udd27 {tool_name}({arg_list})</span>"
+
+
+def format_tool_result_html(result: str) -> str:
+    """Return HTML snippet for a tool result."""
+    return f"<span class='toolResult'>&rarr; {result}</span>"
