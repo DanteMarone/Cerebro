@@ -224,8 +224,9 @@ Another bundled plugin named `web-scraper` fetches and sanitizes text from a URL
 The repository also provides a `windows-notifier` plugin that relies on the
 `win10toast` package to display a Windows 11 notification. Pair it with the
 `schedule-task` tool to create reminders or daily summaries.
-The `desktop-automation` plugin can launch programs or move files after a model
-analyzes your screen captures.
+The new `ar-overlay` plugin pops up a small HUD-style window with a short
+message, and the `desktop-automation` plugin can launch programs or move files
+after a model analyzes your screen captures.
 Scheduled tasks are also written to the OS task scheduler using the helper
 script `run_task.py` so they execute even when Cerebro is not running.
 

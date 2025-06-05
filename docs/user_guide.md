@@ -94,6 +94,7 @@ Bundled plugins include:
 - **web-scraper** – download and sanitize text from a URL.
 - **math-solver** – evaluate mathematical expressions.
 - **windows-notifier** – display a Windows 11 notification using `win10toast`.
+- **ar-overlay** – show a small on-screen HUD message for quick reminders.
 - **desktop-automation** – launch programs or move files through OS commands.
 
 Agents call tools by returning a JSON block in the format produced by
