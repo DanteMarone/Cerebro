@@ -110,6 +110,7 @@ current day is highlighted.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark the selected task as completed or pending.
 - **Repeat Interval** – optional number of minutes after which the task should repeat.
+- **Time Format** – enter times as ISO 8601 (YYYY-MM-DDTHH:MM:SS) or `YYYY-MM-DD HH:MM:SS` local time.
 
 When a task’s due time arrives the associated prompt is sent automatically. Combine this feature with
 the `windows-notifier` tool to create desktop reminders on Windows 11. Use `desktop-automation` to act on
