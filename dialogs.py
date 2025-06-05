@@ -236,7 +236,14 @@ class SettingsDialog(QDialog):
         update_layout.addWidget(self.update_ollama_button)
 
         self.model_combo = QComboBox()
-        models = self.parent.agents_tab.fetch_available_models()
+        models = self.parent.agents_tab.global_agent_preferences.get(
+            "available_models", []
+        )
+        if not models:
+            self.parent.agents_tab.load_global_preferences()
+            models = self.parent.agents_tab.global_agent_preferences.get(
+                "available_models", []
+            )
         self.model_combo.addItems(models)
         update_layout.addWidget(self.model_combo)
 
@@ -309,6 +316,7 @@ class SettingsDialog(QDialog):
             )
             output = result.stdout.strip() or f"Model {model} updated."
             QMessageBox.information(self, "Model Update", output)
+            self.parent.agents_tab.load_global_preferences()
         except FileNotFoundError:
             QMessageBox.warning(self, "Error", "Ollama executable not found.")
         except Exception as e:
