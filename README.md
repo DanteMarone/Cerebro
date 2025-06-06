@@ -36,6 +36,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         from websites.
     *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
     *   Provides a **Desktop Automation** plugin for launching programs or moving files via OS commands.
+    *   Includes an **Automated Update Manager** plugin for checking for new versions and downloading updates on Windows 11.
     *   Tools can be updated using the **Edit Tool** button in the Tools tab.
     *   The Settings dialog provides buttons to update the Ollama runtime and refresh individual models. Model names are cached so the dialog opens quickly.
 
