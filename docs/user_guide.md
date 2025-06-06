@@ -88,6 +88,7 @@ Tools extend Cerebro with custom Python scripts that agents can invoke. The tab 
 2. **Edit Tool** – modify an existing tool.
 3. **Delete** – remove a tool and its script file.
 4. **Run** – execute a tool manually with JSON arguments.
+   The script editor supports Python syntax highlighting when QScintilla is installed.
 
 Bundled plugins include:
 - **file-summarizer** – create a short summary of a text file or provided text.
