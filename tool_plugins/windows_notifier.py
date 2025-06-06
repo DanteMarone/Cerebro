@@ -15,7 +15,8 @@ def run_tool(args):
         return "[windows-notifier Error] win10toast not installed."
     try:
         toaster = ToastNotifier()
-        toaster.show_toast(title, message, duration=5)
+        # Run notification in a separate thread to prevent WNDPROC errors
+        toaster.show_toast(title, message, duration=5, threaded=True)
         return "Notification sent"
     except Exception as e:
         return f"[windows-notifier Error] {e}"

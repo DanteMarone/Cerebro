@@ -28,7 +28,8 @@ def _desktop_notify(title, message):
         try:
             from win10toast import ToastNotifier
             toaster = ToastNotifier()
-            toaster.show_toast(title, message, duration=5)
+            # Use threaded=True to avoid blocking or crashing the main thread
+            toaster.show_toast(title, message, duration=5, threaded=True)
             return True
         except Exception:
             return False
