@@ -37,7 +37,8 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                     "script_path": path,
                     "script": script_text,
-                    "args": meta.get("args", [])
+                    "args": meta.get("args", []),
+                    "silent": meta.get("silent", False),
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
@@ -67,7 +68,8 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                     "script_path": path,
                     "script": script_text,
-                    "args": meta.get("args", [])
+                    "args": meta.get("args", []),
+                    "silent": meta.get("silent", False),
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")
@@ -88,6 +90,8 @@ def load_tools(debug_enabled=False):
                 tools = json.load(f)
                 if debug_enabled:
                     print("[Debug] Tools loaded:", tools)
+                for t in tools:
+                    t.setdefault("silent", False)
         except Exception as e:
             print(f"[Error] Failed to load tools: {e}")
 
@@ -177,7 +181,7 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
             except Exception:
                 pass
 
-def add_tool(tools, name, description, script, debug_enabled=False):
+def add_tool(tools, name, description, script, silent=False, debug_enabled=False):
     if any(t['name'] == name for t in tools):
         return f"[Tool Error] A tool with name '{name}' already exists."
 
@@ -201,11 +205,12 @@ def add_tool(tools, name, description, script, debug_enabled=False):
         "description": description,
         "script": script,
         "script_path": script_path,
+        "silent": silent,
     })
     save_tools(tools, debug_enabled)
     return None
 
-def edit_tool(tools, old_name, new_name, description, script, debug_enabled=False):
+def edit_tool(tools, old_name, new_name, description, script, silent, debug_enabled=False):
     tool = next((t for t in tools if t["name"] == old_name), None)
     if not tool:
         return f"[Tool Error] Tool '{old_name}' not found."
@@ -229,6 +234,7 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
 
     tool["name"] = new_name
     tool["description"] = description
+    tool["silent"] = silent
     save_tools(tools, debug_enabled)
     return None
 

@@ -12,7 +12,7 @@ class DummyApp:
                 'tools_enabled': ['echo-plugin']
             }
         }
-        self.tools = [{'name': 'echo-plugin', 'description': 'Echo', 'args': []}]
+        self.tools = [{'name': 'echo-plugin', 'description': 'Echo', 'args': [], 'silent': False}]
 
 
 def test_build_agent_chat_history(monkeypatch):
@@ -130,4 +130,23 @@ def test_delivers_tool_result(monkeypatch):
     assert delivered['agent'] == 'agent1'
     assert delivered['name'] == 'echo-plugin'
     assert delivered['result'] == 'ok'
+
+
+def test_deliver_tool_result_skips_silent(monkeypatch):
+    app = DummyApp()
+    app.tools.append({'name': 'text-to-speech', 'description': '', 'args': [], 'silent': True})
+    broker = message_broker.MessageBroker(app)
+
+    monkeypatch.setattr(message_broker, 'append_message', lambda *a, **k: None)
+
+    called = {}
+
+    def fake_route(sender, recipient, message, role="user", add_next=True):
+        called['message'] = message
+
+    monkeypatch.setattr(broker, '_route_message', fake_route)
+
+    broker.deliver_tool_result('agent1', 'text-to-speech', 'ok')
+
+    assert called == {}
 

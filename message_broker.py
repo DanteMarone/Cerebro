@@ -28,6 +28,7 @@ class MessageBroker:
         self.chat_history = load_history(app.debug_enabled if app else False)
         self.active_worker_threads = []
 
+
     def send_message(self, sender, recipient, message):
         """
         Entry point for sending a message.
@@ -97,7 +98,7 @@ class MessageBroker:
                             error_msg = f"[{timestamp}] <span style='color:red;'>[Error] No agents are enabled.</span>"
                             self.app.chat_tab.append_message_html(error_msg)
 
-    def _route_message(self, sender, recipient, message):
+    def _route_message(self, sender, recipient, message, role="user", add_next=True):
         """
         Routes a message to the specified recipient agent.
 
@@ -465,13 +466,13 @@ class MessageBroker:
                 self.app.chat_tab.append_message_html(error_msg)
                 return
 
-        # Append "Next Response By" if not already present
-        if not message.endswith(f"Next Response By: {agent_name}"):
-            message = message + f"\nNext Response By: {agent_name}"
+        # Append "Next Response By" if requested
+        if add_next and not message.endswith(f"Next Response By: {recipient}"):
+            message = message + f"\nNext Response By: {recipient}"
 
         append_message(
             self.chat_history,
-            "user",
+            role,
             message,
             debug_enabled=self.app.debug_enabled if self.app else False,
         )
@@ -514,5 +515,8 @@ class MessageBroker:
             info,
             debug_enabled=self.app.debug_enabled if self.app else False,
         )
-        # Route as if coming from a Coordinator so Specialists can receive it
-        self._route_message("Coordinator", agent_name, info)
+        tool_def = next((t for t in self.app.tools if t["name"] == tool_name), None)
+        silent = bool(tool_def.get("silent", False)) if tool_def else False
+        if not silent:
+            # Route as if coming from a Coordinator so Specialists can receive it
+            self._route_message("Coordinator", agent_name, info)

@@ -1,7 +1,8 @@
 TOOL_METADATA = {
     "name": "windows-notifier",
     "description": "Send a Windows 11 notification using win10toast.",
-    "args": ["title", "message"]
+    "args": ["title", "message"],
+    "silent": True
 }
 
 

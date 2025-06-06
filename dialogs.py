@@ -75,7 +75,7 @@ def run_tool(args):
     return "Hello from the sample tool!"
 """
 
-    def __init__(self, title="Add Tool", name="", description="", script=None):
+    def __init__(self, title="Add Tool", name="", description="", script=None, silent=False):
         super().__init__()
         self.setWindowTitle(title)
         layout = QVBoxLayout(self)
@@ -101,6 +101,11 @@ def run_tool(args):
         )
         layout.addWidget(self.script_edit)
 
+        # Silent flag
+        self.silent_check = QCheckBox("Silent tool (no follow-up response)")
+        self.silent_check.setChecked(silent)
+        layout.addWidget(self.silent_check)
+
         # Buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
@@ -111,7 +116,8 @@ def run_tool(args):
         return (
             self.name_edit.text().strip(),
             self.description_edit.text().strip(),
-            self.script_edit.text().strip()
+            self.script_edit.text().strip(),
+            self.silent_check.isChecked(),
         )
 
     def accept(self):

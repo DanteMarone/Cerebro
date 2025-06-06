@@ -2,6 +2,7 @@ TOOL_METADATA = {
     "name": "text-to-speech",
     "description": "Speak the provided text using the OS text-to-speech engine.",
     "args": ["text"],
+    "silent": True,
 }
 
 

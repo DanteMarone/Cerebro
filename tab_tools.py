@@ -106,8 +106,8 @@ class ToolsTab(QWidget):
     def add_tool_ui(self):
         dialog = ToolDialog(title="Add Tool")
         if dialog.exec_() == QDialog.Accepted:
-            name, desc, script = dialog.get_data()
-            err = add_tool(self.tools, name, desc, script, self.parent_app.debug_enabled)
+            name, desc, script, silent = dialog.get_data()
+            err = add_tool(self.tools, name, desc, script, silent, self.parent_app.debug_enabled)
             if err:
                 QMessageBox.warning(self, "Error Adding Tool", err)
             else:
@@ -131,11 +131,20 @@ class ToolsTab(QWidget):
             title="Edit Tool",
             name=tool["name"],
             description=tool["description"],
-            script=tool["script"]
+            script=tool["script"],
+            silent=tool.get("silent", False),
         )
         if dialog.exec_() == QDialog.Accepted:
-            new_name, desc, script = dialog.get_data()
-            err = edit_tool(self.tools, tool["name"], new_name, desc, script, self.parent_app.debug_enabled)
+            new_name, desc, script, silent = dialog.get_data()
+            err = edit_tool(
+                self.tools,
+                tool["name"],
+                new_name,
+                desc,
+                script,
+                silent,
+                self.parent_app.debug_enabled,
+            )
             if err:
                 QMessageBox.warning(self, "Error Editing Tool", err)
             else:
