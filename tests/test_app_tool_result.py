@@ -57,4 +57,4 @@ def test_worker_finished_sends_result_back(monkeypatch):
     app.AIChatApp.worker_finished_sequential(dummy, worker, thread, 'agent1', None, None)
 
     assert sent['agent'] == 'agent1'
-    assert 'Tool echo-plugin result' in sent['msg']
+    assert sent['msg'] == 'ok'

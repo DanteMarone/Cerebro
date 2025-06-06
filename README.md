@@ -23,9 +23,9 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Tools are implemented as Python scripts that define a `run_tool(args)` function.
     *   Agents can invoke tools by including a specific JSON format in their response.
     *   When a tool is triggered, the chat displays a 🛠️ icon with the tool name.
-        Expanding the entry reveals the full function call and its result. The
-        output is then sent back to the requesting agent so it can refine its
-        answer.
+        Expanding the entry reveals the call and its result. The result becomes
+        the next user message for the requesting agent so it can refine its
+        answer and share the output when appropriate.
     *   Each agent has an individual setting to toggle tool usage on or off.
 *   Each agent can enable or disable individual tools.
 *   **Thinking Mode:** When enabled, an agent iteratively generates a series of

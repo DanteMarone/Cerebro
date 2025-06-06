@@ -510,12 +510,11 @@ class MessageBroker:
 
     def deliver_tool_result(self, agent_name, tool_name, result):
         """Send a tool's output back to the requesting agent."""
-        info = f"Tool {tool_name} result:\n{result}"
         append_message(
             self.chat_history,
             "user",
-            info,
+            result,
             debug_enabled=self.app.debug_enabled if self.app else False,
         )
         # Route as if coming from a Coordinator so Specialists can receive it
-        self._route_message("Coordinator", agent_name, info)
+        self._route_message("Coordinator", agent_name, result)

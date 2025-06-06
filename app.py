@@ -792,7 +792,7 @@ class AIChatApp(QMainWindow):
                     )
                     # Send the tool result back to the agent for a follow up
                     self.send_message_to_agent(
-                        agent_name, f"Tool {tool_name} result:\n{tool_result}"
+                        agent_name, tool_result
                     )
                     self.show_notification(
                         f"Tool executed successfully: {tool_name}", "info"

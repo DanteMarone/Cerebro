@@ -107,8 +107,9 @@ Bundled plugins include:
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
 When a tool is executed, the conversation view shows a 🛠️ icon with the tool
-name. Expanding the entry reveals the full function call and its output. The
-agent receives that result and can use it when crafting the next reply.
+name. Expanding the entry reveals the call and its output. That output becomes
+the next user message for the requesting agent, which should incorporate the
+result into its response if it is relevant to the user.
 
 ## Tasks Tab
 
