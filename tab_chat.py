@@ -6,6 +6,8 @@ from PyQt5.QtWidgets import (
     QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction
 )
 
+from dialogs import SearchDialog
+
 class ChatTab(QWidget):
     """
     Encapsulates the chat UI: display, input, send/clear buttons.
@@ -219,8 +221,13 @@ class ChatTab(QWidget):
         self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
     
     def show_search(self):
-        """Show search interface in chat"""
-        self.parent_app.show_notification("Search functionality coming soon", "info")
+        """Display a dialog to search conversation history."""
+        text = self.chat_display.toPlainText()
+        if not text.strip():
+            self.parent_app.show_notification("No conversation to search", "info")
+            return
+        dialog = SearchDialog(self, text)
+        dialog.exec_()
     
     def copy_conversation(self):
         """Copy conversation to clipboard"""

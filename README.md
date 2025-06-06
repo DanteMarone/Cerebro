@@ -54,6 +54,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Chat History Management:**
     *   Each session begins with a blank conversation.
     *   History can be exported or cleared from the chat menu if desired.
+    *   Click the 🔍 icon to search within the current conversation.
 *   **Conversation Summaries:**
     *   Older messages are automatically condensed when a chat grows large to
         keep prompts short.

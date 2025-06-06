@@ -49,6 +49,7 @@ The Chat tab is the primary interface for interacting with your agents.
   shown.
 - Use the menu in the upper‑right corner to copy, export or clear the conversation history. Each
   session starts with a clean slate.
+- Use the 🔍 button to search the current conversation.
 - When many messages accumulate they are automatically summarized so prompts remain short.
 
 Agents with *desktop history* enabled attach recent screenshots at a configurable interval. This helps
