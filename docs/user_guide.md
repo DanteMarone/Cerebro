@@ -97,6 +97,8 @@ Bundled plugins include:
 - **ar-overlay** – show a small on-screen HUD message for quick reminders.
 - **desktop-automation** – launch programs or move files through OS commands.
 - **credential-manager** – securely store and retrieve credentials via the system keyring.
+- **text-to-speech** – speak text aloud using the system voice.
+- **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
@@ -118,6 +120,7 @@ current day is highlighted. When there are no tasks a message labeled "No tasks 
 
 When a task’s due time arrives the associated prompt is sent automatically. Combine this feature with
 the `windows-notifier` tool to create desktop reminders on Windows 11. Use `desktop-automation` to act on
+- **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
 screenshot analysis when needed. Tasks can optionally register with
 the operating system scheduler so they run even if Cerebro is not open. Windows uses Task Scheduler while
 Unix-like systems use cron.
