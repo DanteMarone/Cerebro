@@ -100,6 +100,7 @@ Bundled plugins include:
 - **credential-manager** – securely store and retrieve credentials via the system keyring.
 - **text-to-speech** – speak text aloud using the system voice.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
+- **task-sequence-recorder** – record mouse and keyboard events and replay them later.
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
