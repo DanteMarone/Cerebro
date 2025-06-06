@@ -232,7 +232,8 @@ The repository also provides a `windows-notifier` plugin that relies on the
 `schedule-task` tool to create reminders or daily summaries.
 The new `ar-overlay` plugin pops up a small HUD-style window with a short
 message, and the `desktop-automation` plugin can launch programs or move files
-after a model analyzes your screen captures.
+after a model analyzes your screen captures. The `text-to-speech` plugin speaks
+text aloud using the system voice.
 Scheduled tasks are also written to the OS task scheduler using the helper
 script `run_task.py` so they execute even when Cerebro is not running.
 
