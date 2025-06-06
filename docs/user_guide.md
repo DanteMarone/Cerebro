@@ -94,6 +94,7 @@ Bundled plugins include:
 - **web-scraper** – download and sanitize text from a URL.
 - **math-solver** – evaluate mathematical expressions.
 - **windows-notifier** – display a Windows 11 notification using `win10toast`.
+- **notification-hub** – cross-platform desktop alerts with optional sound and push webhooks.
 - **ar-overlay** – show a small on-screen HUD message for quick reminders.
 - **desktop-automation** – launch programs or move files through OS commands.
 
@@ -116,7 +117,7 @@ current day is highlighted. When there are no tasks a message labeled "No tasks 
 - **Time Format** – enter times as ISO 8601 (YYYY-MM-DDTHH:MM:SS) or `YYYY-MM-DD HH:MM:SS` local time.
 
 When a task’s due time arrives the associated prompt is sent automatically. Combine this feature with
-the `windows-notifier` tool to create desktop reminders on Windows 11. Use `desktop-automation` to act on
+the `notification-hub` tool to create desktop or push reminders. Use `desktop-automation` to act on
 screenshot analysis when needed. Tasks can optionally register with
 the operating system scheduler so they run even if Cerebro is not open. Windows uses Task Scheduler while
 Unix-like systems use cron.
