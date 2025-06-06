@@ -46,6 +46,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Agents can schedule tasks to be executed at a specific time. New tasks default to one minute from the current time.
     *   Tasks are stored in `tasks.json`.
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
+    *   Filter tasks by agent or status using drop-down menus above the list.
+    *   Each row contains Edit, Delete and Complete buttons for quick changes.
     *   Tasks can optionally repeat at a set interval.
     *   Due times must be in ISO 8601 format or `YYYY-MM-DD HH:MM:SS` local time.
         Today's date is highlighted and any date with tasks shows a small red dot.

@@ -1,9 +1,20 @@
 # tab_tasks.py
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QPushButton, QListWidgetItem,
-    QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView, QCalendarWidget,
-    QInputDialog
+    QWidget,
+    QVBoxLayout,
+    QListWidget,
+    QHBoxLayout,
+    QPushButton,
+    QListWidgetItem,
+    QLabel,
+    QMessageBox,
+    QDialog,
+    QStyle,
+    QAbstractItemView,
+    QCalendarWidget,
+    QInputDialog,
+    QComboBox,
 )
 from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData, QRect
 from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
@@ -90,6 +101,21 @@ class TasksTab(QWidget):
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
+        # Filter controls
+        filter_layout = QHBoxLayout()
+        self.agent_filter = QComboBox()
+        self.agent_filter.addItem("All Agents")
+        for name in getattr(self.parent_app, "agents_data", {}).keys():
+            self.agent_filter.addItem(name)
+        self.agent_filter.currentIndexChanged.connect(self.refresh_tasks_list)
+        filter_layout.addWidget(self.agent_filter)
+
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["All Statuses", "pending", "completed"])
+        self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
+        filter_layout.addWidget(self.status_filter)
+        self.layout.addLayout(filter_layout)
+
         # Tasks list
         self.tasks_list = TaskListWidget()
         self.tasks_list.setSelectionMode(QAbstractItemView.SingleSelection)  # Enforce single selection
@@ -163,26 +189,64 @@ class TasksTab(QWidget):
         Refresh the tasks list in the UI.
         """
         self.tasks_list.clear()
-        if not self.tasks:
+        agent_filter = self.agent_filter.currentText()
+        status_filter = self.status_filter.currentText()
+        filtered = []
+        for task in self.tasks:
+            if agent_filter != "All Agents" and task.get("agent_name") != agent_filter:
+                continue
+            if status_filter != "All Statuses" and task.get("status", "pending") != status_filter:
+                continue
+            filtered.append(task)
+
+        if not filtered:
             self.tasks_list.hide()
             self.empty_label.show()
         else:
             self.empty_label.hide()
-            for t in self.tasks:
+            for t in filtered:
                 item = QListWidgetItem()
-                due_time = t.get("due_time", "")
-                agent_name = t.get("agent_name", "")
-                prompt = t.get("prompt", "")
-                status = t.get("status", "pending")
-                repeat = t.get("repeat_interval", 0)
-                repeat_str = f" every {repeat}m" if repeat else ""
-                summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
-                item.setText(summary)
+                row_widget = self._create_task_widget(t)
+                item.setSizeHint(row_widget.sizeHint())
                 item.setData(Qt.UserRole, t['id'])
                 self.tasks_list.addItem(item)
+                self.tasks_list.setItemWidget(item, row_widget)
             self.tasks_list.show()
 
         self.highlight_task_dates()
+
+    def _create_task_widget(self, task):
+        """Return a widget with summary text and action buttons for a task."""
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        due_time = task.get("due_time", "")
+        agent_name = task.get("agent_name", "")
+        prompt = task.get("prompt", "")
+        status = task.get("status", "pending")
+        repeat = task.get("repeat_interval", 0)
+        repeat_str = f" every {repeat}m" if repeat else ""
+        summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
+        label = QLabel(summary)
+        layout.addWidget(label)
+
+        edit_btn = QPushButton("Edit")
+        edit_btn.setProperty("task_id", task["id"])
+        edit_btn.clicked.connect(lambda _=False, tid=task["id"]: self.edit_task_ui(tid))
+        layout.addWidget(edit_btn)
+
+        del_btn = QPushButton("Delete")
+        del_btn.setProperty("task_id", task["id"])
+        del_btn.clicked.connect(lambda _=False, tid=task["id"]: self.delete_task_ui(tid))
+        layout.addWidget(del_btn)
+
+        status_btn = QPushButton("Complete" if status != "completed" else "Undo")
+        status_btn.setProperty("task_id", task["id"])
+        status_btn.clicked.connect(lambda _=False, tid=task["id"]: self.toggle_status_ui(tid))
+        layout.addWidget(status_btn)
+
+        return widget
 
     def highlight_task_dates(self):
         """Update calendar decorations for task dates."""
@@ -227,16 +291,15 @@ class TasksTab(QWidget):
             )
             self.refresh_tasks_list()
 
-    def edit_task_ui(self):
+    def edit_task_ui(self, task_id=None):
         """
         Display a dialog to edit an existing task.
         """
-        selected_items = self.tasks_list.selectedItems()
-        if not selected_items:
-            return
-        
-        # Get the task ID from the selected item's data
-        task_id = selected_items[0].data(Qt.UserRole)
+        if task_id is None:
+            selected_items = self.tasks_list.selectedItems()
+            if not selected_items:
+                return
+            task_id = selected_items[0].data(Qt.UserRole)
         
         existing_task = next((t for t in self.tasks if t["id"] == task_id), None)
         if not existing_task:
@@ -267,16 +330,15 @@ class TasksTab(QWidget):
             else:
                 self.refresh_tasks_list()
 
-    def delete_task_ui(self):
+    def delete_task_ui(self, task_id=None):
         """
         Delete a task after user confirmation.
         """
-        selected_items = self.tasks_list.selectedItems()
-        if not selected_items:
-            return
-
-        # Get the task ID from the selected item's data
-        task_id = selected_items[0].data(Qt.UserRole)
+        if task_id is None:
+            selected_items = self.tasks_list.selectedItems()
+            if not selected_items:
+                return
+            task_id = selected_items[0].data(Qt.UserRole)
 
         reply = QMessageBox.question(
             self,
@@ -292,13 +354,13 @@ class TasksTab(QWidget):
             else:
                 self.refresh_tasks_list()
 
-    def toggle_status_ui(self):
+    def toggle_status_ui(self, task_id=None):
         """Toggle the status of the selected task between pending and completed."""
-        selected_items = self.tasks_list.selectedItems()
-        if not selected_items:
-            return
-
-        task_id = selected_items[0].data(Qt.UserRole)
+        if task_id is None:
+            selected_items = self.tasks_list.selectedItems()
+            if not selected_items:
+                return
+            task_id = selected_items[0].data(Qt.UserRole)
         task = next((t for t in self.tasks if t["id"] == task_id), None)
         if not task:
             QMessageBox.warning(self, "Error", f"No task with ID {task_id} found.")
