@@ -73,6 +73,7 @@ class AIChatApp(QMainWindow):
         self.user_color = "#0000FF"
         self.accent_color = "#803391"
         self.dark_mode = False
+        self.screenshot_interval = 5
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
         
@@ -468,8 +469,12 @@ class AIChatApp(QMainWindow):
             self.user_color = settings_data["user_color"]
             self.accent_color = settings_data.get("accent_color", self.accent_color)
             self.debug_enabled = settings_data["debug_enabled"]
+            self.screenshot_interval = settings_data.get(
+                "screenshot_interval", self.screenshot_interval
+            )
             self.apply_updated_styles()
             self.agents_tab.update_model_dropdown()
+            self.update_screenshot_timer()
             self.save_settings()
             self.show_notification("Settings updated successfully")
 
@@ -1043,8 +1048,7 @@ class AIChatApp(QMainWindow):
             self.screenshot_manager.stop()
             return
 
-        interval = min(a.get("screenshot_interval", 5) for a in enabled_agents)
-        self.screenshot_manager.start(interval)
+        self.screenshot_manager.start(self.screenshot_interval)
 
     # -------------------------------------------------------------------------
     # Tools Management
@@ -1252,7 +1256,8 @@ class AIChatApp(QMainWindow):
             "user_name": self.user_name,
             "user_color": self.user_color,
             "accent_color": self.accent_color,
-            "dark_mode": self.dark_mode
+            "dark_mode": self.dark_mode,
+            "screenshot_interval": self.screenshot_interval,
         }
         try:
             with open(SETTINGS_FILE, "w") as f:
@@ -1275,6 +1280,9 @@ class AIChatApp(QMainWindow):
                 self.user_color = settings.get("user_color", "#0000FF")
                 self.accent_color = settings.get("accent_color", "#803391")
                 self.dark_mode = settings.get("dark_mode", False)
+                self.screenshot_interval = settings.get(
+                    "screenshot_interval", self.screenshot_interval
+                )
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
             except Exception as e:
