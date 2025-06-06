@@ -231,6 +231,7 @@ Another bundled plugin named `web-scraper` fetches and sanitizes text from a URL
 The repository also provides a `windows-notifier` plugin that relies on the
 `win10toast` package to display a Windows 11 notification. Pair it with the
 `schedule-task` tool to create reminders or daily summaries.
+The new `notification-hub` plugin offers cross-platform desktop alerts with optional sound effects and push webhooks for forwarding messages to mobile devices.
 The new `ar-overlay` plugin pops up a small HUD-style window with a short
 message, and the `desktop-automation` plugin can launch programs or move files
 after a model analyzes your screen captures. The `text-to-speech` plugin speaks
