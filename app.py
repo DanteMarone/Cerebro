@@ -11,7 +11,7 @@ from screenshot import ScreenshotManager
 from PyQt5.QtWidgets import (
     QMainWindow, QTabWidget, QMessageBox, QApplication, QAction, QMenu, QDialog,
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget, QStackedWidget,
-    QInputDialog, QScrollArea, QShortcut
+    QInputDialog, QScrollArea, QShortcut, QSystemTrayIcon, QStyle
 )
 from PyQt5.QtGui import QKeySequence
 
@@ -226,7 +226,7 @@ class AIChatApp(QMainWindow):
         
         quit_action = QAction('Quit', self)
         quit_action.setShortcut('Ctrl+Q')
-        quit_action.triggered.connect(self.close)
+        quit_action.triggered.connect(self.quit_from_tray)
         file_menu.addAction(quit_action)
         
         # View menu actions
@@ -259,6 +259,10 @@ class AIChatApp(QMainWindow):
         # Select chat tab initially and set keyboard shortcuts
         self.nav_buttons["chat"].setProperty("selected", True)
         self.setup_keyboard_shortcuts()
+
+        # Create system tray icon
+        self.force_quit = False
+        self.create_tray_icon()
 
     def create_nav_button(self, text, index):
         """Create a navigation button for the sidebar."""
@@ -297,9 +301,41 @@ class AIChatApp(QMainWindow):
         # Chat actions
         shortcut_send = QShortcut("Ctrl+S", self)
         shortcut_send.activated.connect(lambda: self.chat_tab.on_send_clicked())
-        
+
         shortcut_clear = QShortcut("Ctrl+L", self)
         shortcut_clear.activated.connect(lambda: self.chat_tab.on_clear_chat_clicked())
+
+    def create_tray_icon(self):
+        """Create the system tray icon and its menu."""
+        self.tray_icon = QSystemTrayIcon(self)
+        icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
+        self.tray_icon.setIcon(icon)
+
+        tray_menu = QMenu(self)
+
+        open_action = QAction("Open Cerebro", self)
+        open_action.triggered.connect(self.show)
+        tray_menu.addAction(open_action)
+
+        add_task_action = QAction("Add Task", self)
+        add_task_action.triggered.connect(self.tasks_tab.add_task_ui)
+        tray_menu.addAction(add_task_action)
+
+        toggle_action = QAction("Toggle Dark Mode", self)
+        toggle_action.triggered.connect(self.toggle_theme)
+        tray_menu.addAction(toggle_action)
+
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self.quit_from_tray)
+        tray_menu.addAction(quit_action)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.show()
+
+    def quit_from_tray(self):
+        """Quit the application from the tray icon."""
+        self.force_quit = True
+        self.close()
             
     def show_help_dialog(self):
         """Show the help dialog."""
@@ -1261,6 +1297,11 @@ class AIChatApp(QMainWindow):
     # Close Event
     # -------------------------------------------------------------------------
     def closeEvent(self, event):
+        if not getattr(self, "force_quit", False) and getattr(self, "tray_icon", None):
+            event.ignore()
+            self.hide()
+            return
+
         for worker, thread in self.active_worker_threads:
             thread.quit()
             thread.wait()
