@@ -74,6 +74,7 @@ settings:
 - **Enable Thinking** – if checked, the agent will generate intermediate
   thoughts before answering.
 - **Thinking Steps** – number of thinking iterations.
+- **Text-to-Speech Enabled** – speak replies aloud using the system voice.
 - **Desktop History Enabled** – capture screenshots to give the model visual context.
 - **Screenshot Interval** – seconds between captures when desktop history is on.
 
@@ -100,7 +101,6 @@ Bundled plugins include:
 - **ar-overlay** – show a small on-screen HUD message for quick reminders.
 - **desktop-automation** – launch programs or move files through OS commands.
 - **credential-manager** – securely store and retrieve credentials via the system keyring.
-- **text-to-speech** – speak text aloud using the system voice.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
 - **task-sequence-recorder** – record mouse and keyboard events and replay them later.
 

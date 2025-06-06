@@ -246,8 +246,8 @@ The repository also provides a `windows-notifier` plugin that relies on the
 The new `notification-hub` plugin offers cross-platform desktop alerts with optional sound effects and push webhooks for forwarding messages to mobile devices.
 The new `ar-overlay` plugin pops up a small HUD-style window with a short
 message, and the `desktop-automation` plugin can launch programs or move files
-after a model analyzes your screen captures. The `text-to-speech` plugin speaks
-text aloud using the system voice.
+after a model analyzes your screen captures. Replies can now be spoken aloud
+when Text-to-Speech is enabled for an agent.
 Scheduled tasks are also written to the OS task scheduler using the helper
 script `run_task.py` so they execute even when Cerebro is not running.
 

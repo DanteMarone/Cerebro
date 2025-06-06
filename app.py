@@ -40,6 +40,7 @@ from tool_utils import (
     format_tool_result_html,
     format_tool_block_html,
 )
+import tts
 
 AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
@@ -664,7 +665,9 @@ class AIChatApp(QMainWindow):
                 self.chat_tab.append_message_html(
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
                 )
-                
+                if agent_settings.get('tts_enabled'):
+                    tts.speak_text(clean_content)
+
                 # Store only the clean content without thoughts in history
                 append_message(
                     self.chat_history,
@@ -698,7 +701,9 @@ class AIChatApp(QMainWindow):
             self.chat_tab.append_message_html(
                 f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
             )
-            
+            if agent_settings.get('tts_enabled'):
+                tts.speak_text(clean_content)
+
             # Store only the clean content without thoughts in history
             append_message(
                 self.chat_history,
@@ -916,7 +921,8 @@ class AIChatApp(QMainWindow):
                 "tool_use": False,
                 "tools_enabled": [],
                 "thinking_enabled": False,
-                "thinking_steps": 3
+                "thinking_steps": 3,
+                "tts_enabled": False
             }
             self.agents_data["Default Agent"] = default_agent_settings
             if self.debug_enabled:
@@ -946,7 +952,8 @@ class AIChatApp(QMainWindow):
                 "tool_use": False,
                 "tools_enabled": [],
                 "thinking_enabled": False,
-                "thinking_steps": 3
+                "thinking_steps": 3,
+                "tts_enabled": False
             }
                 self.save_agents()
                 if self.debug_enabled:

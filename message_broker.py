@@ -18,6 +18,7 @@ from transcripts import (
     export_history,
     summarize_history,
 )
+import tts
 
 class MessageBroker:
     """
@@ -217,6 +218,8 @@ class MessageBroker:
                 self.app.chat_tab.append_message_html(
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
                 )
+                if agent_settings.get('tts_enabled'):
+                    tts.speak_text(content)
                 append_message(
                     self.chat_history,
                     "assistant",

@@ -1,4 +1,5 @@
 import message_broker
+import tts
 
 class DummyApp:
     def __init__(self):
@@ -24,6 +25,7 @@ def test_build_agent_chat_history(monkeypatch):
     monkeypatch.setattr(message_broker, 'load_history', lambda debug=False: history)
     monkeypatch.setattr(message_broker, 'summarize_history', lambda h: h)
     monkeypatch.setattr(message_broker, 'generate_tool_instructions_message', lambda app, name: 'tools')
+    monkeypatch.setattr(tts, 'speak_text', lambda *a, **k: None)
     broker = message_broker.MessageBroker(app)
     chat = broker.build_agent_chat_history('agent1')
     assert chat[0]['role'] == 'system'
@@ -75,6 +77,8 @@ def test_handle_worker_finished_runs_tool_for_assistant(monkeypatch):
     worker = DummyWorker()
     broker.active_worker_threads = [(worker, thread)]
 
+    monkeypatch.setattr(tts, 'speak_text', lambda *a, **k: None)
+    monkeypatch.setattr(tts, 'speak_text', lambda *a, **k: None)
     broker.worker_finished_sequential(worker, thread, 'agent1')
 
     assert called['name'] == 'echo-plugin'

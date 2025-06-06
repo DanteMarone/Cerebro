@@ -179,6 +179,10 @@ class AgentsTab(QWidget):
         self.thinking_steps_input.setMaximum(10)
         self.thinking_steps_input.setToolTip("Number of thinking iterations before responding.")
         self.agent_settings_layout.addRow(self.thinking_steps_label, self.thinking_steps_input)
+
+        self.tts_checkbox = QCheckBox("Enable Text-to-Speech")
+        self.tts_checkbox.setToolTip("Speak this agent's replies aloud.")
+        self.agent_settings_layout.addRow("", self.tts_checkbox)
         
         edit_layout.addLayout(self.agent_settings_layout)
 
@@ -197,6 +201,7 @@ class AgentsTab(QWidget):
         self.tools_list.itemSelectionChanged.connect(self.mark_unsaved)
         self.thinking_checkbox.stateChanged.connect(self.mark_unsaved)
         self.thinking_steps_input.valueChanged.connect(self.mark_unsaved)
+        self.tts_checkbox.stateChanged.connect(self.mark_unsaved)
         self.name_input.textChanged.connect(self.mark_unsaved)
         
         # Initially hide the managed agents list
@@ -232,6 +237,7 @@ class AgentsTab(QWidget):
         self.tools_list.blockSignals(True)
         self.thinking_checkbox.blockSignals(True)
         self.thinking_steps_input.blockSignals(True)
+        self.tts_checkbox.blockSignals(True)
         
         # Set form values
         self.name_input.setText(agent_name)
@@ -273,6 +279,7 @@ class AgentsTab(QWidget):
 
         self.thinking_checkbox.setChecked(agent_settings.get("thinking_enabled", False))
         self.thinking_steps_input.setValue(agent_settings.get("thinking_steps", 3))
+        self.tts_checkbox.setChecked(agent_settings.get("tts_enabled", False))
         
         # Update tools list
         self.tools_list.clear()
@@ -298,6 +305,7 @@ class AgentsTab(QWidget):
         self.tools_list.blockSignals(False)
         self.thinking_checkbox.blockSignals(False)
         self.thinking_steps_input.blockSignals(False)
+        self.tts_checkbox.blockSignals(False)
         
         # Update visibility based on current settings
         self.update_managed_agents_visibility()
@@ -367,6 +375,7 @@ class AgentsTab(QWidget):
             "tool_use": self.tool_use_checkbox.isChecked(),
             "thinking_enabled": self.thinking_checkbox.isChecked(),
             "thinking_steps": self.thinking_steps_input.value(),
+            "tts_enabled": self.tts_checkbox.isChecked(),
         }
         
         # Get color from button
