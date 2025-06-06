@@ -118,6 +118,8 @@ current day is highlighted. When there are no tasks a message labeled "No tasks 
 - **Edit** – change an existing task.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark the selected task as completed or pending.
+- **Filters** – drop-down menus allow filtering by agent or status.
+- **Row Actions** – each task row includes Edit, Delete and Complete buttons.
 - **Repeat Interval** – optional number of minutes after which the task should repeat.
 - **Time Format** – enter times as ISO 8601 (YYYY-MM-DDTHH:MM:SS) or `YYYY-MM-DD HH:MM:SS` local time.
 
