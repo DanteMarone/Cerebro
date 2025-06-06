@@ -43,3 +43,9 @@ def test_format_tool_result_html():
     assert 'ok' in html
     assert 'toolResult' in html
 
+
+def test_format_tool_block_html():
+    html = tool_utils.format_tool_block_html('echo-plugin', {'msg': 'hi'}, 'ok')
+    assert 'echo-plugin' in html
+    assert 'toolBlock' in html
+
