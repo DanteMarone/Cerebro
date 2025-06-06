@@ -122,6 +122,7 @@ current day is highlighted. When there are no tasks a message labeled "No tasks 
 - **Toggle Status** – mark the selected task as completed or pending.
 - **Filters** – drop-down menus allow filtering by agent or status.
 - **Row Actions** – each task row includes Edit, Delete and Complete buttons.
+- **Progress Bar** – a bar in each row shows how close the task is to its due time.
 - **Repeat Interval** – optional number of minutes after which the task should repeat.
 - **Time Format** – enter times as ISO 8601 (YYYY-MM-DDTHH:MM:SS) or `YYYY-MM-DD HH:MM:SS` local time.
 
@@ -167,8 +168,8 @@ Contains tool metadata and Python code. Plugins placed in `tool_plugins` or inst
 `cerebro_tools` entry point are loaded automatically.
 
 ### tasks.json
-Holds scheduled tasks. Each entry has `id`, `creator`, `agent_name`, `prompt`, `due_time`, `status` and
-`repeat_interval` fields.
+Holds scheduled tasks. Each entry has `id`, `creator`, `agent_name`, `prompt`, `due_time`, `created_time`,
+`status` and `repeat_interval` fields.
 Tasks are also exported to the operating system scheduler using `run_task.py` so they can fire when Cerebro is closed.
 
 ### metrics.json

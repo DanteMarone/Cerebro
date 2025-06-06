@@ -50,6 +50,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
     *   Filter tasks by agent or status using drop-down menus above the list.
     *   Each row contains Edit, Delete and Complete buttons for quick changes.
+    *   A progress bar shows how close each task is to its due time.
     *   Tasks can optionally repeat at a set interval.
     *   Due times must be in ISO 8601 format or `YYYY-MM-DD HH:MM:SS` local time.
         Today's date is highlighted and any date with tasks shows a small red dot.
@@ -253,7 +254,7 @@ script `run_task.py` so they execute even when Cerebro is not running.
 
 tasks.json
 This file stores the list of scheduled tasks. Each task entry includes an ``id``, ``creator``,
-``agent_name``, ``prompt``, ``due_time`` and ``status`` field. The status field defaults to ``pending``.
+``agent_name``, ``prompt``, ``due_time``, ``created_time`` and ``status`` field. The status field defaults to ``pending``.
 You typically won't edit this file directly.
 
 ## Testing

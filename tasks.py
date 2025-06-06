@@ -109,6 +109,7 @@ def load_tasks(debug_enabled=False):
             for t in tasks:
                 t.setdefault("status", "pending")
                 t.setdefault("repeat_interval", 0)
+                t.setdefault("created_time", t.get("due_time", datetime.utcnow().isoformat()))
             if debug_enabled:
                 print("[Debug] Tasks loaded:", tasks)
             return tasks
@@ -151,6 +152,7 @@ def add_task(
         "agent_name": agent_name,
         "prompt": prompt,
         "due_time": due_time,
+        "created_time": datetime.utcnow().isoformat(),
         "status": "pending",
         "repeat_interval": repeat_interval,
     }
@@ -214,3 +216,28 @@ def update_task_due_time(tasks, task_id, due_time, debug_enabled=False, os_sched
         _remove_os_task(task_id, debug_enabled)
         _schedule_os_task(task_id, due_time, debug_enabled)
     return None
+
+
+def compute_task_progress(task, now=None):
+    """Return progress percentage from creation to due time."""
+    now = now or datetime.utcnow()
+    due_str = task.get("due_time", "")
+    created_str = task.get("created_time", "")
+    try:
+        due_dt = datetime.fromisoformat(due_str) if "T" in due_str else datetime.strptime(due_str, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return 0
+    try:
+        created_dt = (
+            datetime.fromisoformat(created_str)
+            if "T" in created_str
+            else datetime.strptime(created_str, "%Y-%m-%d %H:%M:%S")
+        )
+    except Exception:
+        created_dt = now
+    total = (due_dt - created_dt).total_seconds()
+    if total <= 0:
+        return 100 if now >= due_dt else 0
+    elapsed = (now - created_dt).total_seconds()
+    percent = int(max(0, min(100, (elapsed / total) * 100)))
+    return percent
