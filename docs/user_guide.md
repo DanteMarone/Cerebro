@@ -47,7 +47,7 @@ The Chat tab is the primary interface for interacting with your agents.
 - Enter a prompt at the bottom and press **Send**.
 - Messages appear in a scrollable pane. While an agent is generating a reply, a "typing" indicator is
   shown.
-- Use the menu in the upper‑right corner to copy, export or clear the conversation history. Each
+- Use the menu in the upper‑right corner to copy, save, export or clear the conversation history. Each
   session starts with a clean slate.
 - Use the 🔍 button to search the current conversation.
 - When many messages accumulate they are automatically summarized so prompts remain short.

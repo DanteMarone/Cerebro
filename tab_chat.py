@@ -3,7 +3,8 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
-    QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction
+    QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
+    QFileDialog
 )
 
 from dialogs import SearchDialog
@@ -237,9 +238,30 @@ class ChatTab(QWidget):
         self.parent_app.show_notification("Conversation copied to clipboard", "info")
     
     def save_conversation(self):
-        """Save conversation to a file"""
-        # This would normally open a file dialog, but for simplicity we'll just notify
-        self.parent_app.show_notification("Save functionality coming soon", "info")
+        """Save conversation to a text file chosen by the user."""
+        text = self.chat_display.toPlainText()
+        if not text.strip():
+            self.parent_app.show_notification("Nothing to save", "info")
+            return
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Conversation",
+            "conversation.txt",
+            "Text Files (*.txt);;All Files (*)",
+            options=options,
+        )
+        if not file_name:
+            return
+
+        try:
+            with open(file_name, "w", encoding="utf-8") as f:
+                f.write(text)
+            self.parent_app.show_notification(f"Conversation saved to {file_name}")
+        except Exception as e:  # pragma: no cover - just in case
+            self.parent_app.show_notification(f"Failed to save conversation: {e}", "error")
     
     def show_typing_indicator(self):
         """Show the typing indicator with animated dots"""
