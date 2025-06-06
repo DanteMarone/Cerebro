@@ -154,15 +154,15 @@ class AIChatApp(QMainWindow):
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
 
         # Workflows button
-        self.nav_buttons["workflows"] = self.create_nav_button("Workflows", 4)
+        self.nav_buttons["workflows"] = self.create_nav_button("Workflows", 5)
         sidebar_layout.addWidget(self.nav_buttons["workflows"])
 
         # Metrics button
-        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 5)
+        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 6)
         sidebar_layout.addWidget(self.nav_buttons["metrics"])
 
         # Docs button
-        self.nav_buttons["docs"] = self.create_nav_button("Docs", 6)
+        self.nav_buttons["docs"] = self.create_nav_button("Docs", 7)
         sidebar_layout.addWidget(self.nav_buttons["docs"])
         
         # Add stretcher to push settings button to bottom
@@ -313,7 +313,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7']):
+        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7', '8']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
@@ -1294,7 +1294,7 @@ class AIChatApp(QMainWindow):
             if self.debug_enabled:
                 print("[Debug] Settings saved.")
         except Exception as e:
-            print(f"[Error failed to save settings: {e}")
+            print(f"[Error] Failed to save settings: {e}")
             self.show_notification(f"Error saving settings: {str(e)}", "error")
 
     def load_settings(self):
