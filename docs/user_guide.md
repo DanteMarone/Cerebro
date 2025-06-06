@@ -96,6 +96,7 @@ Bundled plugins include:
 - **windows-notifier** – display a Windows 11 notification using `win10toast`.
 - **ar-overlay** – show a small on-screen HUD message for quick reminders.
 - **desktop-automation** – launch programs or move files through OS commands.
+- **credential-manager** – securely store and retrieve credentials via the system keyring.
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
