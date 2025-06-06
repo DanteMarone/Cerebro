@@ -497,7 +497,7 @@ class AgentsTab(QWidget):
         models = self.fetch_available_models()
         if not models and os.path.exists("agents.json"):
             try:
-                with open("agents.json", "r") as f:
+                with open("agents.json", "r", encoding="utf-8") as f:
                     agents_data = json.load(f)
 
                 models = {

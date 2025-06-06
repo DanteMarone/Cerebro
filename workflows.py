@@ -11,7 +11,7 @@ def load_workflows(debug_enabled=False):
     if not os.path.exists(WORKFLOWS_FILE):
         return []
     try:
-        with open(WORKFLOWS_FILE, "r") as f:
+        with open(WORKFLOWS_FILE, "r", encoding="utf-8") as f:
             workflows = json.load(f)
         if debug_enabled:
             print("[Debug] Workflows loaded", workflows)
@@ -23,7 +23,7 @@ def load_workflows(debug_enabled=False):
 
 def save_workflows(workflows, debug_enabled=False):
     try:
-        with open(WORKFLOWS_FILE, "w") as f:
+        with open(WORKFLOWS_FILE, "w", encoding="utf-8") as f:
             json.dump(workflows, f, indent=2)
         if debug_enabled:
             print("[Debug] Workflows saved")

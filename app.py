@@ -960,7 +960,7 @@ class AIChatApp(QMainWindow):
         self.agents_data = {}
         if os.path.exists(AGENTS_SAVE_FILE):
             try:
-                with open(AGENTS_SAVE_FILE, "r") as f:
+                with open(AGENTS_SAVE_FILE, "r", encoding="utf-8") as f:
                     self.agents_data = json.load(f)
                 if self.debug_enabled:
                     print("[Debug] Agents loaded.")
@@ -1043,7 +1043,7 @@ class AIChatApp(QMainWindow):
 
     def save_agents(self):
         try:
-            with open(AGENTS_SAVE_FILE, "w") as f:
+            with open(AGENTS_SAVE_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.agents_data, f, indent=4)
             if self.debug_enabled:
                 print("[Debug] Agents saved.")
@@ -1289,7 +1289,7 @@ class AIChatApp(QMainWindow):
             "screenshot_interval": self.screenshot_interval,
         }
         try:
-            with open(SETTINGS_FILE, "w") as f:
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
                 json.dump(settings, f)
             if self.debug_enabled:
                 print("[Debug] Settings saved.")
@@ -1300,7 +1300,7 @@ class AIChatApp(QMainWindow):
     def load_settings(self):
         if os.path.exists(SETTINGS_FILE):
             try:
-                with open(SETTINGS_FILE, "r") as f:
+                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                     settings = json.load(f)
                 self.debug_enabled = settings.get("debug_enabled", False)
                 self.include_image = settings.get("include_image", False)
