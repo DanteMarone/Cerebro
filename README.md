@@ -70,6 +70,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Customizable UI:**
     *   Light and dark mode support.
     *   Configurable user name, chat color and accent color.
+*   **System Tray Icon:**
+    *   Access quick actions from the tray to open the window, add a task or toggle dark mode.
 *   **Debug Mode:**
     *   Enables verbose logging for debugging purposes.
 *   **Metrics Dashboard:**

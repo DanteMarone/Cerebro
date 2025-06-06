@@ -154,6 +154,14 @@ Global preferences are available under **Settings**.
 - The list of available models is cached so opening the dialog is fast.
 - Errors during updates are shown in a pop‑up message.
 
+## System Tray Icon
+
+When Cerebro is running a tray icon appears. Right-click it for quick actions:
+- **Open Cerebro** – restore the main window if it is hidden.
+- **Add Task** – open the task dialog without switching tabs.
+- **Toggle Dark Mode** – switch between light and dark themes.
+- **Quit** – exit the application entirely.
+
 ## Configuration Files
 
 Cerebro stores its data in several JSON files located in the application directory.
