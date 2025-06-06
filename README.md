@@ -7,7 +7,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Multiple AI Agents:** Create and manage multiple AI agents, each with its own:
     *   Underlying language model selected from a dropdown of available Ollama models (e.g., `llama3.2-vision`, `llava`).
     *   Custom system prompt to define its behavior and personality.
-    *   Temperature and max tokens settings to control response randomness and length.
+    *   Temperature and max tokens settings to control response randomness and length (up to 100000 tokens).
     *   Assigned role:
         *   **Coordinator:** Manages other agents and delegates tasks.
         *   **Assistant:** Responds directly to user queries.

@@ -62,7 +62,7 @@ settings:
 
 - **Model** – select an installed Ollama model such as `llava` or `llama3.2-vision`.
 - **Temperature** – controls randomness of responses.
-- **Max Tokens** – maximum length of a single reply.
+- **Max Tokens** – maximum length of a single reply (up to 100000 tokens).
 - **Custom System Prompt** – additional instructions sent before every conversation.
 - **Enabled** – toggle to activate or disable the agent.
 - **Role** – choose between *Assistant*, *Coordinator* or *Specialist*.
