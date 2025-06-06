@@ -6,15 +6,20 @@ class DummyApp:
         self.agents_data = {
             'agent1': {
                 'tool_use': True,
-                'tools_enabled': ['echo-plugin']
+                'tools_enabled': ['echo-plugin'],
+                'automations_enabled': ['auto1']
             },
             'agent2': {
                 'tool_use': False,
-                'tools_enabled': []
+                'tools_enabled': [],
+                'automations_enabled': []
             }
         }
         self.tools = [
             {'name': 'echo-plugin', 'description': 'Echo', 'args': ['msg']}
+        ]
+        self.automations = [
+            {'name': 'auto1'}
         ]
 
 
@@ -23,6 +28,7 @@ def test_generate_tool_instructions_enabled():
     instructions = tool_utils.generate_tool_instructions_message(app, 'agent1')
     assert 'echo-plugin' in instructions
     assert 'Available tools' in instructions
+    assert 'auto1' in instructions
 
 
 def test_generate_tool_instructions_disabled():

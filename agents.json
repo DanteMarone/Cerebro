@@ -22,7 +22,8 @@
     ],
     "desktop_history_enabled": false,
     "screenshot_interval": 5,
-    "tts_enabled": false
+    "tts_enabled": false,
+    "automations_enabled": []
   },
   "deepseek-mini": {
     "model": "deepseek-r1:1.5b",
@@ -37,7 +38,8 @@
     "description": "A new assistant agent.",
     "managed_agents": [],
     "tool_use": false,
-    "tools_enabled": []
+    "tools_enabled": [],
+    "automations_enabled": []
   },
   "deepseek-r1:14b": {
     "model": "deepseek-r1:14b",
@@ -52,7 +54,8 @@
     "managed_agents": [],
     "tools_enabled": [],
     "desktop_history_enabled": false,
-    "screenshot_interval": 5
+    "screenshot_interval": 5,
+    "automations_enabled": []
   },
   "llama3.3": {
     "model": "llama3.3",
@@ -67,7 +70,8 @@
     "description": "A new assistant agent.",
     "managed_agents": [],
     "tool_use": false,
-    "tools_enabled": []
+    "tools_enabled": [],
+    "automations_enabled": []
   },
   "Chain-of-Thought": {
     "model": "gemma3:12b",
@@ -82,7 +86,8 @@
     "description": "A new assistant agent.",
     "managed_agents": [],
     "tool_use": false,
-    "tools_enabled": []
+    "tools_enabled": [],
+    "automations_enabled": []
   },
   "Chain-of-Draft": {
     "model": "gemma3:12b",
@@ -97,7 +102,8 @@
     "description": "A new assistant agent.",
     "managed_agents": [],
     "tool_use": false,
-    "tools_enabled": []
+    "tools_enabled": [],
+    "automations_enabled": []
   },
   "Reasoner": {
     "model": "gemma3:12b",
@@ -112,7 +118,8 @@
     "managed_agents": [],
     "tools_enabled": [],
     "desktop_history_enabled": false,
-    "screenshot_interval": 5
+    "screenshot_interval": 5,
+    "automations_enabled": []
   },
   "R1 Abliterated": {
     "model": "huihui_ai/deepseek-r1-abliterated:latest",
@@ -128,7 +135,8 @@
     "tools_enabled": [],
     "include_image": false,
     "desktop_history_enabled": false,
-    "screenshot_interval": 5
+    "screenshot_interval": 5,
+    "automations_enabled": []
   },
   "Example Assistant": {
     "model": "gemma3:12b",
@@ -143,7 +151,8 @@
     "managed_agents": [],
     "tools_enabled": [],
     "desktop_history_enabled": false,
-    "screenshot_interval": 5
+    "screenshot_interval": 5,
+    "automations_enabled": []
   },
   "Example Coordinator": {
     "model": "gemma3:12b",
@@ -161,7 +170,8 @@
     ],
     "tools_enabled": [],
     "desktop_history_enabled": false,
-    "screenshot_interval": 5
+    "screenshot_interval": 5,
+    "automations_enabled": []
   },
   "Example Specialist": {
     "model": "gemma3:12b",
@@ -176,6 +186,7 @@
     "managed_agents": [],
     "tools_enabled": [],
     "desktop_history_enabled": false,
-    "screenshot_interval": 5
+    "screenshot_interval": 5,
+    "automations_enabled": []
   }
 }

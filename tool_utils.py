@@ -16,6 +16,10 @@ def generate_tool_instructions_message(app: Any, agent_name: str) -> str:
                     tool_list_str += f"- {t['name']}({args}): {t['description']}\n"
                 else:
                     tool_list_str += f"- {t['name']}: {t['description']}\n"
+
+        for a in getattr(app, 'automations', []):
+            if a.get('name') in agent_settings.get("automations_enabled", []):
+                tool_list_str += f"- run-automation(name={a['name']})\n"
         instructions = (
             "You are a knowledgeable assistant. You can answer most questions directly.\n"
             "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
