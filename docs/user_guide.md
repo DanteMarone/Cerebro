@@ -143,7 +143,7 @@ Displays this guide within the application so you can review instructions withou
 ## Settings Dialog
 
 Global preferences are available under **Settings**.
-- Toggle dark mode and change your displayed user name and color.
+- Toggle dark mode and change your displayed user name, chat color and accent color.
 - Update the Ollama runtime or pull the latest version of a model using the provided buttons.
 - The list of available models is cached so opening the dialog is fast.
 - Errors during updates are shown in a pop‑up message.
