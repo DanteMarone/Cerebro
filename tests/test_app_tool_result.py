@@ -1,5 +1,6 @@
 import types
 import app
+import tts
 
 class DummyThread:
     def quit(self):
@@ -51,6 +52,7 @@ def test_worker_finished_sends_result_back(monkeypatch):
     monkeypatch.setattr(app, 'run_tool', lambda *a, **k: 'ok')
     monkeypatch.setattr(app, 'append_message', lambda *a, **k: None)
     monkeypatch.setattr(app, 'record_tool_usage', lambda *a, **k: None)
+    monkeypatch.setattr(tts, 'speak_text', lambda *a, **k: None)
 
     app.AIChatApp.worker_finished_sequential(dummy, worker, thread, 'agent1', None, None)
 
