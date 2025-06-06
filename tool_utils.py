@@ -29,6 +29,8 @@ def generate_tool_instructions_message(app: Any, agent_name: str) -> str:
             ' }\n'
             '}\n'
             "No extra text outside this JSON when calling a tool.\n"
+            "After a non-silent tool call you will get the tool's result as the next user message.\n"
+            "Include that result in your reply if it's meant for the user.\n"
             f"Available tools:\n{tool_list_str}"
         )
         return instructions
