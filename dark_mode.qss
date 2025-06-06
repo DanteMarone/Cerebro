@@ -121,6 +121,10 @@ QMainWindow {
     padding-left: 8px;
 }
 
+.toolBlock {
+    margin-left: 20px;
+}
+
 #inputContainer {
     background-color: #333333;
     border-radius: 8px;

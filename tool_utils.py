@@ -44,3 +44,15 @@ def format_tool_call_html(tool_name: str, tool_args: Dict[str, Any]) -> str:
 def format_tool_result_html(result: str) -> str:
     """Return HTML snippet for a tool result."""
     return f"<span class='toolResult'>&rarr; {result}</span>"
+
+
+def format_tool_block_html(tool_name: str, tool_args: Dict[str, Any], result: str) -> str:
+    """Return collapsible HTML block for a tool call and its result."""
+    call_html = format_tool_call_html(tool_name, tool_args)
+    result_html = format_tool_result_html(result)
+    return (
+        "<details class='toolBlock'>"
+        f"<summary>\ud83d\udd27 {tool_name}</summary>"
+        f"<div>{call_html}<br>{result_html}</div>"
+        "</details>"
+    )
