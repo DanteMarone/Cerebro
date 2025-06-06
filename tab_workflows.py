@@ -135,7 +135,8 @@ class WorkflowsTab(QWidget):
             if not data["name"]:
                 QMessageBox.warning(self, "Invalid", "Name is required")
                 return
-            wf_id = workflows.add_workflow(self.workflows, **data)
+            wf_type = data.pop("type")
+            wf_id = workflows.add_workflow(self.workflows, wf_type=wf_type, **data)
             self.parent_app.workflows = self.workflows
             self.refresh_list()
 
