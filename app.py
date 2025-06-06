@@ -20,6 +20,7 @@ from theme_utils import load_style_sheet
 from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
+from workflows import load_workflows, save_workflows
 from transcripts import (
     load_history,
     append_message,
@@ -33,6 +34,7 @@ from tab_tools import ToolsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
 from tab_docs import DocumentationTab
+from tab_workflows import WorkflowsTab
 from metrics import load_metrics, record_tool_usage, record_response_time
 from tool_utils import (
     generate_tool_instructions_message,
@@ -83,9 +85,10 @@ class AIChatApp(QMainWindow):
         self.notification_timer.timeout.connect(self.process_notifications)
         self.notification_timer.start(3000)  # Check every 3 seconds
 
-        # Load Tools, Tasks, and Metrics
+        # Load Tools, Tasks, Workflows, and Metrics
         self.tools = load_tools(self.debug_enabled)
         self.tasks = load_tasks(self.debug_enabled)
+        self.workflows = load_workflows(self.debug_enabled)
         self.metrics = load_metrics(self.debug_enabled)
         self.response_start_times = {}
         
@@ -143,12 +146,16 @@ class AIChatApp(QMainWindow):
         self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 3)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
 
+        # Workflows button
+        self.nav_buttons["workflows"] = self.create_nav_button("Workflows", 4)
+        sidebar_layout.addWidget(self.nav_buttons["workflows"])
+
         # Metrics button
-        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 4)
+        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 5)
         sidebar_layout.addWidget(self.nav_buttons["metrics"])
 
         # Docs button
-        self.nav_buttons["docs"] = self.create_nav_button("Docs", 5)
+        self.nav_buttons["docs"] = self.create_nav_button("Docs", 6)
         sidebar_layout.addWidget(self.nav_buttons["docs"])
         
         # Add stretcher to push settings button to bottom
@@ -179,6 +186,7 @@ class AIChatApp(QMainWindow):
         self.agents_tab = AgentsTab(self)
         self.tools_tab = ToolsTab(self)
         self.tasks_tab = TasksTab(self)
+        self.workflows_tab = WorkflowsTab(self)
         self.metrics_tab = MetricsTab(self)
         self.docs_tab = DocumentationTab(self)
         
@@ -187,6 +195,7 @@ class AIChatApp(QMainWindow):
         self.content_stack.addWidget(self.agents_tab)
         self.content_stack.addWidget(self.tools_tab)
         self.content_stack.addWidget(self.tasks_tab)
+        self.content_stack.addWidget(self.workflows_tab)
         self.content_stack.addWidget(self.metrics_tab)
         self.content_stack.addWidget(self.docs_tab)
         
@@ -295,7 +304,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4', '5', '6']):
+        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
@@ -356,8 +365,9 @@ class AIChatApp(QMainWindow):
                               "Ctrl+2: Agents Tab\n"
                               "Ctrl+3: Tools Tab\n"
                               "Ctrl+4: Tasks Tab\n"
-                              "Ctrl+5: Metrics Tab\n"
-                              "Ctrl+6: Docs Tab\n"
+                              "Ctrl+5: Workflows Tab\n"
+                              "Ctrl+6: Metrics Tab\n"
+                              "Ctrl+7: Docs Tab\n"
                               "Ctrl+S: Send Message\n"
                               "Ctrl+L: Clear Chat\n"
                               "Ctrl+T: Toggle Theme\n"

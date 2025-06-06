@@ -56,6 +56,10 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         Today's date is highlighted and any date with tasks shows a small red dot.
     *   Tasks can register with the operating system's scheduler so they run even when Cerebro is closed. Windows 11 uses **Task Scheduler** and Unix-like systems rely on `cron`.
     *   The included **Windows Notifier** tool can display Windows 11 notifications when a scheduled task runs.
+*   **Workflow Builder:**
+    *   Create reusable workflows that coordinate multiple agents.
+    *   Supports **Agent Managed** and **User Managed** modes.
+    *   Workflows are edited on a dedicated tab with drag-and-drop ordering.
 *   **Chat History Management:**
 *   Each session begins with a blank conversation.
 *   History can be saved, exported or cleared from the chat menu if desired.
