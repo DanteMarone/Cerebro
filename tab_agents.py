@@ -110,7 +110,7 @@ class AgentsTab(QWidget):
         self.max_tokens_label = QLabel("Max Tokens:")
         self.max_tokens_input = QSpinBox()
         self.max_tokens_input.setMinimum(1)
-        self.max_tokens_input.setMaximum(8192)
+        self.max_tokens_input.setMaximum(100000)
         self.max_tokens_input.setToolTip("Maximum number of tokens in the response.")
         self.prompt_settings_layout.addRow(self.max_tokens_label, self.max_tokens_input)
         
