@@ -102,7 +102,7 @@ Bundled plugins include:
 - **desktop-automation** – launch programs or move files through OS commands.
 - **credential-manager** – securely store and retrieve credentials via the system keyring.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
-- **task-sequence-recorder** – record mouse and keyboard events and replay them later.
+ - **run-automation** – execute a recorded button sequence.
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.

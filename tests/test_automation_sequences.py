@@ -1,7 +1,7 @@
 import json
 import sys
 import types
-from tool_plugins import task_sequence_recorder as tsr
+import automation_sequences as auto
 
 
 def test_record_and_play(tmp_path, monkeypatch):
@@ -45,12 +45,11 @@ def test_record_and_play(tmp_path, monkeypatch):
         keyboard=types.SimpleNamespace(Listener=FakeKeyboardListener, Key=types.SimpleNamespace(esc="esc")),
     )
     monkeypatch.setitem(sys.modules, "pynput", fake_pynput)
-    monkeypatch.setattr(tsr.time, "sleep", lambda s: None)
+    monkeypatch.setattr(auto.time, "sleep", lambda s: None)
 
-    path = tmp_path / "seq.json"
-    result = tsr.run_tool({"action": "record", "path": str(path), "duration": 0})
-    assert "Sequence recorded" in result
-    data = json.loads(path.read_text())
+    events_recorded = auto.record_automation(0)
+    assert events_recorded
+    data = events_recorded
     assert any(e["type"] == "move" for e in data)
 
     actions = []
@@ -62,15 +61,15 @@ def test_record_and_play(tmp_path, monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
 
-    result = tsr.run_tool({"action": "play", "path": str(path)})
-    assert "Sequence played" in result
+    result = auto.run_automation([{"name": "test", "events": data}], "test")
+    assert "Automation executed" in result
     assert any(a[0] == "move" for a in actions)
 
 
 def test_missing_modules(monkeypatch):
     monkeypatch.setitem(sys.modules, "pynput", types.ModuleType("pynput"))
-    result = tsr.run_tool({"action": "record"})
-    assert "pynput not installed" in result
+    result = auto.record_automation(0)
+    assert result == []
 
     import builtins
 
@@ -82,8 +81,5 @@ def test_missing_modules(monkeypatch):
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
-    path = "dummy.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump([], f)
-    result = tsr.run_tool({"action": "play", "path": path})
+    result = auto.run_automation([{"name": "x", "events": []}], "x")
     assert "pyautogui not installed" in result

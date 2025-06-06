@@ -20,6 +20,7 @@ from theme_utils import load_style_sheet
 from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
+from automation_sequences import load_automations
 from workflows import load_workflows, save_workflows
 from transcripts import (
     load_history,
@@ -31,6 +32,7 @@ from transcripts import (
 from tab_chat import ChatTab
 from tab_agents import AgentsTab
 from tab_tools import ToolsTab
+from tab_automations import AutomationsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
 from tab_docs import DocumentationTab
@@ -85,8 +87,9 @@ class AIChatApp(QMainWindow):
         self.notification_timer.timeout.connect(self.process_notifications)
         self.notification_timer.start(3000)  # Check every 3 seconds
 
-        # Load Tools, Tasks, Workflows, and Metrics
+        # Load Tools, Automations, Tasks, and Metrics
         self.tools = load_tools(self.debug_enabled)
+        self.automations = load_automations(self.debug_enabled)
         self.tasks = load_tasks(self.debug_enabled)
         self.workflows = load_workflows(self.debug_enabled)
         self.metrics = load_metrics(self.debug_enabled)
@@ -141,9 +144,13 @@ class AIChatApp(QMainWindow):
         # Tools button
         self.nav_buttons["tools"] = self.create_nav_button("Tools", 2)
         sidebar_layout.addWidget(self.nav_buttons["tools"])
-        
+
+        # Automations button
+        self.nav_buttons["automations"] = self.create_nav_button("Automations", 3)
+        sidebar_layout.addWidget(self.nav_buttons["automations"])
+
         # Tasks button
-        self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 3)
+        self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 4)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
 
         # Workflows button
@@ -185,6 +192,7 @@ class AIChatApp(QMainWindow):
         self.chat_tab = ChatTab(self)
         self.agents_tab = AgentsTab(self)
         self.tools_tab = ToolsTab(self)
+        self.automations_tab = AutomationsTab(self)
         self.tasks_tab = TasksTab(self)
         self.workflows_tab = WorkflowsTab(self)
         self.metrics_tab = MetricsTab(self)
@@ -194,6 +202,7 @@ class AIChatApp(QMainWindow):
         self.content_stack.addWidget(self.chat_tab)
         self.content_stack.addWidget(self.agents_tab)
         self.content_stack.addWidget(self.tools_tab)
+        self.content_stack.addWidget(self.automations_tab)
         self.content_stack.addWidget(self.tasks_tab)
         self.content_stack.addWidget(self.workflows_tab)
         self.content_stack.addWidget(self.metrics_tab)
@@ -354,6 +363,7 @@ class AIChatApp(QMainWindow):
                               "• Chat: Interact with AI agents\n"
                               "• Agents: Configure your AI assistants\n"
                               "• Tools: Manage tools for agents to use\n"
+                              "• Automations: Record and run button sequences\n"
                               "• Tasks: Schedule future agent actions\n\n"
                               "• Docs: View the built-in user guide\n\n"
                               "Press Ctrl+K to view keyboard shortcuts.")
@@ -364,7 +374,7 @@ class AIChatApp(QMainWindow):
                               "Ctrl+1: Chat Tab\n"
                               "Ctrl+2: Agents Tab\n"
                               "Ctrl+3: Tools Tab\n"
-                              "Ctrl+4: Tasks Tab\n"
+                              "Ctrl+4: Automations Tab\n"
                               "Ctrl+5: Workflows Tab\n"
                               "Ctrl+6: Metrics Tab\n"
                               "Ctrl+7: Docs Tab\n"
@@ -971,6 +981,7 @@ class AIChatApp(QMainWindow):
                 "description": "A general-purpose assistant.", # Default description
                 "tool_use": False,
                 "tools_enabled": [],
+                "automations_enabled": [],
                 "thinking_enabled": False,
                 "thinking_steps": 3,
                 "tts_enabled": False
@@ -1001,7 +1012,8 @@ class AIChatApp(QMainWindow):
                 "role": "Assistant",
                 "description": "A new assistant agent.",
                 "tool_use": False,
-                "tools_enabled": [],
+                    "tools_enabled": [],
+                    "automations_enabled": [],
                 "thinking_enabled": False,
                 "thinking_steps": 3,
                 "tts_enabled": False
@@ -1068,7 +1080,14 @@ class AIChatApp(QMainWindow):
         if hasattr(self.tools_tab, "refresh_tools_list"):
             self.tools_tab.tools = self.tools
             self.tools_tab.refresh_tools_list()
-            self.show_notification("Tools list refreshed", "info")
+        self.show_notification("Tools list refreshed", "info")
+
+    def refresh_automations_list(self):
+        self.automations = load_automations(self.debug_enabled)
+        if hasattr(self.automations_tab, "refresh_automations_list"):
+            self.automations_tab.automations = self.automations
+            self.automations_tab.refresh_automations_list()
+        self.show_notification("Automations list refreshed", "info")
 
     def refresh_metrics_display(self):
         if hasattr(self.metrics_tab, "refresh_metrics"):

@@ -2,7 +2,19 @@
   {
     "name": "schedule-task",
     "description": "Schedule a future prompt to run at the specified time. Useful for reminding the user of something in the future or continuing work at a later time.",
-    "args": ["agent_name", "prompt", "due_time"],
+    "args": [
+      "agent_name",
+      "prompt",
+      "due_time"
+    ],
     "script": "def run_tool(args):\n    from tasks import load_tasks, add_task\n    agent_name = args.get('agent_name', 'Default Agent')\n    prompt = args.get('prompt', 'No prompt provided')\n    due_time = args.get('due_time', '')\n    tasks = load_tasks(False)\n    if not due_time:\n        return '[schedule-task Error] No due_time provided.'\n    add_task(tasks, agent_name, prompt, due_time, creator='agent', debug_enabled=False)\n    return f'Task scheduled: Agent {agent_name!r} at {due_time!r} with prompt {prompt!r}.'"
+  },
+  {
+    "name": "run-automation",
+    "description": "Replay a recorded automation",
+    "args": [
+      "name"
+    ],
+    "script": "def run_tool(args):\n    from automation_sequences import load_automations, run_automation\n    name = args.get(\"name\", \"\")\n    autos = load_automations(False)\n    return run_automation(autos, name)"
   }
 ]

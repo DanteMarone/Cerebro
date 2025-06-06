@@ -168,6 +168,13 @@ class AgentsTab(QWidget):
         self.tools_list.setSelectionMode(QListWidget.MultiSelection)
         self.agent_settings_layout.addRow(self.tools_label, self.tools_list)
 
+        # Automations enabled
+        self.automations_label = QLabel("Enabled Automations:")
+        self.automations_list = QListWidget()
+        self.automations_list.setToolTip("Select automations that this agent can use.")
+        self.automations_list.setSelectionMode(QListWidget.MultiSelection)
+        self.agent_settings_layout.addRow(self.automations_label, self.automations_list)
+
         # Thinking options
         self.thinking_checkbox = QCheckBox("Enable Thinking")
         self.thinking_checkbox.setToolTip("Allow the agent to think in steps before answering.")
@@ -199,6 +206,7 @@ class AgentsTab(QWidget):
         self.tool_use_checkbox.stateChanged.connect(self.mark_unsaved)
         self.managed_agents_list.itemSelectionChanged.connect(self.mark_unsaved)
         self.tools_list.itemSelectionChanged.connect(self.mark_unsaved)
+        self.automations_list.itemSelectionChanged.connect(self.mark_unsaved)
         self.thinking_checkbox.stateChanged.connect(self.mark_unsaved)
         self.thinking_steps_input.valueChanged.connect(self.mark_unsaved)
         self.tts_checkbox.stateChanged.connect(self.mark_unsaved)
@@ -290,6 +298,16 @@ class AgentsTab(QWidget):
                 self.tools_list.addItem(item)
                 if tool_name in agent_settings.get("tools_enabled", []):
                     item.setSelected(True)
+
+        # Update automations list
+        self.automations_list.clear()
+        for auto in getattr(self.parent_app, "automations", []):
+            name = auto.get("name", "")
+            if name:
+                item = QListWidgetItem(name)
+                self.automations_list.addItem(item)
+                if name in agent_settings.get("automations_enabled", []):
+                    item.setSelected(True)
         
         # Unblock signals
         self.name_input.blockSignals(False)
@@ -303,6 +321,7 @@ class AgentsTab(QWidget):
         self.managed_agents_list.blockSignals(False)
         self.tool_use_checkbox.blockSignals(False)
         self.tools_list.blockSignals(False)
+        self.automations_list.blockSignals(False)
         self.thinking_checkbox.blockSignals(False)
         self.thinking_steps_input.blockSignals(False)
         self.tts_checkbox.blockSignals(False)
@@ -321,6 +340,8 @@ class AgentsTab(QWidget):
         tool_use_enabled = self.tool_use_checkbox.isChecked()
         self.tools_label.setVisible(tool_use_enabled)
         self.tools_list.setVisible(tool_use_enabled)
+        self.automations_label.setVisible(tool_use_enabled)
+        self.automations_list.setVisible(tool_use_enabled)
     
     def on_color_button_clicked(self):
         agent_name = self.current_agent
@@ -401,6 +422,13 @@ class AgentsTab(QWidget):
             if item.isSelected():
                 enabled_tools.append(item.text())
         updated_settings["tools_enabled"] = enabled_tools
+
+        enabled_autos = []
+        for i in range(self.automations_list.count()):
+            item = self.automations_list.item(i)
+            if item.isSelected():
+                enabled_autos.append(item.text())
+        updated_settings["automations_enabled"] = enabled_autos
         
         # Preserve other settings that might exist
         for key, value in self.parent_app.agents_data[agent_name].items():
