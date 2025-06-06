@@ -20,6 +20,37 @@ from PyQt5.QtWidgets import (
 import subprocess
 from PyQt5.QtCore import Qt, QDateTime
 
+try:
+    from PyQt5.Qsci import QsciScintilla, QsciLexerPython
+
+    class CodeEditor(QsciScintilla):
+        """A simple Python code editor with syntax highlighting."""
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setUtf8(True)
+            self.setMarginsBackgroundColor(Qt.lightGray)
+            self.setMarginType(0, QsciScintilla.NumberMargin)
+            self.setMarginWidth(0, "0000")
+            lexer = QsciLexerPython()
+            self.setLexer(lexer)
+
+        def text(self):  # compatibility with QTextEdit
+            return QsciScintilla.text(self)
+
+        def set_text(self, text):
+            self.setText(text)
+
+except Exception:  # QScintilla not installed
+    class CodeEditor(QTextEdit):
+        """Fallback plain text editor used when QScintilla is unavailable."""
+
+        def text(self):
+            return self.toPlainText()
+
+        def set_text(self, text):
+            self.setPlainText(text)
+
 class ToolDialog(QDialog):
     # Updated Sample Script
     SAMPLE_SCRIPT = """\"\"\"
@@ -62,8 +93,8 @@ def run_tool(args):
 
         # Script (using a code editor with syntax highlighting)
         layout.addWidget(QLabel("Script (must define `run_tool(args)`):"))
-        self.script_edit = QTextEdit()  # Consider using a proper code editor widget (see notes)
-        self.script_edit.setPlainText(script if script is not None else self.SAMPLE_SCRIPT)
+        self.script_edit = CodeEditor()
+        self.script_edit.set_text(script if script is not None else self.SAMPLE_SCRIPT)
         self.script_edit.setToolTip(
             "Enter the Python script for the tool. It must define a `run_tool(args)` function."
         )
@@ -79,7 +110,7 @@ def run_tool(args):
         return (
             self.name_edit.text().strip(),
             self.description_edit.text().strip(),
-            self.script_edit.toPlainText().strip()
+            self.script_edit.text().strip()
         )
 
     def accept(self):
