@@ -3,3 +3,5 @@ requests
 win10toast; sys_platform == 'win32'
 sympy
 plyer
+keyring
+pyttsx3

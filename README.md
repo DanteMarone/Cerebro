@@ -36,6 +36,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         from websites.
     *   Includes a built-in **File Summarizer** tool for generating quick summaries of text files.
     *   Provides a **Desktop Automation** plugin for launching programs or moving files via OS commands.
+    *   Includes a **Credential Manager** plugin for securely storing API keys using the system keyring.
+    *   Includes an **Automated Update Manager** plugin for checking for new versions and downloading updates on Windows 11.
     *   Tools can be updated using the **Edit Tool** button in the Tools tab.
     *   The Settings dialog provides buttons to update the Ollama runtime and refresh individual models. Model names are cached so the dialog opens quickly.
 
@@ -212,7 +214,7 @@ args: (optional) List of argument names the tool accepts.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
 script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
 Tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point
-are loaded automatically on startup. Built-in plugins include `math-solver` for complex calculations.
+are loaded automatically on startup. Built-in plugins include `math-solver` for complex calculations and `credential-manager` for secure credential storage.
 Example:
 
 '''JSON
@@ -232,7 +234,8 @@ The repository also provides a `windows-notifier` plugin that relies on the
 The new `notification-hub` plugin offers cross-platform desktop alerts with optional sound effects and push webhooks for forwarding messages to mobile devices.
 The new `ar-overlay` plugin pops up a small HUD-style window with a short
 message, and the `desktop-automation` plugin can launch programs or move files
-after a model analyzes your screen captures.
+after a model analyzes your screen captures. The `text-to-speech` plugin speaks
+text aloud using the system voice.
 Scheduled tasks are also written to the OS task scheduler using the helper
 script `run_task.py` so they execute even when Cerebro is not running.
 
