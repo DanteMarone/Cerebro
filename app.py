@@ -21,6 +21,7 @@ from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
 from automation_sequences import load_automations
+from workflows import load_workflows, save_workflows
 from transcripts import (
     load_history,
     append_message,
@@ -35,6 +36,7 @@ from tab_automations import AutomationsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
 from tab_docs import DocumentationTab
+from tab_workflows import WorkflowsTab
 from metrics import load_metrics, record_tool_usage, record_response_time
 from tool_utils import (
     generate_tool_instructions_message,
@@ -89,6 +91,7 @@ class AIChatApp(QMainWindow):
         self.tools = load_tools(self.debug_enabled)
         self.automations = load_automations(self.debug_enabled)
         self.tasks = load_tasks(self.debug_enabled)
+        self.workflows = load_workflows(self.debug_enabled)
         self.metrics = load_metrics(self.debug_enabled)
         self.response_start_times = {}
         
@@ -150,6 +153,10 @@ class AIChatApp(QMainWindow):
         self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 4)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
 
+        # Workflows button
+        self.nav_buttons["workflows"] = self.create_nav_button("Workflows", 4)
+        sidebar_layout.addWidget(self.nav_buttons["workflows"])
+
         # Metrics button
         self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 5)
         sidebar_layout.addWidget(self.nav_buttons["metrics"])
@@ -187,6 +194,7 @@ class AIChatApp(QMainWindow):
         self.tools_tab = ToolsTab(self)
         self.automations_tab = AutomationsTab(self)
         self.tasks_tab = TasksTab(self)
+        self.workflows_tab = WorkflowsTab(self)
         self.metrics_tab = MetricsTab(self)
         self.docs_tab = DocumentationTab(self)
         
@@ -196,6 +204,7 @@ class AIChatApp(QMainWindow):
         self.content_stack.addWidget(self.tools_tab)
         self.content_stack.addWidget(self.automations_tab)
         self.content_stack.addWidget(self.tasks_tab)
+        self.content_stack.addWidget(self.workflows_tab)
         self.content_stack.addWidget(self.metrics_tab)
         self.content_stack.addWidget(self.docs_tab)
         
@@ -366,7 +375,7 @@ class AIChatApp(QMainWindow):
                               "Ctrl+2: Agents Tab\n"
                               "Ctrl+3: Tools Tab\n"
                               "Ctrl+4: Automations Tab\n"
-                              "Ctrl+5: Tasks Tab\n"
+                              "Ctrl+5: Workflows Tab\n"
                               "Ctrl+6: Metrics Tab\n"
                               "Ctrl+7: Docs Tab\n"
                               "Ctrl+S: Send Message\n"

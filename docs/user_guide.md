@@ -134,6 +134,16 @@ screenshot analysis when needed. Tasks can optionally register with
 the operating system scheduler so they run even if Cerebro is not open. Windows uses Task Scheduler while
 Unix-like systems use cron.
 
+## Workflows Tab
+
+Design multi-agent workflows that can be executed repeatedly.
+Workflows come in two modes:
+
+- **Agent Managed** – a coordinator agent assigns subtasks to other agents.
+  Specify which agents may be used and the maximum number of turns.
+- **User Managed** – define the exact sequence of agents, models and system prompts.
+  Results from each step feed into the next.
+
 ## Metrics Tab
 
 This tab reads statistics from `metrics.json` and shows:
