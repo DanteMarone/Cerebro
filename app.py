@@ -36,6 +36,7 @@ from tool_utils import (
     generate_tool_instructions_message,
     format_tool_call_html,
     format_tool_result_html,
+    format_tool_block_html,
 )
 
 AGENTS_SAVE_FILE = "agents.json"
@@ -740,15 +741,19 @@ class AIChatApp(QMainWindow):
                 )
                 self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
             else:
-                self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
-                tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
+                self.show_notification(
+                    f"Agent '{agent_name}' is using tool: {tool_name}", "info"
+                )
+                tool_result = run_tool(
+                    self.tools, tool_name, tool_args, self.debug_enabled
+                )
                 record_tool_usage(self.metrics, tool_name, self.debug_enabled)
                 self.refresh_metrics_display()
 
-                # Check for tool errors and handle them
-                call_html = format_tool_call_html(tool_name, tool_args)
+                # Display tool call and result in a collapsible block
+                block_html = format_tool_block_html(tool_name, tool_args, tool_result)
                 self.chat_tab.append_message_html(
-                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {call_html}"
+                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {block_html}"
                 )
                 append_message(
                     self.chat_history,
@@ -769,10 +774,6 @@ class AIChatApp(QMainWindow):
                     )
                     self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
-                    result_html = format_tool_result_html(tool_result)
-                    self.chat_tab.append_message_html(
-                        f"[{timestamp}] <span style='color:{agent_color};'>{result_html}</span>"
-                    )
                     append_message(
                         self.chat_history,
                         "assistant",
@@ -780,7 +781,13 @@ class AIChatApp(QMainWindow):
                         agent_name,
                         debug_enabled=self.debug_enabled,
                     )
-                    self.show_notification(f"Tool executed successfully: {tool_name}", "info")
+                    # Send the tool result back to the agent for a follow up
+                    self.send_message_to_agent(
+                        agent_name, f"Tool {tool_name} result:\n{tool_result}"
+                    )
+                    self.show_notification(
+                        f"Tool executed successfully: {tool_name}", "info"
+                    )
 
         # Handle task request if any
         if task_request:
