@@ -266,6 +266,16 @@ class SettingsDialog(QDialog):
         self.debug_enabled_checkbox.setToolTip("Enable or disable debug mode.")
         layout.addWidget(self.debug_enabled_checkbox)
 
+        # Screenshot Interval
+        layout.addWidget(QLabel("Screenshot Interval (s):"))
+        self.interval_spin = QSpinBox()
+        self.interval_spin.setRange(1, 60)
+        self.interval_spin.setValue(self.parent.screenshot_interval)
+        self.interval_spin.setToolTip(
+            "Seconds between screenshots when desktop history is enabled."
+        )
+        layout.addWidget(self.interval_spin)
+
         # --- Ollama Updates ---
         update_label = QLabel("Update Ollama and Models:")
         layout.addWidget(update_label)
@@ -317,7 +327,8 @@ class SettingsDialog(QDialog):
             "user_name": self.user_name_edit.text().strip(),
             "user_color": self.parent.user_color,  # Color is already updated
             "accent_color": self.parent.accent_color,
-            "debug_enabled": self.debug_enabled_checkbox.isChecked()
+            "debug_enabled": self.debug_enabled_checkbox.isChecked(),
+            "screenshot_interval": self.interval_spin.value(),
         }
 
     def update_ollama(self):

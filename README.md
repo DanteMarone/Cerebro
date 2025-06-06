@@ -66,7 +66,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         keep prompts short.
 *   **Desktop History:**
     *   Agents with `desktop_history_enabled` enabled receive recent screenshots of your desktop.
-        Screens are captured at each agent's `screenshot_interval` and sent to the model as base64 images.
+        Screens are captured at the configured interval and sent to the model as base64 images.
+    *   The screenshot interval can be set globally in the **Settings** dialog.
 *   **Customizable UI:**
     *   Light and dark mode support.
     *   Configurable user name, chat color and accent color.
