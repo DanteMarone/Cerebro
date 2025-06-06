@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
     QSpinBox,
+    QListWidget,
 )
 import subprocess
 from PyQt5.QtCore import Qt, QDateTime
@@ -352,4 +353,48 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", "Ollama executable not found.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to update model: {e}")
+
+
+class SearchDialog(QDialog):
+    """Dialog for searching conversation history."""
+
+    def __init__(self, parent, conversation_text):
+        super().__init__(parent)
+        self.setWindowTitle("Search Conversation")
+        self.conversation_lines = conversation_text.splitlines()
+
+        layout = QVBoxLayout(self)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Type to search...")
+        layout.addWidget(self.search_input)
+
+        self.results_list = QListWidget()
+        layout.addWidget(self.results_list)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.search_input.textChanged.connect(self.update_results)
+
+    def update_results(self):
+        query = self.search_input.text().strip().lower()
+        self.results_list.clear()
+        if not query:
+            return
+        for line in self.conversation_lines:
+            if query in line.lower():
+                self.results_list.addItem(line.strip())
+
+
+def filter_messages(conversation_text, query):
+    """Return conversation lines containing the query."""
+    if not query:
+        return []
+    return [
+        line
+        for line in conversation_text.splitlines()
+        if query.lower() in line.lower()
+    ]
 
