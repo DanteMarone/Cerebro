@@ -96,6 +96,7 @@ Bundled plugins include:
 - **windows-notifier** – display a Windows 11 notification using `win10toast`.
 - **ar-overlay** – show a small on-screen HUD message for quick reminders.
 - **desktop-automation** – launch programs or move files through OS commands.
+- **credential-manager** – securely store and retrieve credentials via the system keyring.
 - **text-to-speech** – speak text aloud using the system voice.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
 
