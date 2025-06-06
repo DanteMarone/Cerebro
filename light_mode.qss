@@ -18,7 +18,7 @@ QMainWindow {
 }
 
 #logoContainer {
-    background-color: #803391; /* Purple accent color */
+    background-color: {ACCENT_COLOR};
     border-bottom: 1px solid #e0e0e0;
 }
 
@@ -50,9 +50,9 @@ QMainWindow {
 
 #navButton[selected="true"] {
     background-color: #f0f0f0;
-    border-left: 4px solid #803391; /* Purple accent color */
+    border-left: 4px solid {ACCENT_COLOR};
     font-weight: bold;
-    color: #803391;
+    color: {ACCENT_COLOR};
 }
 
 /* Content area styling */
@@ -152,7 +152,7 @@ QMainWindow {
 }
 
 #sendButton, #clearButton {
-    background-color: #803391; /* Purple accent color */
+    background-color: {ACCENT_COLOR};
     color: white;
     border: none;
     padding: 8px 15px;
@@ -230,7 +230,7 @@ QTabBar::tab {
 
 QTabBar::tab:selected {
     background-color: #ffffff;
-    border-top: 2px solid #803391;
+    border-top: 2px solid {ACCENT_COLOR};
     color: #333333;
 }
 

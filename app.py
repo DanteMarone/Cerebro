@@ -15,6 +15,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QKeySequence
 
+from theme_utils import load_style_sheet
+
 from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
@@ -68,6 +70,7 @@ class AIChatApp(QMainWindow):
         self.current_agent_color = "#000000"
         self.user_name = "You"
         self.user_color = "#0000FF"
+        self.accent_color = "#803391"
         self.dark_mode = False
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
@@ -426,6 +429,7 @@ class AIChatApp(QMainWindow):
             self.dark_mode = settings_data["dark_mode"]
             self.user_name = settings_data["user_name"]
             self.user_color = settings_data["user_color"]
+            self.accent_color = settings_data.get("accent_color", self.accent_color)
             self.debug_enabled = settings_data["debug_enabled"]
             self.apply_updated_styles()
             self.agents_tab.update_model_dropdown()
@@ -1204,6 +1208,7 @@ class AIChatApp(QMainWindow):
             "image_path": "",
             "user_name": self.user_name,
             "user_color": self.user_color,
+            "accent_color": self.accent_color,
             "dark_mode": self.dark_mode
         }
         try:
@@ -1225,6 +1230,7 @@ class AIChatApp(QMainWindow):
                 self.include_screenshot = settings.get("include_screenshot", False)
                 self.user_name = settings.get("user_name", "You")
                 self.user_color = settings.get("user_color", "#0000FF")
+                self.accent_color = settings.get("accent_color", "#803391")
                 self.dark_mode = settings.get("dark_mode", False)
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
@@ -1237,13 +1243,11 @@ class AIChatApp(QMainWindow):
     # Dark/Light Mode
     # -------------------------------------------------------------------------
     def apply_dark_mode_style(self):
-        with open("dark_mode.qss", "r") as f:
-            style_sheet = f.read()
+        style_sheet = load_style_sheet("dark_mode.qss", self.accent_color)
         self.setStyleSheet(style_sheet)
 
     def apply_light_mode_style(self):
-        with open("light_mode.qss", "r") as f:
-            style_sheet = f.read()
+        style_sheet = load_style_sheet("light_mode.qss", self.accent_color)
         self.setStyleSheet(style_sheet)
 
     # -------------------------------------------------------------------------

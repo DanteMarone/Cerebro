@@ -251,6 +251,14 @@ class SettingsDialog(QDialog):
         self.user_color_button.setToolTip("Select your user color.")
         self.user_color_button.clicked.connect(self.select_user_color)
         layout.addWidget(self.user_color_button)
+
+        # Accent Color
+        layout.addWidget(QLabel("Accent Color:"))
+        self.accent_color_button = QPushButton()
+        self.accent_color_button.setStyleSheet(f"background-color: {self.parent.accent_color}")
+        self.accent_color_button.setToolTip("Select accent color.")
+        self.accent_color_button.clicked.connect(self.select_accent_color)
+        layout.addWidget(self.accent_color_button)
         
         # Debug Enabled
         self.debug_enabled_checkbox = QCheckBox("Debug Enabled")
@@ -297,11 +305,18 @@ class SettingsDialog(QDialog):
             self.user_color_button.setStyleSheet(f"background-color: {color.name()}")
             self.parent.user_color = color.name()
 
+    def select_accent_color(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.accent_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.parent.accent_color = color.name()
+
     def get_data(self):
         return {
             "dark_mode": self.dark_mode_checkbox.isChecked(),
             "user_name": self.user_name_edit.text().strip(),
             "user_color": self.parent.user_color,  # Color is already updated
+            "accent_color": self.parent.accent_color,
             "debug_enabled": self.debug_enabled_checkbox.isChecked()
         }
 
