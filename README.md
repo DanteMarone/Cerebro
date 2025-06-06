@@ -39,13 +39,17 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Provides a **Desktop Automation** plugin for launching programs or moving files via OS commands.
     *   Includes a **Credential Manager** plugin for securely storing API keys using the system keyring.
     *   Includes an **Automated Update Manager** plugin for checking for new versions and downloading updates on Windows 11.
+    *   Bundles a **Task Sequence Recorder** plugin to capture mouse and keyboard actions and replay them later.
     *   Tools can be updated using the **Edit Tool** button in the Tools tab.
+    *   The Tool script editor features Python syntax highlighting when QScintilla is installed.
     *   The Settings dialog provides buttons to update the Ollama runtime and refresh individual models. Model names are cached so the dialog opens quickly.
 
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time. New tasks default to one minute from the current time.
     *   Tasks are stored in `tasks.json`.
     *   Tasks appear on a drag-and-drop calendar for easy rescheduling and completion.
+    *   Filter tasks by agent or status using drop-down menus above the list.
+    *   Each row contains Edit, Delete and Complete buttons for quick changes.
     *   Tasks can optionally repeat at a set interval.
     *   Due times must be in ISO 8601 format or `YYYY-MM-DD HH:MM:SS` local time.
         Today's date is highlighted and any date with tasks shows a small red dot.
@@ -54,6 +58,9 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Chat History Management:**
 *   Each session begins with a blank conversation.
 *   History can be saved, exported or cleared from the chat menu if desired.
+    *   Each session begins with a blank conversation.
+    *   History can be exported or cleared from the chat menu if desired.
+    *   Click the 🔍 icon to search within the current conversation.
 *   **Conversation Summaries:**
     *   Older messages are automatically condensed when a chat grows large to
         keep prompts short.
@@ -62,7 +69,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         Screens are captured at each agent's `screenshot_interval` and sent to the model as base64 images.
 *   **Customizable UI:**
     *   Light and dark mode support.
-    *   Configurable user name and color.
+    *   Configurable user name, chat color and accent color.
 *   **Debug Mode:**
     *   Enables verbose logging for debugging purposes.
 *   **Metrics Dashboard:**
@@ -80,6 +87,8 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
 *   Requests
 *   win10toast (only needed on Windows for notification support)
 *   SymPy
+*   pyautogui
+*   pynput
 *   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 
 ## Installation
@@ -112,6 +121,7 @@ Open the "Docs" tab or press `Ctrl+6` to view the full user guide.
     ```bash
     pip install -r requirements.txt
     ```
+    QScintilla is optional but enables syntax highlighting in the tool editor.
 
 5.  *(Optional)* **Install the Ollama runtime and a model:**
 
@@ -205,6 +215,7 @@ include_screenshot: Deprecated.
 image_path: Currently unused.
 user_name: The user's display name.
 user_color: The user's chat message color.
+accent_color: The primary UI accent color used in the application theme.
 dark_mode: Enables dark mode (boolean).
 tools.json
 This file defines available tools.

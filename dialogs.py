@@ -16,9 +16,41 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
     QSpinBox,
+    QListWidget,
 )
 import subprocess
 from PyQt5.QtCore import Qt, QDateTime
+
+try:
+    from PyQt5.Qsci import QsciScintilla, QsciLexerPython
+
+    class CodeEditor(QsciScintilla):
+        """A simple Python code editor with syntax highlighting."""
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setUtf8(True)
+            self.setMarginsBackgroundColor(Qt.lightGray)
+            self.setMarginType(0, QsciScintilla.NumberMargin)
+            self.setMarginWidth(0, "0000")
+            lexer = QsciLexerPython()
+            self.setLexer(lexer)
+
+        def text(self):  # compatibility with QTextEdit
+            return QsciScintilla.text(self)
+
+        def set_text(self, text):
+            self.setText(text)
+
+except Exception:  # QScintilla not installed
+    class CodeEditor(QTextEdit):
+        """Fallback plain text editor used when QScintilla is unavailable."""
+
+        def text(self):
+            return self.toPlainText()
+
+        def set_text(self, text):
+            self.setPlainText(text)
 
 class ToolDialog(QDialog):
     # Updated Sample Script
@@ -62,8 +94,8 @@ def run_tool(args):
 
         # Script (using a code editor with syntax highlighting)
         layout.addWidget(QLabel("Script (must define `run_tool(args)`):"))
-        self.script_edit = QTextEdit()  # Consider using a proper code editor widget (see notes)
-        self.script_edit.setPlainText(script if script is not None else self.SAMPLE_SCRIPT)
+        self.script_edit = CodeEditor()
+        self.script_edit.set_text(script if script is not None else self.SAMPLE_SCRIPT)
         self.script_edit.setToolTip(
             "Enter the Python script for the tool. It must define a `run_tool(args)` function."
         )
@@ -79,7 +111,7 @@ def run_tool(args):
         return (
             self.name_edit.text().strip(),
             self.description_edit.text().strip(),
-            self.script_edit.toPlainText().strip()
+            self.script_edit.text().strip()
         )
 
     def accept(self):
@@ -219,6 +251,14 @@ class SettingsDialog(QDialog):
         self.user_color_button.setToolTip("Select your user color.")
         self.user_color_button.clicked.connect(self.select_user_color)
         layout.addWidget(self.user_color_button)
+
+        # Accent Color
+        layout.addWidget(QLabel("Accent Color:"))
+        self.accent_color_button = QPushButton()
+        self.accent_color_button.setStyleSheet(f"background-color: {self.parent.accent_color}")
+        self.accent_color_button.setToolTip("Select accent color.")
+        self.accent_color_button.clicked.connect(self.select_accent_color)
+        layout.addWidget(self.accent_color_button)
         
         # Debug Enabled
         self.debug_enabled_checkbox = QCheckBox("Debug Enabled")
@@ -265,11 +305,18 @@ class SettingsDialog(QDialog):
             self.user_color_button.setStyleSheet(f"background-color: {color.name()}")
             self.parent.user_color = color.name()
 
+    def select_accent_color(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.accent_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.parent.accent_color = color.name()
+
     def get_data(self):
         return {
             "dark_mode": self.dark_mode_checkbox.isChecked(),
             "user_name": self.user_name_edit.text().strip(),
             "user_color": self.parent.user_color,  # Color is already updated
+            "accent_color": self.parent.accent_color,
             "debug_enabled": self.debug_enabled_checkbox.isChecked()
         }
 
@@ -321,4 +368,48 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", "Ollama executable not found.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to update model: {e}")
+
+
+class SearchDialog(QDialog):
+    """Dialog for searching conversation history."""
+
+    def __init__(self, parent, conversation_text):
+        super().__init__(parent)
+        self.setWindowTitle("Search Conversation")
+        self.conversation_lines = conversation_text.splitlines()
+
+        layout = QVBoxLayout(self)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Type to search...")
+        layout.addWidget(self.search_input)
+
+        self.results_list = QListWidget()
+        layout.addWidget(self.results_list)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.search_input.textChanged.connect(self.update_results)
+
+    def update_results(self):
+        query = self.search_input.text().strip().lower()
+        self.results_list.clear()
+        if not query:
+            return
+        for line in self.conversation_lines:
+            if query in line.lower():
+                self.results_list.addItem(line.strip())
+
+
+def filter_messages(conversation_text, query):
+    """Return conversation lines containing the query."""
+    if not query:
+        return []
+    return [
+        line
+        for line in conversation_text.splitlines()
+        if query.lower() in line.lower()
+    ]
 

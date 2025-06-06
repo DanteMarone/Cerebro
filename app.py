@@ -15,6 +15,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QKeySequence
 
+from theme_utils import load_style_sheet
+
 from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
@@ -36,6 +38,7 @@ from tool_utils import (
     generate_tool_instructions_message,
     format_tool_call_html,
     format_tool_result_html,
+    format_tool_block_html,
 )
 
 AGENTS_SAVE_FILE = "agents.json"
@@ -67,6 +70,7 @@ class AIChatApp(QMainWindow):
         self.current_agent_color = "#000000"
         self.user_name = "You"
         self.user_color = "#0000FF"
+        self.accent_color = "#803391"
         self.dark_mode = False
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
@@ -425,6 +429,7 @@ class AIChatApp(QMainWindow):
             self.dark_mode = settings_data["dark_mode"]
             self.user_name = settings_data["user_name"]
             self.user_color = settings_data["user_color"]
+            self.accent_color = settings_data.get("accent_color", self.accent_color)
             self.debug_enabled = settings_data["debug_enabled"]
             self.apply_updated_styles()
             self.agents_tab.update_model_dropdown()
@@ -740,15 +745,19 @@ class AIChatApp(QMainWindow):
                 )
                 self.show_notification(f"Tool Error: '{tool_name}' not enabled for agent", "error")
             else:
-                self.show_notification(f"Agent '{agent_name}' is using tool: {tool_name}", "info")
-                tool_result = run_tool(self.tools, tool_name, tool_args, self.debug_enabled)
+                self.show_notification(
+                    f"Agent '{agent_name}' is using tool: {tool_name}", "info"
+                )
+                tool_result = run_tool(
+                    self.tools, tool_name, tool_args, self.debug_enabled
+                )
                 record_tool_usage(self.metrics, tool_name, self.debug_enabled)
                 self.refresh_metrics_display()
 
-                # Check for tool errors and handle them
-                call_html = format_tool_call_html(tool_name, tool_args)
+                # Display tool call and result in a collapsible block
+                block_html = format_tool_block_html(tool_name, tool_args, tool_result)
                 self.chat_tab.append_message_html(
-                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {call_html}"
+                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {block_html}"
                 )
                 append_message(
                     self.chat_history,
@@ -769,10 +778,6 @@ class AIChatApp(QMainWindow):
                     )
                     self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
-                    result_html = format_tool_result_html(tool_result)
-                    self.chat_tab.append_message_html(
-                        f"[{timestamp}] <span style='color:{agent_color};'>{result_html}</span>"
-                    )
                     append_message(
                         self.chat_history,
                         "assistant",
@@ -780,7 +785,13 @@ class AIChatApp(QMainWindow):
                         agent_name,
                         debug_enabled=self.debug_enabled,
                     )
-                    self.show_notification(f"Tool executed successfully: {tool_name}", "info")
+                    # Send the tool result back to the agent for a follow up
+                    self.send_message_to_agent(
+                        agent_name, f"Tool {tool_name} result:\n{tool_result}"
+                    )
+                    self.show_notification(
+                        f"Tool executed successfully: {tool_name}", "info"
+                    )
 
         # Handle task request if any
         if task_request:
@@ -1197,6 +1208,7 @@ class AIChatApp(QMainWindow):
             "image_path": "",
             "user_name": self.user_name,
             "user_color": self.user_color,
+            "accent_color": self.accent_color,
             "dark_mode": self.dark_mode
         }
         try:
@@ -1218,6 +1230,7 @@ class AIChatApp(QMainWindow):
                 self.include_screenshot = settings.get("include_screenshot", False)
                 self.user_name = settings.get("user_name", "You")
                 self.user_color = settings.get("user_color", "#0000FF")
+                self.accent_color = settings.get("accent_color", "#803391")
                 self.dark_mode = settings.get("dark_mode", False)
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
@@ -1230,13 +1243,11 @@ class AIChatApp(QMainWindow):
     # Dark/Light Mode
     # -------------------------------------------------------------------------
     def apply_dark_mode_style(self):
-        with open("dark_mode.qss", "r") as f:
-            style_sheet = f.read()
+        style_sheet = load_style_sheet("dark_mode.qss", self.accent_color)
         self.setStyleSheet(style_sheet)
 
     def apply_light_mode_style(self):
-        with open("light_mode.qss", "r") as f:
-            style_sheet = f.read()
+        style_sheet = load_style_sheet("light_mode.qss", self.accent_color)
         self.setStyleSheet(style_sheet)
 
     # -------------------------------------------------------------------------

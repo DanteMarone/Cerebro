@@ -49,6 +49,7 @@ The Chat tab is the primary interface for interacting with your agents.
   shown.
 - Use the menu in the upper‑right corner to copy, save, export or clear the conversation history. Each
   session starts with a clean slate.
+- Use the 🔍 button to search the current conversation.
 - When many messages accumulate they are automatically summarized so prompts remain short.
 
 Agents with *desktop history* enabled attach recent screenshots at a configurable interval. This helps
@@ -88,6 +89,7 @@ Tools extend Cerebro with custom Python scripts that agents can invoke. The tab 
 2. **Edit Tool** – modify an existing tool.
 3. **Delete** – remove a tool and its script file.
 4. **Run** – execute a tool manually with JSON arguments.
+   The script editor supports Python syntax highlighting when QScintilla is installed.
 
 Bundled plugins include:
 - **file-summarizer** – create a short summary of a text file or provided text.
@@ -100,6 +102,7 @@ Bundled plugins include:
 - **credential-manager** – securely store and retrieve credentials via the system keyring.
 - **text-to-speech** – speak text aloud using the system voice.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
+- **task-sequence-recorder** – record mouse and keyboard events and replay them later.
 
 Agents call tools by returning a JSON block in the format produced by
 `generate_tool_instructions_message()`.
@@ -116,6 +119,8 @@ current day is highlighted. When there are no tasks a message labeled "No tasks 
 - **Edit** – change an existing task.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark the selected task as completed or pending.
+- **Filters** – drop-down menus allow filtering by agent or status.
+- **Row Actions** – each task row includes Edit, Delete and Complete buttons.
 - **Repeat Interval** – optional number of minutes after which the task should repeat.
 - **Time Format** – enter times as ISO 8601 (YYYY-MM-DDTHH:MM:SS) or `YYYY-MM-DD HH:MM:SS` local time.
 
@@ -143,7 +148,7 @@ Displays this guide within the application so you can review instructions withou
 ## Settings Dialog
 
 Global preferences are available under **Settings**.
-- Toggle dark mode and change your displayed user name and color.
+- Toggle dark mode and change your displayed user name, chat color and accent color.
 - Update the Ollama runtime or pull the latest version of a model using the provided buttons.
 - The list of available models is cached so opening the dialog is fast.
 - Errors during updates are shown in a pop‑up message.
