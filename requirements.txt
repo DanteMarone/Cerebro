@@ -5,3 +5,5 @@ sympy
 plyer
 keyring
 pyttsx3
+pyautogui
+pynput
