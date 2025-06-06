@@ -1,5 +1,5 @@
 import os
-from PyQt5.QtWidgets import QApplication, QLabel, QPushButton
+from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QProgressBar
 import tab_tasks
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -47,4 +47,7 @@ def test_filters_and_row_actions():
     item_widget = tab.tasks_list.itemWidget(tab.tasks_list.item(0))
     buttons = item_widget.findChildren(QPushButton)
     assert len(buttons) == 3
+    bars = item_widget.findChildren(QProgressBar)
+    assert len(bars) == 1
+    assert 0 <= bars[0].value() <= 100
     app.quit()

@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QListWidgetItem,
     QLabel,
+    QProgressBar,
     QMessageBox,
     QDialog,
     QStyle,
@@ -25,6 +26,7 @@ from tasks import (
     delete_task,
     set_task_status,
     update_task_due_time,
+    compute_task_progress,
 )
 
 
@@ -230,6 +232,13 @@ class TasksTab(QWidget):
         summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
         label = QLabel(summary)
         layout.addWidget(label)
+
+        progress = compute_task_progress(task)
+        bar = QProgressBar()
+        bar.setRange(0, 100)
+        bar.setValue(progress)
+        bar.setFixedWidth(100)
+        layout.addWidget(bar)
 
         edit_btn = QPushButton("Edit")
         edit_btn.setProperty("task_id", task["id"])

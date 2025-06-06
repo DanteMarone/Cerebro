@@ -1,4 +1,5 @@
 import tasks
+from datetime import datetime
 
 
 def noop_save(tasks_, debug_enabled=False):
@@ -23,6 +24,7 @@ def test_add_task(monkeypatch):
     assert task["agent_name"] == "agent1"
     assert task["prompt"] == "do work"
     assert task["due_time"] == "2024-01-01 10:00"
+    assert "created_time" in task
     assert task["status"] == "pending"
     assert task["repeat_interval"] == 30
 
@@ -101,3 +103,13 @@ def test_update_task_due_time_missing(monkeypatch):
     monkeypatch.setattr(tasks, "save_tasks", noop_save)
     err = tasks.update_task_due_time(task_list, "missing", "2024-03-01 09:00")
     assert err == "[Task Error] Task 'missing' not found."
+
+
+def test_compute_task_progress():
+    task = {
+        "due_time": "2024-01-01 12:00:00",
+        "created_time": "2024-01-01 10:00:00",
+    }
+    now = datetime.strptime("2024-01-01 11:00:00", "%Y-%m-%d %H:%M:%S")
+    pct = tasks.compute_task_progress(task, now)
+    assert pct == 50
