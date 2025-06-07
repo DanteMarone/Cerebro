@@ -25,6 +25,7 @@ Follow these steps to set up Cerebro.
    ```bash
    python local_llm_helper.py install
    python local_llm_helper.py download llama3
+   python local_llm_helper.py register my-model path/to/model output_models
    ```
 5. Start the Ollama server separately and then run the application:
    ```bash
