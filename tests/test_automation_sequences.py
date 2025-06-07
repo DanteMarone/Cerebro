@@ -63,7 +63,7 @@ def test_record_and_play(tmp_path, monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
 
-    result = auto.run_automation([{"name": "test", "events": data}], "test")
+    result = auto.run_automation([{"name": "test", "events": data}], "test", step_delay=0)
     assert "Automation executed" in result
     assert any(a[0] == "move" for a in actions)
 
@@ -87,7 +87,8 @@ def test_run_automation_jumps_to_clicks(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
 
-    result = auto.run_automation([{"name": "demo", "events": events}], "demo")
+    monkeypatch.setattr(auto.time, "sleep", lambda s: None)
+    result = auto.run_automation([{"name": "demo", "events": events}], "demo", step_delay=0)
     assert result == "Automation executed"
     assert actions == [
         ("move", 1, 1),
@@ -112,5 +113,29 @@ def test_missing_modules(monkeypatch):
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
-    result = auto.run_automation([{"name": "x", "events": []}], "x")
+    monkeypatch.setattr(auto.time, "sleep", lambda s: None)
+    result = auto.run_automation([{"name": "x", "events": []}], "x", step_delay=0)
     assert "pyautogui not installed" in result
+
+
+def test_run_automation_delay(monkeypatch):
+    events = [
+        {"type": "press", "key": "a", "time": 0.0},
+        {"type": "release", "key": "a", "time": 0.1},
+    ]
+
+    actions = []
+    fake_pg = types.SimpleNamespace(
+        moveTo=lambda x, y: None,
+        mouseDown=lambda button="left": actions.append(("down", button)),
+        mouseUp=lambda button="left": actions.append(("up", button)),
+        keyDown=lambda k: actions.append(("down", k)),
+        keyUp=lambda k: actions.append(("up", k)),
+    )
+    monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
+
+    sleeps = []
+    monkeypatch.setattr(auto.time, "sleep", lambda s: sleeps.append(s))
+    result = auto.run_automation([{"name": "demo", "events": events}], "demo", step_delay=0.25)
+    assert result == "Automation executed"
+    assert sleeps == [0.25, 0.25]

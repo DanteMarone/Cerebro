@@ -109,5 +109,16 @@ class AutomationsTab(QWidget):
         if not items:
             return
         name = items[0].text()
-        result = run_automation(self.parent_app.automations, name)
+        delay_str, ok = QInputDialog.getText(
+            self, "Run Automation", "Delay between actions (seconds):",
+            QLineEdit.Normal, "0.5"
+        )
+        if not ok:
+            return
+        try:
+            delay = float(delay_str)
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", "Delay must be a number.")
+            return
+        result = run_automation(self.parent_app.automations, name, delay)
         QMessageBox.information(self, "Automation Result", result)

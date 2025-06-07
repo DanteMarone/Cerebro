@@ -69,12 +69,14 @@ def record_automation(duration: float = 5) -> List[Dict[str, Any]]:
             time.sleep(0.01)
     return events
 
-def run_automation(automations: List[Dict[str, Any]], name: str) -> str:
+def run_automation(automations: List[Dict[str, Any]], name: str,
+                   step_delay: float = 0.5) -> str:
     """Replay events for the named automation.
 
     Mouse movement events are skipped. The cursor jumps to the coordinates of
     click/drag actions so sequences play back quickly regardless of the original
-    recording speed.
+    recording speed. A small delay can be inserted between events using
+    ``step_delay`` to simulate a more natural pace.
     """
     auto = next((a for a in automations if a.get("name") == name), None)
     if not auto:
@@ -103,6 +105,9 @@ def run_automation(automations: List[Dict[str, Any]], name: str) -> str:
         elif etype == "release":
             key = evt.get("key", "").replace("'", "")
             pyautogui.keyUp(key)
+        else:
+            continue
+        time.sleep(step_delay)
     return "Automation executed"
 
 
