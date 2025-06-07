@@ -101,6 +101,14 @@ Run a workflow manually using the **Run** button and provide a starting prompt.
 The runner shows each coordinator decision and agent reply until completion.
 Workflows may also be started from chat with `/run workflow <name> [prompt]`.
 
+## Fine-Tune Tab
+
+Train an Ollama model using your own dataset.
+- **Start Fine-Tune** – begin training in the background.
+- **Progress Bar** – shows completion percentage in real time.
+- **Log Window** – displays messages from the training process.
+- **Cancel** – stop the fine-tuning thread gracefully.
+
 ## Metrics Tab
 
 View statistics from `metrics.json`.
