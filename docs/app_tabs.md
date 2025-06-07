@@ -108,6 +108,16 @@ View statistics from `metrics.json`.
 - **Task Completions** – number of tasks finished by each agent.
 - **Average Response Times** – mean response time per agent.
 
+## Finetune Tab
+
+Prepare datasets and parameters to train a custom model.
+- **Base Model** – choose from installed Ollama models.
+- **Training Dataset** – path to your training file.
+- **Validation Dataset** – optional file for validation.
+- **Learning Rate** – optimizer step size.
+- **Epochs** – number of passes over the dataset.
+- **Batch Size** – how many samples per batch.
+
 ## Documentation Tab
 
 Browse these documents without leaving the application.

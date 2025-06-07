@@ -93,6 +93,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Enables verbose logging for debugging purposes.
 *   **Metrics Dashboard:**
     *   View tool usage frequency, completed tasks, and agent response times.
+*   **Finetune Tab:**
+    *   Choose an installed model and datasets to fine-tune a new version.
 *   **Documentation Tab:**
     *   Browse the built-in user guide. Documentation is split across multiple pages for easier navigation.
 
@@ -166,8 +168,30 @@ Open the "Docs" tab or press `Ctrl+7` to view the full user guide.
     ```
 
     *   To enable debug mode, set the `DEBUG_MODE` environment variable to 1:
+
         *   **Linux/macOS:** `DEBUG_MODE=1 python main.py`
         *   **Windows:** `set DEBUG_MODE=1 & python main.py`
+
+## Fine-tuning a Model
+
+Fine-tuning lets you adapt an existing model with your own dataset. Make sure
+Ollama is installed and that the base model has been pulled. Collect your
+training data in a JSONL file and create a simple `Modelfile` referencing both
+the base model and the dataset:
+
+```bash
+FROM llama3
+ADAPTER ./train.jsonl
+```
+
+Train the new model and run it with:
+
+```bash
+ollama create my-model -f Modelfile
+ollama run my-model
+```
+
+Select `my-model` in your agent settings to use it in Cerebro.
 
 ## Windows Installer
 
