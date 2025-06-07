@@ -88,6 +88,8 @@ Design multi-agent workflows that can be executed repeatedly.
   multiple agents using the check box list.
 - **User Managed** – specify the number of steps and for each step choose an agent
   and an additional prompt to send alongside the chat history.
+Run a workflow manually using the **Run** button and provide a starting prompt.
+Workflows may also be started from chat with `/run workflow <name> [prompt]`.
 
 ## Metrics Tab
 

@@ -21,7 +21,12 @@ from worker import AIWorker
 from tools import load_tools, run_tool
 from tasks import load_tasks, save_tasks, add_task, delete_task, update_task_due_time
 from automation_sequences import load_automations
-from workflows import load_workflows, save_workflows
+from workflows import (
+    load_workflows,
+    save_workflows,
+    find_workflow_by_name,
+    execute_workflow,
+)
 from transcripts import (
     load_history,
     append_message,
@@ -36,7 +41,7 @@ from tab_automations import AutomationsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
 from tab_docs import DocumentationTab
-from tab_workflows import WorkflowsTab
+from tab_workflows import WorkflowsTab, WorkflowRunnerDialog
 from metrics import load_metrics, record_tool_usage, record_response_time
 from tool_utils import (
     generate_tool_instructions_message,
@@ -511,7 +516,18 @@ class AIChatApp(QMainWindow):
     def send_message(self, user_text):
         # Disable send button to prevent multiple clicks
         self.chat_tab.send_button.setEnabled(False)
-        
+
+        if user_text.startswith("/run workflow"):
+            parts = user_text.split(None, 3)
+            if len(parts) >= 3:
+                wf_name = parts[2]
+                start_prompt = parts[3] if len(parts) > 3 else ""
+                wf = find_workflow_by_name(self.workflows, wf_name)
+                if wf:
+                    self.execute_workflow_gui(wf, start_prompt, from_chat=True)
+                    self.chat_tab.send_button.setEnabled(True)
+                    return
+
         # Show typing indicator
         self.chat_tab.show_typing_indicator()
         
@@ -618,6 +634,21 @@ class AIChatApp(QMainWindow):
         dest = f"chat_history_export_{ts}.json"
         export_history(dest, self.debug_enabled)
         self.show_notification(f"History exported to {dest}")
+
+    def execute_workflow_gui(self, workflow, start_prompt, from_chat=False):
+        runner = WorkflowRunnerDialog(workflow['name'], self)
+        runner.show()
+        log, result = execute_workflow(workflow, start_prompt, self.agents_data)
+        for line in log:
+            runner.append_line(line)
+            QApplication.processEvents()
+        if from_chat:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            self.chat_tab.append_message_html(
+                f'<span style="color:{self.user_color};">[{timestamp}] Workflow {workflow["name"]} Result:</span> {result}'
+            )
+        else:
+            QMessageBox.information(self, "Workflow Result", result)
 
     def handle_ai_response_chunk(self, chunk, agent_name):
         if agent_name not in self.current_responses:

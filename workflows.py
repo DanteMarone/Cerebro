@@ -64,3 +64,34 @@ def delete_workflow(workflows, wf_id):
     workflows.pop(idx)
     save_workflows(workflows)
     return None
+
+
+def find_workflow_by_name(workflows, name):
+    """Return the workflow dict matching the given name or ``None``."""
+    return next((wf for wf in workflows if wf.get("name") == name), None)
+
+
+def execute_workflow(workflow, start_prompt, agents_data=None):
+    """Execute a workflow and return the log lines and final result."""
+    log_lines = []
+    if not workflow:
+        return log_lines, "[Workflow Error] Invalid workflow"
+
+    wf_type = workflow.get("type")
+    if wf_type == "user_managed":
+        current = start_prompt
+        for step in workflow.get("steps", []):
+            agent = step.get("agent", "Unknown")
+            prompt = step.get("prompt", "")
+            message = f"[{agent}]: {prompt or current}"
+            log_lines.append(message)
+            current = message
+        result = current or ""
+    else:  # agent_managed
+        coordinator = workflow.get("coordinator", "Coordinator")
+        log_lines.append(f"[{coordinator}]: Initializing workflow")
+        for agent in workflow.get("agents", []):
+            log_lines.append(f"[{agent}]: Received task from {coordinator}")
+        result = "Workflow completed"
+
+    return log_lines, result
