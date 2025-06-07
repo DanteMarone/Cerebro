@@ -82,7 +82,7 @@ class AIChatApp(QMainWindow):
         self.user_name = "You"
         self.user_color = "#0000FF"
         self.accent_color = "#803391"
-        self.dark_mode = False
+        self.dark_mode = True
         self.screenshot_interval = 5
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []

@@ -82,7 +82,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         Screens are captured at the configured interval and sent to the model as base64 images.
     *   The screenshot interval can be set globally in the **Settings** dialog.
 *   **Customizable UI:**
-    *   Light and dark mode support.
+    *   Light and dark mode support. Dark mode is enabled by default.
     *   Configurable user name, chat color and accent color.
 *   **System Tray Icon:**
     *   Access quick actions from the tray to open the window, add a task or toggle dark mode.
@@ -233,7 +233,7 @@ image_path: Currently unused.
 user_name: The user's display name.
 user_color: The user's chat message color.
 accent_color: The primary UI accent color used in the application theme.
-dark_mode: Enables dark mode (boolean).
+dark_mode: Enables dark mode (boolean, default true).
 tools.json
 This file defines available tools.
 
