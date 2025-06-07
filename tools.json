@@ -15,6 +15,6 @@
     "args": [
       "name"
     ],
-    "script": "def run_tool(args):\n    from automation_sequences import load_automations, run_automation\n    name = args.get(\"name\", \"\")\n    autos = load_automations(False)\n    return run_automation(autos, name)"
+    "script": "def run_tool(args):\n    from automation_sequences import load_automations, run_automation\n    name = args.get(\"name\", \"\")\n    delay = float(args.get(\"delay\", 0.5))\n    autos = load_automations(False)\n    return run_automation(autos, name, step_delay=delay)"
   }
 ]
