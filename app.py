@@ -1096,6 +1096,7 @@ class AIChatApp(QMainWindow):
                 ),
                 "enabled": True,
                 "color": "#000000",
+                "avatar": "🤖",
                 "include_image": False,
                 "desktop_history_enabled": False,
                 "screenshot_interval": 5,

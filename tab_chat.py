@@ -17,6 +17,7 @@ class ChatTab(QWidget):
     def __init__(self, parent_app):
         super().__init__()
         self.parent_app = parent_app
+        self.user_avatar = "\N{slightly smiling face}"
         self.typing_dots_count = 0
         self.typing_timer = None
 
@@ -241,11 +242,36 @@ class ChatTab(QWidget):
             self.adjust_input_height()
 
     def append_message_html(self, html_text):
-        """
-        Append a new message (in HTML) to the chat display.
-        """
+        """Append a new message with simple avatar styling."""
+        import re
+        pattern1 = r'<span style="color:(#[0-9A-Fa-f]{6});">\[([0-9:]+)\]\s*(.+?):</span>\s*(.*)'
+        pattern2 = r'\[([0-9:]+)\]\s*<span style=\'color:(#[0-9A-Fa-f]{6});\'>(.+?):</span>\s*(.*)'
+        m = re.match(pattern1, html_text, re.S)
+        if m:
+            color, timestamp, name, message = m.groups()
+        else:
+            m = re.match(pattern2, html_text, re.S)
+            if m:
+                timestamp, color, name, message = m.groups()
+        if m:
+            avatar = self.get_avatar(name)
+            is_user = name.startswith(self.parent_app.user_name)
+            align = "flex-end" if is_user else "flex-start"
+            bubble_bg = "#e0e0e0" if is_user else "#444444"
+            text_color = "#000000" if is_user else "#ffffff"
+            avatar_html = (
+                f"<div style='font-size:20px;margin-{'left' if is_user else 'right'}:6px;'>{avatar}</div>"
+            )
+            bubble_html = (
+                f"<div style='background-color:{bubble_bg};color:{text_color};padding:6px;border-radius:10px;max-width:80%;'>"
+                f"<div style='font-size:10px;color:gray'>[{timestamp}] {name}</div>{message}</div>"
+            )
+            if is_user:
+                html_text = f"<div style='display:flex;justify-content:{align};margin:4px;'>{bubble_html}{avatar_html}</div>"
+            else:
+                html_text = f"<div style='display:flex;justify-content:{align};margin:4px;'>{avatar_html}{bubble_html}</div>"
+
         self.chat_display.append(html_text)
-        # Ensure automatic scrolling to the bottom
         self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
     
     def show_search(self):
@@ -289,15 +315,15 @@ class ChatTab(QWidget):
             self.parent_app.show_notification(f"Conversation saved to {file_name}")
         except Exception as e:  # pragma: no cover - just in case
             self.parent_app.show_notification(f"Failed to save conversation: {e}", "error")
-    
+
     def show_typing_indicator(self):
-        """Show the typing indicator with animated dots"""
+        """Show the typing indicator with animated dots."""
         self.typing_indicator.show()
-        
+        self.typing_indicator.setText("<span style='font-size:20px'>🤔</span>")
         if self.typing_timer is None:
             self.typing_timer = QTimer(self)
             self.typing_timer.timeout.connect(self.update_typing_indicator)
-            self.typing_timer.start(500)  # Update every 500ms
+            self.typing_timer.start(500)
     
     def hide_typing_indicator(self):
         """Hide the typing indicator"""
@@ -310,4 +336,9 @@ class ChatTab(QWidget):
         """Update the typing indicator animation"""
         self.typing_dots_count = (self.typing_dots_count + 1) % 4
         dots = "." * self.typing_dots_count
-        self.typing_indicator.setText(f"Agent is thinking{dots}")
+        self.typing_indicator.setText(f"<span style='font-size:20px'>🤔</span> thinking{dots}")
+
+    def get_avatar(self, name):
+        if name.startswith(self.parent_app.user_name):
+            return self.user_avatar
+        return self.parent_app.agents_data.get(name, {}).get("avatar", "🤖")
