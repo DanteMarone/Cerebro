@@ -158,6 +158,11 @@ def add_task(
     }
     tasks.append(new_task)
     save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(
+            f"[Debug] Added task {task_id} for agent '{agent_name}'"
+            f" due {due_time} (repeat every {repeat_interval} min)"
+        )
     if os_schedule:
         _schedule_os_task(task_id, due_time, debug_enabled)
     return task_id
@@ -181,6 +186,10 @@ def edit_task(
     task["due_time"] = due_time
     task["repeat_interval"] = repeat_interval
     save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(
+            f"[Debug] Edited task {task_id}: agent='{agent_name}', due {due_time}, repeat {repeat_interval}"
+        )
     if os_schedule:
         _remove_os_task(task_id, debug_enabled)
         _schedule_os_task(task_id, due_time, debug_enabled)
@@ -192,6 +201,8 @@ def delete_task(tasks, task_id, debug_enabled=False, os_schedule=False):
         return f"[Task Error] Task '{task_id}' not found."
     del tasks[idx]
     save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Deleted task {task_id}")
     if os_schedule:
         _remove_os_task(task_id, debug_enabled)
     return None
@@ -203,6 +214,8 @@ def set_task_status(tasks, task_id, status, debug_enabled=False):
         return f"[Task Error] Task '{task_id}' not found."
     task["status"] = status
     save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Set task {task_id} status to '{status}'")
     return None
 
 def update_task_due_time(tasks, task_id, due_time, debug_enabled=False, os_schedule=False):
@@ -212,6 +225,8 @@ def update_task_due_time(tasks, task_id, due_time, debug_enabled=False, os_sched
         return f"[Task Error] Task '{task_id}' not found."
     task["due_time"] = due_time
     save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Updated task {task_id} due time to {due_time}")
     if os_schedule:
         _remove_os_task(task_id, debug_enabled)
         _schedule_os_task(task_id, due_time, debug_enabled)
