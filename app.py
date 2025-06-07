@@ -44,6 +44,7 @@ from tool_utils import (
     format_tool_result_html,
     format_tool_block_html,
 )
+from local_llm_helper import get_installed_models
 import tts
 
 AGENTS_SAVE_FILE = "agents.json"
@@ -967,24 +968,29 @@ class AIChatApp(QMainWindow):
             except Exception as e:
                 print(f"[Debug] Failed to load agents: {e}")
         else:
+            models = get_installed_models()
+            model = models[0] if models else "llama3.2-vision"
             default_agent_settings = {
-                "model": "llama3.2-vision",
+                "model": model,
                 "temperature": 0.7,
                 "max_tokens": 512,
-                "system_prompt": "",
+                "system_prompt": (
+                    "You are the Cerebro default assistant with full tool access. "
+                    "Use tools whenever they help and keep replies concise."
+                ),
                 "enabled": True,
                 "color": "#000000",
                 "include_image": False,
                 "desktop_history_enabled": False,
                 "screenshot_interval": 5,
                 "role": "Assistant",  # Default role
-                "description": "A general-purpose assistant.", # Default description
-                "tool_use": False,
-                "tools_enabled": [],
+                "description": "A general-purpose assistant.",
+                "tool_use": True,
+                "tools_enabled": [t["name"] for t in self.tools],
                 "automations_enabled": [],
                 "thinking_enabled": False,
                 "thinking_steps": 3,
-                "tts_enabled": False
+                "tts_enabled": False,
             }
             self.agents_data["Default Agent"] = default_agent_settings
             if self.debug_enabled:
