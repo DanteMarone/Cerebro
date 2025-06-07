@@ -27,3 +27,4 @@ def test_plugin_discovery():
     plugins = tools.discover_plugin_tools()
     names = [p["name"] for p in plugins]
     assert "web-scraper" in names
+    assert "huggingface-auth" in names

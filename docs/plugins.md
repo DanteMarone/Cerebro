@@ -11,6 +11,7 @@ Bundled plugins:
 - **ar-overlay** – show a small on-screen HUD message.
 - **desktop-automation** – launch programs or move files.
 - **credential-manager** – securely store credentials in the system keyring.
+- **huggingface-auth** – log in or out of Hugging Face to access gated models.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
 - **run-automation** – execute a recorded button sequence with a configurable
   delay between actions (defaults to 0.5 seconds).
