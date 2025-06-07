@@ -58,6 +58,12 @@ class FinetuneTab(QWidget):
         # Base model selection
         self.model_combo = QComboBox()
         self.model_combo.setEditable(True)
+        self.model_combo.lineEdit().setPlaceholderText(
+            "Hugging Face repo id (part after huggingface.co/)"
+        )
+        self.model_combo.setToolTip(
+            "Enter the repo id, e.g. 'owner/model' from https://huggingface.co/owner/model"
+        )
         self.refresh_models()
         layout.addRow(QLabel("Base Model:"), self.model_combo)
 

@@ -21,13 +21,17 @@ Follow these steps to set up Cerebro.
    ```bash
    pip install -r requirements.txt
    ```
-4. (Optional) Use the helper script to install Ollama and download a model:
+4. (Optional) Authenticate with Hugging Face if you plan to download models from gated repositories:
+   ```bash
+   python -m huggingface_hub login
+   ```
+5. (Optional) Use the helper script to install Ollama and download a model:
    ```bash
    python local_llm_helper.py install
    python local_llm_helper.py download llama3
    python local_llm_helper.py register my-model path/to/model output_models
    ```
-5. Start the Ollama server separately and then run the application:
+6. Start the Ollama server separately and then run the application:
    ```bash
    python main.py
    ```

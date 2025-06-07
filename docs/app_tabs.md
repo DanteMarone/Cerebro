@@ -111,7 +111,7 @@ View statistics from `metrics.json`.
 ## Finetune Tab
 
 Prepare datasets and parameters to train a custom model.
-- **Base Model** – select an installed Ollama model or type a Hugging Face repo id or local path.
+- **Base Model** – select an installed Ollama model or type a Hugging Face repo id or local path. The repo id is the portion of the model URL after `https://huggingface.co/`.
 - **Model Name** – optional name for the trained model.
 - **Training Dataset** – path to your training file.
 - **Validation Dataset** – optional file for validation.

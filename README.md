@@ -280,7 +280,7 @@ args: (optional) List of argument names the tool accepts.
 script: The content of the Python script that implements the tool. The script must define a function called run_tool(args) that takes a dictionary of arguments and returns a string.
 script_path: (optional) Path to a Python file containing the tool implementation. If script_path is missing but script is provided, the application will run the script from a temporary file.
 Tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point
-are loaded automatically on startup. Built-in plugins include `math-solver` for complex calculations and `credential-manager` for secure credential storage.
+are loaded automatically on startup. Built-in plugins include `math-solver` for complex calculations, `credential-manager` for secure credential storage and `huggingface-auth` for logging in to Hugging Face.
 Example:
 
 '''JSON
