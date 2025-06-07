@@ -18,19 +18,19 @@ QMainWindow {
 }
 
 #logoContainer {
-    background-color: {ACCENT_COLOR};
-    border-bottom: 1px solid #e0e0e0;
+    background-color: #ffffff;
+    border-bottom: 2px solid {ACCENT_COLOR};
 }
 
 #appLogo {
     font-size: 24px;
     font-weight: bold;
-    color: #ffffff;
+    color: {ACCENT_COLOR};
 }
 
 #appTagline {
     font-size: 13px;
-    color: #ffffff; /* Brighter white for better contrast */
+    color: #333333;
     font-weight: 500;
 }
 
