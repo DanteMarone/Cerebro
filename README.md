@@ -280,6 +280,14 @@ This file stores the list of scheduled tasks. Each task entry includes an ``id``
 ``agent_name``, ``prompt``, ``due_time``, ``created_time`` and ``status`` field. The status field defaults to ``pending``.
 You typically won't edit this file directly.
 
+## Fine-Tuning Models
+
+Cerebro includes a helper function `start_fine_tune()` for running supervised
+fine-tuning with Hugging Face Transformers. Provide a pretrained model name,
+a dataset of training pairs and a dictionary of training parameters. Logs are
+streamed to the chat window when a callback is supplied, and training runs in a
+background thread so the UI remains responsive.
+
 ## Testing
 Install the dependencies and run the linter and test suite before submitting
 changes:
