@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from PyQt5 import QtCore
-from PyQt5.QtCore import QThread, Qt, QTimer
+from PyQt5.QtCore import QThread, Qt, QTimer, QObject, pyqtSignal
 from PyQt5 import sip
 
 from screenshot import ScreenshotManager
@@ -57,6 +57,21 @@ AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
 TOOLS_FILE = "tools.json"
 TASKS_FILE = "tasks.json"
+
+
+class UpdateCheckWorker(QObject):
+    """Worker that checks for application updates."""
+
+    finished = pyqtSignal(str)
+
+    def __init__(self, tools, debug_enabled=False):
+        super().__init__()
+        self.tools = tools
+        self.debug_enabled = debug_enabled
+
+    def run(self):
+        result = run_tool(self.tools, "update-manager", {"action": "check"}, self.debug_enabled)
+        self.finished.emit(result)
 
 class AIChatApp(QMainWindow):
     def __init__(self):
@@ -275,7 +290,11 @@ class AIChatApp(QMainWindow):
         keyboard_shortcuts_action.setShortcut('Ctrl+K')
         keyboard_shortcuts_action.triggered.connect(self.show_keyboard_shortcuts)
         help_menu.addAction(keyboard_shortcuts_action)
-        
+
+        check_updates_action = QAction('Check for Updates', self)
+        check_updates_action.triggered.connect(lambda: self.check_for_updates(True))
+        help_menu.addAction(check_updates_action)
+
         about_action = QAction('About Cerebro', self)
         about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
@@ -298,6 +317,8 @@ class AIChatApp(QMainWindow):
         # Create system tray icon
         self.force_quit = False
         self.create_tray_icon()
+
+        QTimer.singleShot(1000, self.check_for_updates)
 
     def create_nav_button(self, text, index):
         """Create a navigation button for the sidebar."""
@@ -1183,6 +1204,25 @@ class AIChatApp(QMainWindow):
             self.automations_tab.automations = self.automations
             self.automations_tab.refresh_automations_list()
         self.show_notification("Automations list refreshed", "info")
+
+    # ---------------------------------------------------------------------
+    # Update Checks
+    # ---------------------------------------------------------------------
+    def check_for_updates(self, manual=False):
+        """Check GitHub for newer releases."""
+        thread = QThread()
+        worker = UpdateCheckWorker(self.tools, self.debug_enabled)
+        worker.moveToThread(thread)
+
+        def done(msg):
+            if "Update available" in msg or manual:
+                self.show_notification(msg)
+            thread.quit()
+            thread.wait()
+
+        worker.finished.connect(done)
+        thread.started.connect(worker.run)
+        thread.start()
 
     def refresh_metrics_display(self):
         if hasattr(self.metrics_tab, "refresh_metrics"):
