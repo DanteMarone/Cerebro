@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 )
 
 from dialogs import SearchDialog
+import voice_input
 
 class ChatTab(QWidget):
     """
@@ -161,7 +162,13 @@ class ChatTab(QWidget):
         self.send_button.setIconSize(QtCore.QSize(16, 16))
         self.send_button.setToolTip("Send the message (Enter)")
         btn_layout.addWidget(self.send_button)
-        
+
+        # Voice input button
+        self.voice_button = QPushButton("\U0001F3A4")
+        self.voice_button.setObjectName("voiceButton")
+        self.voice_button.setToolTip("Dictate a prompt or command")
+        btn_layout.addWidget(self.voice_button)
+
         # Create clear button
         self.clear_chat_button = QPushButton("Clear")
         self.clear_chat_button.setObjectName("clearButton")
@@ -178,6 +185,7 @@ class ChatTab(QWidget):
         # Wire up signals
         self.send_button.clicked.connect(self.on_send_clicked)
         self.clear_chat_button.clicked.connect(self.on_clear_chat_clicked)
+        self.voice_button.clicked.connect(self.on_voice_clicked)
         self.user_input.textChanged.connect(self.adjust_input_height)
         search_btn.clicked.connect(self.show_search)
 
@@ -212,6 +220,25 @@ class ChatTab(QWidget):
         Clear the chat display and the parent app's history.
         """
         self.parent_app.clear_chat()
+
+    def on_voice_clicked(self):
+        """Capture voice input and act on commands."""
+        text = voice_input.recognize_speech()
+        if text.startswith("[Speech Recognition Error]"):
+            self.parent_app.show_notification(text, "error")
+            return
+
+        command = text.strip().lower()
+        if command in {"send", "send message"}:
+            self.on_send_clicked()
+        elif command in {"clear chat", "clear conversation"}:
+            self.on_clear_chat_clicked()
+        else:
+            if self.user_input.toPlainText():
+                self.user_input.insertPlainText(" " + text)
+            else:
+                self.user_input.setPlainText(text)
+            self.adjust_input_height()
 
     def append_message_html(self, html_text):
         """
