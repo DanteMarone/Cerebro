@@ -59,6 +59,13 @@ Bundled plugins include:
 
 Tools are triggered when an agent returns a JSON block in the format produced by `generate_tool_instructions_message()`.
 
+## Plugins Tab
+
+Install and manage plugin-based tools.
+1. **Install Plugin** – choose a Python file to copy into the plugins directory.
+2. **Reload** – refresh the list of installed plugins.
+3. **Enable/Disable** – check or uncheck a plugin to toggle availability.
+
 ## Automations Tab
 
 Record and play back desktop actions.

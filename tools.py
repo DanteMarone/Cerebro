@@ -9,12 +9,139 @@ from importlib import metadata
 
 TOOLS_FILE = "tools.json"
 PLUGIN_DIR = "tool_plugins"
+PLUGINS_FILE = "plugins.json"
 
 ENTRY_POINT_GROUP = "cerebro_tools"
+
+
+def load_plugin_settings():
+    """Return the plugin settings mapping plugin name to enabled flag."""
+    if os.path.exists(PLUGINS_FILE):
+        try:
+            with open(PLUGINS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_plugin_settings(data):
+    """Persist plugin settings to disk."""
+    try:
+        with open(PLUGINS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
+def set_plugin_enabled(name, enabled):
+    """Enable or disable a plugin."""
+    data = load_plugin_settings()
+    if name not in data:
+        data[name] = {"enabled": bool(enabled)}
+    else:
+        data[name]["enabled"] = bool(enabled)
+    save_plugin_settings(data)
+
+
+def install_plugin(src_path, debug_enabled=False):
+    """Install a plugin file into the plugin directory."""
+    if not os.path.isfile(src_path):
+        return f"[Plugin Error] File not found: {src_path}"
+
+    os.makedirs(PLUGIN_DIR, exist_ok=True)
+    dest_path = os.path.join(PLUGIN_DIR, os.path.basename(src_path))
+    try:
+        with open(src_path, "rb") as fsrc, open(dest_path, "wb") as fdst:
+            fdst.write(fsrc.read())
+        if debug_enabled:
+            print(f"[Debug] Installed plugin from {src_path} to {dest_path}")
+    except Exception as exc:
+        return f"[Plugin Error] Failed to copy plugin: {exc}"
+
+    # attempt to load metadata to register plugin name
+    try:
+        spec = importlib.util.spec_from_file_location(os.path.basename(dest_path)[:-3], dest_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        meta = getattr(module, "TOOL_METADATA", {})
+        name = meta.get("name", os.path.splitext(os.path.basename(dest_path))[0])
+        data = load_plugin_settings()
+        if name not in data:
+            data[name] = {"enabled": True}
+            save_plugin_settings(data)
+    except Exception as exc:
+        if debug_enabled:
+            print(f"[Debug] Failed to register plugin settings: {exc}")
+    return None
+
+
+def get_available_plugins(debug_enabled=False):
+    """Return metadata for all discovered plugins including disabled ones."""
+    plugins = []
+    settings = load_plugin_settings()
+    changed = False
+
+    if os.path.isdir(PLUGIN_DIR):
+        for fname in os.listdir(PLUGIN_DIR):
+            if not fname.endswith(".py"):
+                continue
+            path = os.path.join(PLUGIN_DIR, fname)
+            try:
+                spec = importlib.util.spec_from_file_location(fname[:-3], path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                meta = getattr(module, "TOOL_METADATA", {})
+                name = meta.get("name", fname[:-3])
+                desc = meta.get("description", "")
+                if name not in settings:
+                    settings[name] = {"enabled": True}
+                    changed = True
+                plugins.append({
+                    "name": name,
+                    "description": desc,
+                    "path": path,
+                    "enabled": settings[name].get("enabled", True),
+                })
+            except Exception as exc:
+                if debug_enabled:
+                    print(f"[Debug] Failed to inspect plugin {path}: {exc}")
+
+    try:
+        eps = metadata.entry_points()
+        for ep in eps.select(group=ENTRY_POINT_GROUP):
+            try:
+                module = ep.load()
+                meta = getattr(module, "TOOL_METADATA", {})
+                if not meta or "name" not in meta:
+                    continue
+                name = meta["name"]
+                desc = meta.get("description", "")
+                if name not in settings:
+                    settings[name] = {"enabled": True}
+                    changed = True
+                plugins.append({
+                    "name": name,
+                    "description": desc,
+                    "path": getattr(module, "__file__", ""),
+                    "enabled": settings[name].get("enabled", True),
+                })
+            except Exception as exc:
+                if debug_enabled:
+                    print(f"[Debug] Failed to load entry point {ep.name}: {exc}")
+    except Exception as exc:
+        if debug_enabled:
+            print(f"[Debug] Failed to read entry points: {exc}")
+
+    if changed:
+        save_plugin_settings(settings)
+    return plugins
 
 def discover_plugin_tools(debug_enabled=False):
     """Return a list of plugin-based tool definitions."""
     tools = []
+    settings = load_plugin_settings()
+    changed = False
 
     # Load tools from local plugin directory
     if os.path.isdir(PLUGIN_DIR):
@@ -29,10 +156,16 @@ def discover_plugin_tools(debug_enabled=False):
                 meta = getattr(module, "TOOL_METADATA", None)
                 if not meta or "name" not in meta:
                     continue
+                name = meta["name"]
+                if name not in settings:
+                    settings[name] = {"enabled": True}
+                    changed = True
+                if not settings[name].get("enabled", True):
+                    continue
                 with open(path, "r", encoding="utf-8") as f:
                     script_text = f.read()
                 tools.append({
-                    "name": meta["name"],
+                    "name": name,
                     "description": meta.get("description", ""),
                     "plugin_module": module,
                     "script_path": path,
@@ -53,6 +186,12 @@ def discover_plugin_tools(debug_enabled=False):
                 meta = getattr(module, "TOOL_METADATA", None)
                 if not meta or "name" not in meta:
                     continue
+                name = meta["name"]
+                if name not in settings:
+                    settings[name] = {"enabled": True}
+                    changed = True
+                if not settings[name].get("enabled", True):
+                    continue
                 path = getattr(module, "__file__", None)
                 script_text = ""
                 if path and os.path.exists(path):
@@ -62,7 +201,7 @@ def discover_plugin_tools(debug_enabled=False):
                     except Exception:
                         pass
                 tools.append({
-                    "name": meta["name"],
+                    "name": name,
                     "description": meta.get("description", ""),
                     "plugin_module": module,
                     "script_path": path,
@@ -77,6 +216,8 @@ def discover_plugin_tools(debug_enabled=False):
         if debug_enabled:
             print(f"[Error] Failed to inspect entry points: {e}")
 
+    if changed:
+        save_plugin_settings(settings)
     return tools
 
 def load_tools(debug_enabled=False):

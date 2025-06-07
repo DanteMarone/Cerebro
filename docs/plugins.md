@@ -1,6 +1,6 @@
 # Plugins
 
-Cerebro discovers tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point.
+Cerebro discovers tools placed in the `tool_plugins` directory or installed via the `cerebro_tools` entry point. Use the **Plugins** tab to install new plugins or toggle existing ones.
 
 Bundled plugins:
 - **file-summarizer** – create a short summary of a text file or provided text.
