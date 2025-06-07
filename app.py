@@ -1213,12 +1213,19 @@ class AIChatApp(QMainWindow):
         thread = QThread()
         worker = UpdateCheckWorker(self.tools, self.debug_enabled)
         worker.moveToThread(thread)
+        self.active_worker_threads.append((worker, thread))
 
         def done(msg):
             if "Update available" in msg or manual:
                 self.show_notification(msg)
             thread.quit()
             thread.wait()
+            for i, (w, t) in enumerate(self.active_worker_threads):
+                if w is worker:
+                    del self.active_worker_threads[i]
+                    break
+            worker.deleteLater()
+            thread.deleteLater()
 
         worker.finished.connect(done)
         thread.started.connect(worker.run)
