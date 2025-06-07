@@ -15,3 +15,25 @@ def test_combo_populated(monkeypatch):
     assert tab.lr_input.value() > 0
     app.quit()
 
+
+def test_model_name_passthrough(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(tab_finetune, "get_installed_models", lambda: ["m"])
+    captured = {}
+
+    def dummy_start(*args, **kwargs):
+        captured.update({"args": args, "kwargs": kwargs})
+        class DummyThread:
+            def join(self):
+                pass
+        return DummyThread()
+
+    monkeypatch.setattr(tab_finetune, "start_fine_tune", dummy_start)
+    tab = tab_finetune.FinetuneTab(DummyApp())
+    tab.train_edit.setText("train.json")
+    tab.name_edit.setText("named-model")
+    tab.start_training()
+    assert captured["kwargs"].get("model_name") == "named-model"
+    assert captured["args"][2]["output_dir"] == "named-model"
+    app.quit()
+

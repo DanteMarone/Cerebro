@@ -60,6 +60,9 @@ class FinetuneTab(QWidget):
         self.refresh_models()
         layout.addRow(QLabel("Base Model:"), self.model_combo)
 
+        self.name_edit = QLineEdit()
+        layout.addRow("Model Name:", self.name_edit)
+
         # Training dataset path
         self.train_edit = QLineEdit()
         train_browse = QPushButton("Browse")
@@ -120,6 +123,7 @@ class FinetuneTab(QWidget):
         """Start fine-tuning using the selected options."""
         model = self.model_combo.currentText()
         train_path = self.train_edit.text().strip()
+        model_name = self.name_edit.text().strip()
         if not model or not train_path:
             QMessageBox.warning(self, "Finetune", "Model and training dataset are required.")
             return
@@ -129,6 +133,8 @@ class FinetuneTab(QWidget):
             "epochs": self.epochs_input.value(),
             "batch_size": self.batch_input.value(),
         }
+        if model_name:
+            params["output_dir"] = model_name
 
         dlg = TrainingDialog(model, self)
         dlg.show()
@@ -150,6 +156,7 @@ class FinetuneTab(QWidget):
             log_callback=log,
             progress_callback=progress,
             stop_event=stop_event,
+            model_name=model_name or None,
         )
         dlg.finished.connect(stop_event.set)
         dlg.thread = thread

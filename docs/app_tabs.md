@@ -112,6 +112,7 @@ View statistics from `metrics.json`.
 
 Prepare datasets and parameters to train a custom model.
 - **Base Model** – choose from installed Ollama models.
+- **Model Name** – optional name for the trained model.
 - **Training Dataset** – path to your training file.
 - **Validation Dataset** – optional file for validation.
 - **Learning Rate** – optimizer step size.
