@@ -1,8 +1,9 @@
 from PyQt5.QtWidgets import (
     QWidget, QFormLayout, QLabel, QComboBox, QLineEdit,
     QHBoxLayout, QPushButton, QFileDialog, QDoubleSpinBox, QSpinBox,
-    QMessageBox, QVBoxLayout, QTextEdit, QDialog, QApplication
+    QMessageBox, QVBoxLayout, QTextEdit, QDialog, QApplication, QProgressBar
 )
+import threading
 from local_llm_helper import get_installed_models
 from fine_tuning import start_fine_tune
 
@@ -17,12 +18,31 @@ class TrainingDialog(QDialog):
         self.log_display = QTextEdit()
         self.log_display.setReadOnly(True)
         layout.addWidget(self.log_display)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
+        layout.addWidget(self.progress)
+
+        btn_layout = QHBoxLayout()
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.cancel)
+        btn_layout.addWidget(self.cancel_btn)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.reject)
-        layout.addWidget(close_btn)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+
+        self.stop_event = None
 
     def append_line(self, text: str) -> None:
         self.log_display.append(text)
+
+    def set_progress(self, value: float) -> None:
+        self.progress.setValue(int(value))
+
+    def cancel(self) -> None:
+        if self.stop_event and not self.stop_event.is_set():
+            self.stop_event.set()
+            self.cancel_btn.setDisabled(True)
 
 
 class FinetuneTab(QWidget):
@@ -112,9 +132,24 @@ class FinetuneTab(QWidget):
 
         dlg = TrainingDialog(model, self)
         dlg.show()
+        stop_event = threading.Event()
+        dlg.stop_event = stop_event
 
         def log(msg: str) -> None:
             dlg.append_line(msg)
             QApplication.processEvents()
 
-        start_fine_tune(model, train_path, params, log_callback=log)
+        def progress(pct: float) -> None:
+            dlg.set_progress(pct)
+            QApplication.processEvents()
+
+        thread = start_fine_tune(
+            model,
+            train_path,
+            params,
+            log_callback=log,
+            progress_callback=progress,
+            stop_event=stop_event,
+        )
+        dlg.finished.connect(stop_event.set)
+        dlg.thread = thread

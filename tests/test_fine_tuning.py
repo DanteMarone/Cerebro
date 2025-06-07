@@ -2,6 +2,7 @@ import json
 import csv
 import types
 import sys
+import threading
 from fine_tuning import (
     validate_dataset_path,
     convert_dataset_format,
@@ -109,3 +110,74 @@ def test_start_fine_tune_thread(monkeypatch):
 
     assert any("loss" in log for log in logs)
     assert logs[-1] == "Training complete"
+
+
+def test_start_fine_tune_progress_and_cancel(monkeypatch):
+    logs = []
+    progress = []
+
+    dummy_ds = types.SimpleNamespace()
+    dummy_ds.map = lambda fn: dummy_ds
+
+    monkeypatch.setitem(
+        sys.modules,
+        "datasets",
+        types.SimpleNamespace(load_dataset=lambda *a, **k: {"train": dummy_ds}),
+    )
+
+    class DummyTokenizer:
+        def __call__(self, text, truncation=True, padding="max_length"):
+            return {"input_ids": [1]}
+
+        def as_target_tokenizer(self):
+            class DummyCtx:
+                def __enter__(self):
+                    return None
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+            return DummyCtx()
+
+    dummy_transformers = types.SimpleNamespace(
+        AutoTokenizer=types.SimpleNamespace(from_pretrained=lambda m: DummyTokenizer()),
+        AutoModelForCausalLM=types.SimpleNamespace(from_pretrained=lambda m: object()),
+        DataCollatorForLanguageModeling=lambda *a, **k: None,
+        TrainingArguments=lambda **k: object(),
+        Trainer=None,
+        TrainerCallback=object,
+    )
+
+    class DummyTrainer:
+        def __init__(self, *a, **k):
+            self.callback = None
+
+        def add_callback(self, cb):
+            self.callback = cb() if isinstance(cb, type) else cb
+
+        def train(self):
+            if self.callback:
+                control = types.SimpleNamespace(should_training_stop=False, should_epoch_stop=False)
+                for i in range(3):
+                    state = types.SimpleNamespace(global_step=i + 1, max_steps=3)
+                    self.callback.on_log(None, state, control, {"loss": 0.1})
+                    if control.should_training_stop:
+                        break
+                self.callback.on_train_end(None, None, None)
+
+    dummy_transformers.Trainer = DummyTrainer
+    monkeypatch.setitem(sys.modules, "transformers", dummy_transformers)
+
+    stop_event = threading.Event()
+    thread = start_fine_tune(
+        "model",
+        "data.json",
+        {},
+        log_callback=logs.append,
+        progress_callback=progress.append,
+        stop_event=stop_event,
+    )
+    stop_event.set()
+    thread.join()
+
+    assert progress[-1] == 100.0
