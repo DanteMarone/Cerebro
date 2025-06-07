@@ -39,6 +39,9 @@ class MessageBroker:
             message (str): The message content.
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
+        if self.app and self.app.debug_enabled:
+            target = recipient or "broadcast"
+            print(f"[Debug] send_message from '{sender}' to '{target}': {message}")
 
         if sender == "user":
             user_message_html = f'<span style="color:{self.app.user_color};">[{timestamp}] {self.app.user_name}:</span> {message}'
@@ -108,6 +111,8 @@ class MessageBroker:
             message (str): The message content.
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
+        if self.app and self.app.debug_enabled:
+            print(f"[Debug] Routing message from '{sender}' to '{recipient}'")
         agent_settings = self.app.agents_data.get(recipient) if self.app else None
 
         if not agent_settings:
@@ -156,6 +161,11 @@ class MessageBroker:
         worker.finished.connect(on_finished)
 
         thread.started.connect(worker.run)
+        if self.app and self.app.debug_enabled:
+            print(
+                f"[Debug] Starting worker for '{recipient}' using model '{model_name}'"
+                f" (temp={temperature}, max_tokens={max_tokens})"
+            )
         thread.start()
 
     def worker_finished_sequential(self, sender_worker, thread, agent_name):
@@ -437,6 +447,8 @@ class MessageBroker:
             message (str): The message content.
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
+        if self.app and self.app.debug_enabled:
+            print(f"[Debug] send_message_to_agent '{agent_name}': {message}")
 
         # Check if the agent exists and is enabled
         agent_settings = self.app.agents_data.get(agent_name, {})
@@ -495,6 +507,11 @@ class MessageBroker:
             agent_name,
             self.app.agents_data
         )
+        if self.app.debug_enabled:
+            print(
+                f"[Debug] Starting worker for '{agent_name}' using model '{model_name}'"
+                f" (temp={temperature}, max_tokens={max_tokens})"
+            )
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
 
