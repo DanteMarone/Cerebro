@@ -23,7 +23,11 @@ def test_build_agent_chat_history(monkeypatch):
         {'role': 'assistant', 'content': 'A', 'agent': 'agent1'}
     ]
     monkeypatch.setattr(message_broker, 'load_history', lambda debug=False: history)
-    monkeypatch.setattr(message_broker, 'summarize_history', lambda h: h)
+    monkeypatch.setattr(
+        message_broker,
+        'summarize_history',
+        lambda h, threshold=20: h
+    )
     monkeypatch.setattr(message_broker, 'generate_tool_instructions_message', lambda app, name: 'tools')
     monkeypatch.setattr(tts, 'speak_text', lambda *a, **k: None)
     broker = message_broker.MessageBroker(app)

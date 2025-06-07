@@ -30,6 +30,7 @@ class DummyAppBase:
         self.accent_color = "#803391"
         self.debug_enabled = False
         self.screenshot_interval = 5
+        self.summarization_threshold = 20
         self.agents_tab = DummyAgentsTab()
         self.screenshot_manager = DummyManager()
         self.agents_data = {"a": {"desktop_history_enabled": True}}
@@ -52,8 +53,10 @@ def test_settings_dialog_returns_interval():
     dummy = DummyApp()
     dlg = dialogs.SettingsDialog(dummy)
     dlg.interval_spin.setValue(8)
+    dlg.threshold_spin.setValue(30)
     data = dlg.get_data()
     assert data["screenshot_interval"] == 8
+    assert data["summarization_threshold"] == 30
     app_instance.quit()
 
 def test_update_screenshot_timer_uses_global(monkeypatch):

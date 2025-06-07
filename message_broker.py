@@ -357,8 +357,11 @@ class MessageBroker:
         Returns:
             list: The chat history for the agent.
         """
-        self.chat_history = load_history(self.app.debug_enabled if self.app else False)
-        self.chat_history = summarize_history(self.chat_history)
+        self.chat_history = load_history(
+            self.app.debug_enabled if self.app else False
+        )
+        threshold = getattr(self.app, "summarization_threshold", 20)
+        self.chat_history = summarize_history(self.chat_history, threshold=threshold)
         system_prompt = ""
         agent_settings = self.app.agents_data.get(agent_name, {}) if self.app else {}
 

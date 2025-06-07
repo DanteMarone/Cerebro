@@ -24,3 +24,13 @@ def test_summarize_history():
     summarized = transcripts.summarize_history(history, threshold=10)
     assert summarized[0]["role"] == "system"
     assert len(summarized) == 11
+
+
+def test_summarize_history_disabled():
+    history = []
+    for i in range(5):
+        role = "user" if i % 2 == 0 else "assistant"
+        history.append({"role": role, "content": f"msg{i}", "agent": "a"})
+
+    summarized = transcripts.summarize_history(history, threshold=0)
+    assert summarized == history

@@ -10,6 +10,7 @@ The Chat tab is the main interface for sending prompts to your agents.
 - Use the menu to copy, save, export or clear the conversation.
 - Click the 🔍 button to search the current conversation.
 - Long conversations are automatically summarized to keep prompts short.
+  You can adjust or disable this threshold in the **Settings** dialog.
 - Agents with *desktop history* enabled attach periodic screenshots for visual context.
 
 ## Agents Tab
