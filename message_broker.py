@@ -39,6 +39,9 @@ class MessageBroker:
             message (str): The message content.
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
+        if self.app and self.app.debug_enabled:
+            target = recipient or "broadcast"
+            print(f"[Debug] send_message from '{sender}' to '{target}': {message}")
 
         if sender == "user":
             user_message_html = f'<span style="color:{self.app.user_color};">[{timestamp}] {self.app.user_name}:</span> {message}'
@@ -108,6 +111,8 @@ class MessageBroker:
             message (str): The message content.
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
+        if self.app and self.app.debug_enabled:
+            print(f"[Debug] Routing message from '{sender}' to '{recipient}'")
         agent_settings = self.app.agents_data.get(recipient) if self.app else None
 
         if not agent_settings:
@@ -156,6 +161,11 @@ class MessageBroker:
         worker.finished.connect(on_finished)
 
         thread.started.connect(worker.run)
+        if self.app and self.app.debug_enabled:
+            print(
+                f"[Debug] Starting worker for '{recipient}' using model '{model_name}'"
+                f" (temp={temperature}, max_tokens={max_tokens})"
+            )
         thread.start()
 
     def worker_finished_sequential(self, sender_worker, thread, agent_name):
@@ -219,7 +229,8 @@ class MessageBroker:
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
                 )
                 if agent_settings.get('tts_enabled'):
-                    tts.speak_text(content)
+                    voice = agent_settings.get('tts_voice')
+                    tts.speak_text(content, voice)
                 append_message(
                     self.chat_history,
                     "assistant",
@@ -357,8 +368,11 @@ class MessageBroker:
         Returns:
             list: The chat history for the agent.
         """
-        self.chat_history = load_history(self.app.debug_enabled if self.app else False)
-        self.chat_history = summarize_history(self.chat_history)
+        self.chat_history = load_history(
+            self.app.debug_enabled if self.app else False
+        )
+        threshold = getattr(self.app, "summarization_threshold", 20)
+        self.chat_history = summarize_history(self.chat_history, threshold=threshold)
         system_prompt = ""
         agent_settings = self.app.agents_data.get(agent_name, {}) if self.app else {}
 
@@ -437,6 +451,8 @@ class MessageBroker:
             message (str): The message content.
         """
         timestamp = datetime.now().strftime("%H:%M:%S")
+        if self.app and self.app.debug_enabled:
+            print(f"[Debug] send_message_to_agent '{agent_name}': {message}")
 
         # Check if the agent exists and is enabled
         agent_settings = self.app.agents_data.get(agent_name, {})
@@ -495,6 +511,11 @@ class MessageBroker:
             agent_name,
             self.app.agents_data
         )
+        if self.app.debug_enabled:
+            print(
+                f"[Debug] Starting worker for '{agent_name}' using model '{model_name}'"
+                f" (temp={temperature}, max_tokens={max_tokens})"
+            )
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
 

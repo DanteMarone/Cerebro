@@ -81,6 +81,9 @@ def summarize_history(history, threshold=20, max_chars=1000):
     Returns:
         list: Summarized chat history.
     """
+    if threshold is None or threshold <= 0:
+        return history[:]
+
     if len(history) <= threshold:
         return history[:]
 

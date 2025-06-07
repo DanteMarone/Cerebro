@@ -17,6 +17,11 @@ Records tool usage counts, task completions and average response times.
 ## chat_history.json
 Stores conversation history for exporting or resuming later. The file is recreated each time the application starts unless you export the history.
 
+## settings.json
+Stores global preferences such as theme, screenshot interval and
+``summarization_threshold``. Set the threshold to 0 to disable automatic
+summaries.
+
 ## Debug Mode
 
 Set `DEBUG_MODE=1` before launching to enable verbose console logging. This helps diagnose issues with tools or agent configuration.

@@ -88,6 +88,7 @@ class AIChatApp(QMainWindow):
         self.active_worker_threads = []
         self.notifications_paused = False
         self.screenshot_paused = False
+        self.summarization_threshold = 20
         
         # Initialize notification system
         self.notifications = []
@@ -375,7 +376,9 @@ class AIChatApp(QMainWindow):
     def quit_from_tray(self):
         """Quit the application from the tray icon."""
         self.force_quit = True
-        self.close()
+        if getattr(self, "tray_icon", None):
+            self.tray_icon.hide()
+        QApplication.quit()
             
     def show_help_dialog(self):
         """Show the help dialog."""
@@ -535,6 +538,9 @@ class AIChatApp(QMainWindow):
             self.debug_enabled = settings_data["debug_enabled"]
             self.screenshot_interval = settings_data.get(
                 "screenshot_interval", self.screenshot_interval
+            )
+            self.summarization_threshold = settings_data.get(
+                "summarization_threshold", self.summarization_threshold
             )
             self.apply_updated_styles()
             self.agents_tab.update_model_dropdown()
@@ -797,7 +803,8 @@ class AIChatApp(QMainWindow):
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
                 )
                 if agent_settings.get('tts_enabled'):
-                    tts.speak_text(clean_content)
+                    voice = agent_settings.get('tts_voice')
+                    tts.speak_text(clean_content, voice)
 
                 # Store only the clean content without thoughts in history
                 append_message(
@@ -833,7 +840,8 @@ class AIChatApp(QMainWindow):
                 f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
             )
             if agent_settings.get('tts_enabled'):
-                tts.speak_text(clean_content)
+                voice = agent_settings.get('tts_voice')
+                tts.speak_text(clean_content, voice)
 
             # Store only the clean content without thoughts in history
             append_message(
@@ -1091,7 +1099,8 @@ class AIChatApp(QMainWindow):
                     "automations_enabled": [],
                 "thinking_enabled": False,
                 "thinking_steps": 3,
-                "tts_enabled": False
+                "tts_enabled": False,
+                "tts_voice": ""
             }
                 self.save_agents()
                 if self.debug_enabled:
@@ -1264,7 +1273,9 @@ class AIChatApp(QMainWindow):
     def build_agent_chat_history(self, agent_name, user_message=None, is_screenshot=False):
         # Reload history from disk to ensure persistence
         self.chat_history = load_history(self.debug_enabled)
-        self.chat_history = summarize_history(self.chat_history)
+        self.chat_history = summarize_history(
+            self.chat_history, threshold=self.summarization_threshold
+        )
 
         system_prompt = ""
         agent_settings = self.agents_data.get(agent_name, {})
@@ -1362,6 +1373,7 @@ class AIChatApp(QMainWindow):
             "accent_color": self.accent_color,
             "dark_mode": self.dark_mode,
             "screenshot_interval": self.screenshot_interval,
+            "summarization_threshold": self.summarization_threshold,
         }
         try:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -1386,6 +1398,9 @@ class AIChatApp(QMainWindow):
                 self.dark_mode = settings.get("dark_mode", False)
                 self.screenshot_interval = settings.get(
                     "screenshot_interval", self.screenshot_interval
+                )
+                self.summarization_threshold = settings.get(
+                    "summarization_threshold", self.summarization_threshold
                 )
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")

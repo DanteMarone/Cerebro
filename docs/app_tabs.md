@@ -10,6 +10,7 @@ The Chat tab is the main interface for sending prompts to your agents.
 - Use the menu to copy, save, export or clear the conversation.
 - Click the 🔍 button to search the current conversation.
 - Long conversations are automatically summarized to keep prompts short.
+  You can adjust or disable this threshold in the **Settings** dialog.
 - Agents with *desktop history* enabled attach periodic screenshots for visual context.
 
 ## Agents Tab
@@ -28,7 +29,8 @@ Create, edit and delete agents.
 - **Enabled Tools** – choose which tools are available.
 - **Enable Thinking** – generate intermediate thoughts before answering.
 - **Thinking Steps** – number of thinking iterations.
-- **Text-to-Speech Enabled** – speak replies aloud using the system voice.
+- **Text-to-Speech Enabled** – speak replies aloud.
+- **Voice** – choose which system voice to use when speaking.
 - **Desktop History Enabled** – capture screenshots for the model.
 - **Screenshot Interval** – seconds between captures.
 
