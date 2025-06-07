@@ -181,3 +181,15 @@ def test_start_fine_tune_progress_and_cancel(monkeypatch):
     thread.join()
 
     assert progress[-1] == 100.0
+
+
+def test_start_fine_tune_invalid_model(monkeypatch):
+    logs = []
+
+    monkeypatch.setitem(sys.modules, "datasets", types.SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "transformers", types.SimpleNamespace())
+
+    thread = start_fine_tune("gemma3:12b", "data.json", {}, log_callback=logs.append)
+    thread.join()
+
+    assert any("Invalid model identifier" in log for log in logs)
