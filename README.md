@@ -69,6 +69,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
         and prompt for each step.
     *   Workflows are edited on a dedicated tab with drag-and-drop ordering.
     *   Click **Run** on the Workflows tab to test a workflow with a custom prompt.
+    *   The runner now displays each coordinator decision and agent response during execution.
     *   Workflows can also be invoked from chat using `/run workflow <name> [prompt]`.
 *   **Chat History Management:**
     *   Each session begins with a blank conversation.

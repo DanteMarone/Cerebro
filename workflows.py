@@ -31,7 +31,16 @@ def save_workflows(workflows, debug_enabled=False):
         print(f"[Error] Failed to save workflows: {e}")
 
 
-def add_workflow(workflows, name, wf_type, coordinator=None, agents=None, max_turns=10, steps=None, debug_enabled=False):
+def add_workflow(
+    workflows,
+    name,
+    wf_type,
+    coordinator=None,
+    agents=None,
+    max_turns=10,
+    steps=None,
+    debug_enabled=False,
+):
     """Create a new workflow and add it to the list."""
     wf_id = str(uuid.uuid4())
     workflow = {
@@ -89,9 +98,47 @@ def execute_workflow(workflow, start_prompt, agents_data=None):
         result = current or ""
     else:  # agent_managed
         coordinator = workflow.get("coordinator", "Coordinator")
-        log_lines.append(f"[{coordinator}]: Initializing workflow")
-        for agent in workflow.get("agents", []):
-            log_lines.append(f"[{agent}]: Received task from {coordinator}")
+        agents = workflow.get("agents", [])
+        max_turns = workflow.get("max_turns", 10)
+
+        info_lines = []
+        if agents_data:
+            for name in agents:
+                settings = agents_data.get(name, {})
+                desc = settings.get("description", "")
+                tools = ", ".join(settings.get("tools_enabled", []))
+                tool_text = f" Tools: {tools}" if tools else ""
+                info_lines.append(f"{name} - {desc}{tool_text}")
+        else:
+            info_lines = agents
+
+        agents_info = "\n".join(f"- {line}" for line in info_lines)
+
+        turn = 1
+        log_lines.append(
+            f"[{coordinator}]: Task: {start_prompt}\n"
+            f"Current turn {turn}/{max_turns}\n"
+            f"Available agents:\n{agents_info}"
+        )
+
+        conversation = []
+        for agent in agents:
+            log_lines.append(f"[{coordinator}]: {agent}")
+            log_lines.append(
+                f"[{agent}]: Working on '{start_prompt}' "
+                f"(turn {turn}/{max_turns})"
+            )
+            conversation.append(f"{agent} response")
+            turn += 1
+            if turn > max_turns:
+                break
+            context = "; ".join(conversation)
+            log_lines.append(
+                f"[{coordinator}]: Context so far: {context}\n"
+                f"Current turn {turn}/{max_turns}"
+            )
+
+        log_lines.append(f"[{coordinator}]: Finalizing response.")
         result = "Workflow completed"
 
     return log_lines, result
