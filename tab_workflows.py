@@ -63,10 +63,18 @@ class WorkflowDialog(QDialog):
             self.coordinator_combo.setCurrentText(workflow.get("coordinator", ""))
         form.addRow("Coordinator", self.coordinator_combo)
 
-        self.agent_input = QLineEdit()
+        self.agent_list = QListWidget()
+        for name in sorted(agents):
+            item = QListWidgetItem(name)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.agent_list.addItem(item)
         if workflow:
-            self.agent_input.setText(",".join(workflow.get("agents", [])))
-        form.addRow("Agents", self.agent_input)
+            for i in range(self.agent_list.count()):
+                item = self.agent_list.item(i)
+                if item.text() in workflow.get("agents", []):
+                    item.setCheckState(Qt.Checked)
+        form.addRow("Agents", self.agent_list)
 
         self.turn_spin = QSpinBox()
         self.turn_spin.setMinimum(1)
@@ -107,7 +115,7 @@ class WorkflowDialog(QDialog):
     def update_visibility(self):
         agent_managed = self.type_combo.currentIndex() == 0
         self.coordinator_combo.setVisible(agent_managed)
-        self.agent_input.setVisible(agent_managed)
+        self.agent_list.setVisible(agent_managed)
         self.turn_spin.setVisible(agent_managed)
         self.steps_spin.setVisible(not agent_managed)
         self.steps_container.setVisible(not agent_managed)
@@ -133,7 +141,11 @@ class WorkflowDialog(QDialog):
             "name": self.name_input.text().strip(),
             "type": "agent_managed" if self.type_combo.currentIndex() == 0 else "user_managed",
             "coordinator": self.coordinator_combo.currentText(),
-            "agents": [a.strip() for a in self.agent_input.text().split(";") if a.strip()],
+            "agents": [
+                self.agent_list.item(i).text()
+                for i in range(self.agent_list.count())
+                if self.agent_list.item(i).checkState() == Qt.Checked
+            ],
             "max_turns": self.turn_spin.value(),
             "steps": [],
         }

@@ -63,8 +63,9 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   The included **Windows Notifier** tool can display Windows 11 notifications when a scheduled task runs.
 *   **Workflow Builder:**
     *   Create reusable workflows that coordinate multiple agents.
-    *   Supports **Agent Managed** and **User Managed** modes.
-    *   In **User Managed** mode, set the number of steps then select an agent
+*   Supports **Agent Managed** and **User Managed** modes.
+*   In **Agent Managed** mode, pick multiple agents from a check box list.
+*   In **User Managed** mode, set the number of steps then select an agent
         and prompt for each step.
     *   Workflows are edited on a dedicated tab with drag-and-drop ordering.
 *   **Chat History Management:**

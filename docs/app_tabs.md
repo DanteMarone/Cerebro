@@ -84,7 +84,8 @@ When a task becomes due the prompt is sent automatically. Tasks can also be regi
 ## Workflows Tab
 
 Design multi-agent workflows that can be executed repeatedly.
-- **Agent Managed** – a coordinator assigns subtasks to other agents.
+- **Agent Managed** – a coordinator assigns subtasks to other agents. Select
+  multiple agents using the check box list.
 - **User Managed** – specify the number of steps and for each step choose an agent
   and an additional prompt to send alongside the chat history.
 
