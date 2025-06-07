@@ -219,7 +219,8 @@ class MessageBroker:
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {content}"
                 )
                 if agent_settings.get('tts_enabled'):
-                    tts.speak_text(content)
+                    voice = agent_settings.get('tts_voice')
+                    tts.speak_text(content, voice)
                 append_message(
                     self.chat_history,
                     "assistant",

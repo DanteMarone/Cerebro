@@ -28,7 +28,8 @@ Create, edit and delete agents.
 - **Enabled Tools** – choose which tools are available.
 - **Enable Thinking** – generate intermediate thoughts before answering.
 - **Thinking Steps** – number of thinking iterations.
-- **Text-to-Speech Enabled** – speak replies aloud using the system voice.
+- **Text-to-Speech Enabled** – speak replies aloud.
+- **Voice** – choose which system voice to use when speaking.
 - **Desktop History Enabled** – capture screenshots for the model.
 - **Screenshot Interval** – seconds between captures.
 
