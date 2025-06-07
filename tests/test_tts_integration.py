@@ -15,7 +15,14 @@ class DummyApp:
                 'color': '#000'
             }
         }
-        self.chat_tab = type('Tab', (), {'append_message_html': lambda self, html: None})()
+        self.chat_tab = type(
+            'Tab',
+            (),
+            {
+                'append_message_html': lambda self, html: None,
+                'append_message_bubble': lambda self, *a, **k: None,
+            },
+        )()
         self.current_responses = {'agent1': 'hello'}
         self.tools = []
         self.tasks = []

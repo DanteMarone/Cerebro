@@ -39,7 +39,14 @@ def test_handle_worker_finished_runs_tool_for_assistant(monkeypatch):
     app = DummyApp()
     app.agents_data['agent1']['role'] = 'Assistant'
     app.agents_data['agent1']['tool_use'] = True
-    app.chat_tab = type('Tab', (), {'append_message_html': lambda self, html: None})()
+    app.chat_tab = type(
+        'Tab',
+        (),
+        {
+            'append_message_html': lambda self, html: None,
+            'append_message_bubble': lambda self, *a, **k: None,
+        },
+    )()
     app.current_responses = {
         'agent1': (
             '{"role": "assistant", "content": "hi", '
@@ -89,7 +96,14 @@ def test_delivers_tool_result(monkeypatch):
     app = DummyApp()
     app.agents_data['agent1']['role'] = 'Assistant'
     app.agents_data['agent1']['tool_use'] = True
-    app.chat_tab = type('Tab', (), {'append_message_html': lambda self, html: None})()
+    app.chat_tab = type(
+        'Tab',
+        (),
+        {
+            'append_message_html': lambda self, html: None,
+            'append_message_bubble': lambda self, *a, **k: None,
+        },
+    )()
     app.current_responses = {
         'agent1': (
             '{"role": "assistant", "content": "hi", '

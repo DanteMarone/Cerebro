@@ -32,7 +32,11 @@ def test_worker_finished_sends_result_back(monkeypatch):
             'color': '#000'
         }
     }
-    dummy.chat_tab = types.SimpleNamespace(append_message_html=lambda *a, **k: None)
+    dummy.chat_tab = types.SimpleNamespace(
+        append_message_html=lambda *a, **k: None,
+        append_message_bubble=lambda *a, **k: None,
+    )
+    dummy.get_agent_avatar = lambda color: ""
     dummy.tools = [{'name': 'echo-plugin', 'description': 'Echo', 'args': []}]
     dummy.metrics = {}
     dummy.refresh_metrics_display = lambda: None

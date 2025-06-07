@@ -31,3 +31,14 @@ def test_save_conversation(tmp_path, monkeypatch):
         assert f.read() == "hello world"
     assert dummy.notifications
     app.quit()
+
+
+def test_append_message_bubble(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    tab = tab_chat.ChatTab(dummy)
+    tab.append_message_bubble("Tester", "hello", "#000000", align="left")
+    html = tab.chat_display.toHtml()
+    assert "Tester" in html
+    assert "#000000" in html
+    app.quit()

@@ -220,6 +220,21 @@ class ChatTab(QWidget):
         self.chat_display.append(html_text)
         # Ensure automatic scrolling to the bottom
         self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
+
+    def append_message_bubble(self, sender, text, color, align="left"):
+        """Append a chat bubble with a colored avatar circle."""
+        avatar_html = (
+            f"<div style='width:32px;height:32px;border-radius:16px;background-color:{color};margin:0 6px;'></div>"
+            if color
+            else ""
+        )
+        bubble_style = "background-color:#f0f0f0;border-radius:12px;padding:6px 8px;max-width:75%;"
+        bubble = f"<div style='{bubble_style} color:{color};'><b>{sender}:</b> {text}</div>"
+        if align == "right":
+            html = f"<div style='display:flex;justify-content:flex-end;margin:4px 0;'>{bubble}{avatar_html}</div>"
+        else:
+            html = f"<div style='display:flex;margin:4px 0;'>{avatar_html}{bubble}</div>"
+        self.append_message_html(html)
     
     def show_search(self):
         """Display a dialog to search conversation history."""

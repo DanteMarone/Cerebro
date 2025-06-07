@@ -534,8 +534,12 @@ class AIChatApp(QMainWindow):
         self.chat_tab.show_typing_indicator()
         
         timestamp = datetime.now().strftime("%H:%M:%S")
-        user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
-        self.chat_tab.append_message_html(user_message_html)
+        self.chat_tab.append_message_bubble(
+            self.user_name,
+            user_text,
+            self.user_color,
+            align="right",
+        )
 
         # Persist the user message once and keep the entry for history building
         user_message = append_message(
@@ -757,8 +761,11 @@ class AIChatApp(QMainWindow):
                 else:
                     display_content = clean_content
                 
-                self.chat_tab.append_message_html(
-                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
+                self.chat_tab.append_message_bubble(
+                    agent_name,
+                    display_content,
+                    agent_color,
+                    align="left",
                 )
                 if agent_settings.get('tts_enabled'):
                     voice = agent_settings.get('tts_voice')
@@ -794,8 +801,11 @@ class AIChatApp(QMainWindow):
             else:
                 display_content = clean_content
             
-            self.chat_tab.append_message_html(
-                f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
+            self.chat_tab.append_message_bubble(
+                agent_name,
+                display_content,
+                agent_color,
+                align="left",
             )
             if agent_settings.get('tts_enabled'):
                 voice = agent_settings.get('tts_voice')
@@ -858,8 +868,11 @@ class AIChatApp(QMainWindow):
 
                 # Display tool call and result in a collapsible block
                 block_html = format_tool_block_html(tool_name, tool_args, tool_result)
-                self.chat_tab.append_message_html(
-                    f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {block_html}"
+                self.chat_tab.append_message_bubble(
+                    agent_name,
+                    block_html,
+                    agent_color,
+                    align="left",
                 )
                 append_message(
                     self.chat_history,
