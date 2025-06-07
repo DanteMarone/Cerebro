@@ -4,9 +4,9 @@ Use `Ctrl+1` through `Ctrl+7` to switch between tabs.
 
 ## Chat Tab
 
-The Chat tab is the main interface for sending prompts to your agents.
+- The Chat tab is the main interface for sending prompts to your agents.
 - Enter a prompt and press **Send** or use the 🎤 button to dictate a prompt.
-- Messages appear in a scrollable pane. A typing indicator shows when an agent is responding.
+- Messages show in speech bubbles with small avatars and appear in a scrollable pane. A typing indicator shows when an agent is responding.
 - Use the menu to copy, save, export or clear the conversation.
 - Click the 🔍 button to search the current conversation.
 - Long conversations are automatically summarized to keep prompts short.
