@@ -106,6 +106,7 @@ Open the "Docs" tab or press `Ctrl+7` to view the full user guide.
 *   SymPy
 *   pyautogui
 *   pynput
+*   SpeechRecognition
 *   A running Ollama instance with the desired language models installed (see [Ollama](https://ollama.ai/))
 
 ## Installation
@@ -266,6 +267,7 @@ The new `ar-overlay` plugin pops up a small HUD-style window with a short
 message, and the `desktop-automation` plugin can launch programs or move files
 after a model analyzes your screen captures. Replies can be spoken aloud using
 a selectable voice when Text-to-Speech is enabled for an agent.
+Users can also dictate prompts and basic commands using the 🎤 microphone button.
 Scheduled tasks are also written to the OS task scheduler using the helper
 script `run_task.py` so they execute even when Cerebro is not running.
 

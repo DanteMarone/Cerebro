@@ -145,7 +145,7 @@ QMainWindow {
     font-style: italic;
 }
 
-#sendButton, #clearButton {
+#sendButton, #clearButton, #voiceButton {
     background-color: {ACCENT_COLOR};
     color: white;
     border: none;
@@ -154,7 +154,7 @@ QMainWindow {
     font-weight: bold;
 }
 
-#sendButton:hover, #clearButton:hover {
+#sendButton:hover, #clearButton:hover, #voiceButton:hover {
     background-color: #964aab;
 }
 
