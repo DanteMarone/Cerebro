@@ -3,7 +3,7 @@
 Cerebro stores data in several JSON files in the application directory.
 
 ## agents.json
-Defines every agent and their settings. The default configuration includes a **Default Agent** with all bundled tools enabled.
+Defines every agent and their settings. The default configuration includes a **Default Agent** with all bundled tools enabled. If no agent configuration exists, its model is set to the first entry from `ollama list` when available.
 
 ## tools.json
 Metadata and Python code for tools. Plugins placed in `tool_plugins` or installed via the `cerebro_tools` entry point are loaded automatically.

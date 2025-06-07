@@ -44,6 +44,24 @@ def start_server() -> None:
     subprocess.run(["ollama", "serve"], check=True)
 
 
+def get_installed_models() -> list[str]:
+    """Return a list of installed Ollama models."""
+    try:
+        result = subprocess.run(
+            ["ollama", "list"], capture_output=True, text=True, check=True
+        )
+    except Exception:
+        return []
+
+    models = []
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        models.append(line.split()[0])
+    return models
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Local LLM deployment helper")
     sub = parser.add_subparsers(dest="cmd", required=True)

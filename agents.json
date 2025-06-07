@@ -1,9 +1,9 @@
 {
   "Default Agent": {
     "model": "llama3.2-vision",
-    "temperature": 0.7999999999999999,
+    "temperature": 0.7,
     "max_tokens": 512,
-    "system_prompt": "You are a helpful assistant with full tool access. If a tool will help, reply with the tool JSON described in the docs. Otherwise, answer succinctly in plain text.",
+    "system_prompt": "You are the Cerebro default assistant with full tool access. Use tools whenever they help and keep replies concise.",
     "enabled": true,
     "description": "A general purpose assistant agent.  Responds directly to the user like a chatbot.",
     "role": "Assistant",

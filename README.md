@@ -182,6 +182,7 @@ This file stores the configuration for each agent.
 *   **`tool_use`:** Boolean value to enable or disable an agent's access to tools.
 *   **`tools_enabled`:** A list of tools that an agent can access, assuming `tool_use` is set to true.
 *   The bundled `Default Agent` comes enabled with all built-in tools for general use.
+*   On first launch, the app selects the first model returned by `ollama list` for this agent.
 
 **Example:**
 
