@@ -78,11 +78,11 @@ class AIChatApp(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # Check for debug mode
-        if os.environ.get("DEBUG_MODE", "") == "1":
-            self.debug_enabled = True
-        else:
+        # Check for debug mode (enabled by default)
+        if os.environ.get("DEBUG_MODE", "1") == "0":
             self.debug_enabled = False
+        else:
+            self.debug_enabled = True
 
         # Basic window settings
         self.setWindowTitle("Cerebro 1.0")

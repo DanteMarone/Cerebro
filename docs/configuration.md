@@ -24,4 +24,4 @@ summaries.
 
 ## Debug Mode
 
-Set `DEBUG_MODE=1` before launching to enable verbose console logging. This helps diagnose issues with tools or agent configuration.
+Debug mode is enabled by default. Set `DEBUG_MODE=0` before launching to disable verbose console logging.
