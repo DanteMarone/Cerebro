@@ -39,6 +39,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Provides a **Desktop Automation** plugin for launching programs or moving files via OS commands.
     *   Includes a **Credential Manager** plugin for securely storing API keys using the system keyring.
     *   Includes an **Automated Update Manager** plugin for checking for new versions and downloading updates on Windows 11.
+    *   Cerebro automatically checks for updates at startup and the Help menu offers a **Check for Updates** action.
     *   Bundles a **Task Sequence Recorder** plugin to capture mouse and keyboard actions and replay them later.
     *   Tools can be updated using the **Edit Tool** button in the Tools tab.
     *   The Tool script editor features Python syntax highlighting when QScintilla is installed.
