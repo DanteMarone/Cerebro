@@ -11,7 +11,7 @@ def load_history(debug_enabled=False):
     if not os.path.exists(HISTORY_FILE):
         return []
     try:
-        with open(HISTORY_FILE, "r") as f:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         if debug_enabled:
             print("[Debug] History loaded", data)
@@ -23,7 +23,7 @@ def load_history(debug_enabled=False):
 def save_history(history, debug_enabled=False):
     """Save chat history to disk."""
     try:
-        with open(HISTORY_FILE, "w") as f:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
         if debug_enabled:
             print("[Debug] History saved")
@@ -57,7 +57,7 @@ def export_history(dest_path, debug_enabled=False):
     """Export current history to the given path."""
     history = load_history(debug_enabled)
     try:
-        with open(dest_path, "w") as f:
+        with open(dest_path, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
         if debug_enabled:
             print(f"[Debug] History exported to {dest_path}")

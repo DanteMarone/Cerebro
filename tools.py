@@ -84,7 +84,7 @@ def load_tools(debug_enabled=False):
     tools = []
     if os.path.exists(TOOLS_FILE):
         try:
-            with open(TOOLS_FILE, "r") as f:
+            with open(TOOLS_FILE, "r", encoding="utf-8") as f:
                 tools = json.load(f)
                 if debug_enabled:
                     print("[Debug] Tools loaded:", tools)
@@ -96,7 +96,7 @@ def load_tools(debug_enabled=False):
 
 def save_tools(tools, debug_enabled=False):
     try:
-        with open(TOOLS_FILE, "w") as f:
+        with open(TOOLS_FILE, "w", encoding="utf-8") as f:
             json.dump(tools, f, indent=2)
         if debug_enabled:
             print("[Debug] Tools saved.")
@@ -189,7 +189,7 @@ def add_tool(tools, name, description, script, debug_enabled=False):
 
     # Create the script file
     try:
-        with open(script_path, "w") as f:
+        with open(script_path, "w", encoding="utf-8") as f:
             f.write(script)
         if debug_enabled:
             print(f"[Debug] Created script file at: {script_path}")
@@ -216,7 +216,7 @@ def edit_tool(tools, old_name, new_name, description, script, debug_enabled=Fals
     # Update the script file if the script has changed
     if script != tool.get("script", ""):
         try:
-            with open(tool["script_path"], "w") as f:
+            with open(tool["script_path"], "w", encoding="utf-8") as f:
                 f.write(script)
             tool["script"] = script
             if "plugin_module" in tool:

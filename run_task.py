@@ -9,7 +9,7 @@ TASKS_FILE = "tasks.json"
 def main(task_id):
     if not os.path.exists(TASKS_FILE):
         return
-    with open(TASKS_FILE, "r") as f:
+    with open(TASKS_FILE, "r", encoding="utf-8") as f:
         tasks = json.load(f)
     task = next((t for t in tasks if t.get("id") == task_id), None)
     if not task:
@@ -21,7 +21,7 @@ def main(task_id):
     except Exception:
         pass
     task["status"] = "completed"
-    with open(TASKS_FILE, "w") as f:
+    with open(TASKS_FILE, "w", encoding="utf-8") as f:
         json.dump(tasks, f, indent=2)
 
 

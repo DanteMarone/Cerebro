@@ -9,7 +9,7 @@ def load_metrics(debug_enabled=False):
     if not os.path.exists(METRICS_FILE):
         return {"tool_usage": {}, "task_completion_counts": {}, "response_times": {}}
     try:
-        with open(METRICS_FILE, "r") as f:
+        with open(METRICS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         if debug_enabled:
             print("[Debug] Metrics loaded", data)
@@ -22,7 +22,7 @@ def load_metrics(debug_enabled=False):
 def save_metrics(metrics, debug_enabled=False):
     """Save metrics to disk."""
     try:
-        with open(METRICS_FILE, "w") as f:
+        with open(METRICS_FILE, "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2)
         if debug_enabled:
             print("[Debug] Metrics saved")

@@ -104,7 +104,7 @@ def load_tasks(debug_enabled=False):
     if not os.path.exists(TASKS_FILE):
         return []
     try:
-        with open(TASKS_FILE, "r") as f:
+        with open(TASKS_FILE, "r", encoding="utf-8") as f:
             tasks = json.load(f)
             for t in tasks:
                 t.setdefault("status", "pending")
@@ -119,7 +119,7 @@ def load_tasks(debug_enabled=False):
 
 def save_tasks(tasks, debug_enabled=False):
     try:
-        with open(TASKS_FILE, "w") as f:
+        with open(TASKS_FILE, "w", encoding="utf-8") as f:
             json.dump(tasks, f, indent=2)
         if debug_enabled:
             print("[Debug] Tasks saved.")
