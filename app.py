@@ -37,6 +37,7 @@ from transcripts import (
 from tab_chat import ChatTab
 from tab_agents import AgentsTab
 from tab_tools import ToolsTab
+from tab_plugins import PluginsTab
 from tab_automations import AutomationsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
@@ -151,24 +152,28 @@ class AIChatApp(QMainWindow):
         self.nav_buttons["tools"] = self.create_nav_button("Tools", 2)
         sidebar_layout.addWidget(self.nav_buttons["tools"])
 
+        # Plugins button
+        self.nav_buttons["plugins"] = self.create_nav_button("Plugins", 3)
+        sidebar_layout.addWidget(self.nav_buttons["plugins"])
+
         # Automations button
-        self.nav_buttons["automations"] = self.create_nav_button("Automations", 3)
+        self.nav_buttons["automations"] = self.create_nav_button("Automations", 4)
         sidebar_layout.addWidget(self.nav_buttons["automations"])
 
         # Tasks button
-        self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 4)
+        self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 5)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
 
         # Workflows button
-        self.nav_buttons["workflows"] = self.create_nav_button("Workflows", 5)
+        self.nav_buttons["workflows"] = self.create_nav_button("Workflows", 6)
         sidebar_layout.addWidget(self.nav_buttons["workflows"])
 
         # Metrics button
-        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 6)
+        self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 7)
         sidebar_layout.addWidget(self.nav_buttons["metrics"])
 
         # Docs button
-        self.nav_buttons["docs"] = self.create_nav_button("Docs", 7)
+        self.nav_buttons["docs"] = self.create_nav_button("Docs", 8)
         sidebar_layout.addWidget(self.nav_buttons["docs"])
         
         # Add stretcher to push settings button to bottom
@@ -198,6 +203,7 @@ class AIChatApp(QMainWindow):
         self.chat_tab = ChatTab(self)
         self.agents_tab = AgentsTab(self)
         self.tools_tab = ToolsTab(self)
+        self.plugins_tab = PluginsTab(self)
         self.automations_tab = AutomationsTab(self)
         self.tasks_tab = TasksTab(self)
         self.workflows_tab = WorkflowsTab(self)
@@ -208,6 +214,7 @@ class AIChatApp(QMainWindow):
         self.content_stack.addWidget(self.chat_tab)
         self.content_stack.addWidget(self.agents_tab)
         self.content_stack.addWidget(self.tools_tab)
+        self.content_stack.addWidget(self.plugins_tab)
         self.content_stack.addWidget(self.automations_tab)
         self.content_stack.addWidget(self.tasks_tab)
         self.content_stack.addWidget(self.workflows_tab)
@@ -319,7 +326,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7', '8']):
+        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7', '8', '9']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
@@ -376,20 +383,24 @@ class AIChatApp(QMainWindow):
     
     def show_keyboard_shortcuts(self):
         """Show keyboard shortcuts dialog."""
-        QMessageBox.information(self, "Keyboard Shortcuts",
-                              "Ctrl+1: Chat Tab\n"
-                              "Ctrl+2: Agents Tab\n"
-                              "Ctrl+3: Tools Tab\n"
-                              "Ctrl+4: Automations Tab\n"
-                              "Ctrl+5: Workflows Tab\n"
-                              "Ctrl+6: Metrics Tab\n"
-                              "Ctrl+7: Docs Tab\n"
-                              "Ctrl+S: Send Message\n"
-                              "Ctrl+L: Clear Chat\n"
-                              "Ctrl+T: Toggle Theme\n"
-                              "Ctrl+Q: Quit\n"
-                              "Ctrl+K: Show Shortcuts\n"
-                              "Ctrl+,: Open Settings")
+        QMessageBox.information(
+            self,
+            "Keyboard Shortcuts",
+            "Ctrl+1: Chat Tab\n"
+            "Ctrl+2: Agents Tab\n"
+            "Ctrl+3: Tools Tab\n"
+            "Ctrl+4: Plugins Tab\n"
+            "Ctrl+5: Automations Tab\n"
+            "Ctrl+6: Tasks Tab\n"
+            "Ctrl+7: Workflows Tab\n"
+            "Ctrl+8: Metrics Tab\n"
+            "Ctrl+9: Docs Tab\n"
+            "Ctrl+S: Send Message\n"
+            "Ctrl+L: Clear Chat\n"
+            "Ctrl+T: Toggle Theme\n"
+            "Ctrl+Q: Quit\n"
+            "Ctrl+K: Show Shortcuts\n"
+            "Ctrl+,: Open Settings")
     
     def show_about_dialog(self):
         """Show about dialog."""

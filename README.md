@@ -40,6 +40,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Includes a **Credential Manager** plugin for securely storing API keys using the system keyring.
     *   Includes an **Automated Update Manager** plugin for checking for new versions and downloading updates on Windows 11.
     *   Bundles a **Task Sequence Recorder** plugin to capture mouse and keyboard actions and replay them later.
+    *   Manage plugins using the **Plugins** tab to install, enable or disable them.
     *   Tools can be updated using the **Edit Tool** button in the Tools tab.
     *   The Tool script editor features Python syntax highlighting when QScintilla is installed.
     *   The Settings dialog provides buttons to update the Ollama runtime and refresh individual models. Model names are cached so the dialog opens quickly.
