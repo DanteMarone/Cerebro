@@ -93,6 +93,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   Enables verbose logging for debugging purposes.
 *   **Metrics Dashboard:**
     *   View tool usage frequency, completed tasks, and agent response times.
+*   **Finetune Tab:**
+    *   Choose an installed model and datasets to fine-tune a new version.
 *   **Documentation Tab:**
     *   Browse the built-in user guide. Documentation is split across multiple pages for easier navigation.
 
