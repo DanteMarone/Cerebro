@@ -1,18 +1,51 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QListWidget, QPushButton, QHBoxLayout,
-    QDialog, QFormLayout, QLineEdit, QComboBox, QSpinBox, QTextEdit,
-    QListWidgetItem, QMessageBox
+    QWidget,
+    QVBoxLayout,
+    QListWidget,
+    QPushButton,
+    QHBoxLayout,
+    QDialog,
+    QFormLayout,
+    QLineEdit,
+    QComboBox,
+    QSpinBox,
+    QListWidgetItem,
+    QMessageBox,
+    QLabel,
 )
 from PyQt5.QtCore import Qt
 
 import workflows
 
 
+class StepWidget(QWidget):
+    """Widget for configuring a single workflow step."""
+
+    def __init__(self, agents, step=None, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        self.agent_combo = QComboBox()
+        self.agent_combo.addItems(sorted(agents))
+        self.prompt_edit = QLineEdit()
+        if step:
+            self.agent_combo.setCurrentText(step.get("agent", ""))
+            self.prompt_edit.setText(step.get("prompt", step.get("system_prompt", "")))
+        layout.addWidget(QLabel("Agent"))
+        layout.addWidget(self.agent_combo)
+        layout.addWidget(QLabel("Prompt"))
+        layout.addWidget(self.prompt_edit)
+
+
 class WorkflowDialog(QDialog):
+    """Dialog for creating or editing workflows."""
+
     def __init__(self, agents, workflow=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Workflow")
         form = QFormLayout(self)
+
+        self.agents = agents
+        self.step_widgets = []
 
         self.name_input = QLineEdit(workflow.get("name", "") if workflow else "")
         form.addRow("Name", self.name_input)
@@ -42,13 +75,22 @@ class WorkflowDialog(QDialog):
             self.turn_spin.setValue(workflow.get("max_turns", 10))
         form.addRow("Max Turns", self.turn_spin)
 
-        self.steps_edit = QTextEdit()
+        self.steps_spin = QSpinBox()
+        self.steps_spin.setMinimum(1)
+        self.steps_spin.setMaximum(20)
+        self.steps_spin.valueChanged.connect(self.sync_step_widgets)
+        form.addRow("Steps", self.steps_spin)
+
+        self.steps_container = QWidget()
+        self.steps_layout = QVBoxLayout(self.steps_container)
+        form.addRow(self.steps_container)
+
         if workflow and workflow.get("steps"):
-            lines = []
+            self.steps_spin.setValue(len(workflow["steps"]))
             for step in workflow["steps"]:
-                lines.append(f"{step['agent']}|{step.get('model','')}|{step.get('system_prompt','')}")
-            self.steps_edit.setPlainText("\n".join(lines))
-        form.addRow("Steps", self.steps_edit)
+                self.add_step_widget(step)
+        else:
+            self.add_step_widget()
 
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -67,7 +109,24 @@ class WorkflowDialog(QDialog):
         self.coordinator_combo.setVisible(agent_managed)
         self.agent_input.setVisible(agent_managed)
         self.turn_spin.setVisible(agent_managed)
-        self.steps_edit.setVisible(not agent_managed)
+        self.steps_spin.setVisible(not agent_managed)
+        self.steps_container.setVisible(not agent_managed)
+        for widget in self.step_widgets:
+            widget.setVisible(not agent_managed)
+
+    def add_step_widget(self, step=None):
+        widget = StepWidget(self.agents, step=step)
+        self.steps_layout.addWidget(widget)
+        self.step_widgets.append(widget)
+
+    def sync_step_widgets(self):
+        count = self.steps_spin.value()
+        while len(self.step_widgets) < count:
+            self.add_step_widget()
+        while len(self.step_widgets) > count:
+            widget = self.step_widgets.pop()
+            self.steps_layout.removeWidget(widget)
+            widget.deleteLater()
 
     def get_data(self):
         data = {
@@ -80,15 +139,11 @@ class WorkflowDialog(QDialog):
         }
         if data["type"] == "user_managed":
             steps = []
-            for line in self.steps_edit.toPlainText().splitlines():
-                parts = [p.strip() for p in line.split("|")]
-                if not parts or not parts[0]:
-                    continue
-                step = {"agent": parts[0]}
-                if len(parts) > 1:
-                    step["model"] = parts[1]
-                if len(parts) > 2:
-                    step["system_prompt"] = parts[2]
+            for widget in self.step_widgets:
+                step = {
+                    "agent": widget.agent_combo.currentText(),
+                    "prompt": widget.prompt_edit.text().strip(),
+                }
                 steps.append(step)
             data["steps"] = steps
         return data

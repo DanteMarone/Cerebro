@@ -85,7 +85,8 @@ When a task becomes due the prompt is sent automatically. Tasks can also be regi
 
 Design multi-agent workflows that can be executed repeatedly.
 - **Agent Managed** – a coordinator assigns subtasks to other agents.
-- **User Managed** – define the exact sequence of agents, models and prompts.
+- **User Managed** – specify the number of steps and for each step choose an agent
+  and an additional prompt to send alongside the chat history.
 
 ## Metrics Tab
 
