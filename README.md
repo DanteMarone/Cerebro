@@ -191,6 +191,14 @@ ollama create my-model -f Modelfile
 ollama run my-model
 ```
 
+Alternatively, start the fine-tune from Python with
+`fine_tuning.train_model()`:
+
+```python
+import fine_tuning
+fine_tuning.train_model("train.jsonl", "llama3")
+```
+
 Select `my-model` in your agent settings to use it in Cerebro.
 
 ## Windows Installer
