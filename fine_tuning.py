@@ -65,6 +65,8 @@ def start_fine_tune(
     dataset: str,
     params: Dict,
     log_callback: Optional[Callable[[str], None]] = None,
+    progress_callback: Optional[Callable[[float], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> threading.Thread:
     """Start supervised fine-tuning in a background thread.
 
@@ -79,6 +81,10 @@ def start_fine_tune(
         ``output_dir``).
     log_callback: Callable[[str], None], optional
         Function called with log messages during training.
+    progress_callback: Callable[[float], None], optional
+        Receives progress percentage updates from 0-100.
+    stop_event: threading.Event, optional
+        Event that can be set to request training cancellation.
 
     Returns
     -------
@@ -124,16 +130,24 @@ def start_fine_tune(
 
         trainer = Trainer(model=model_obj, args=args, train_dataset=ds, data_collator=collator)
 
-        if log_callback:
-            class StreamCallback(TrainerCallback):
-                def on_log(self, args, state, control, logs=None, **kwargs):
-                    if logs:
-                        log_callback(str(logs))
+        class StreamCallback(TrainerCallback):
+            def on_log(self, args, state, control, logs=None, **kwargs):
+                if logs and log_callback:
+                    log_callback(str(logs))
+                if progress_callback and state.max_steps:
+                    pct = (state.global_step / state.max_steps) * 100
+                    progress_callback(pct)
+                if stop_event and stop_event.is_set():
+                    control.should_training_stop = True
+                    control.should_epoch_stop = True
 
-                def on_train_end(self, args, state, control, **kwargs):
+            def on_train_end(self, args, state, control, **kwargs):
+                if progress_callback:
+                    progress_callback(100.0)
+                if log_callback:
                     log_callback("Training complete")
 
-            trainer.add_callback(StreamCallback)
+        trainer.add_callback(StreamCallback)
 
         trainer.train()
 
