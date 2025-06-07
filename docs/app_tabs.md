@@ -61,7 +61,8 @@ Tools are triggered when an agent returns a JSON block in the format produced by
 
 Record and play back desktop actions.
 - **Record** – capture mouse and keyboard events for a duration.
-- **Run** – replay the selected sequence using `pyautogui`.
+- **Run** – replay the selected sequence using `pyautogui`. Mouse moves are
+  skipped so the cursor jumps to each click or drag location.
 - **Delete** – remove a saved automation.
 
 ## Tasks Tab

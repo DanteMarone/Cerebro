@@ -70,7 +70,12 @@ def record_automation(duration: float = 5) -> List[Dict[str, Any]]:
     return events
 
 def run_automation(automations: List[Dict[str, Any]], name: str) -> str:
-    """Replay events for the named automation."""
+    """Replay events for the named automation.
+
+    Mouse movement events are skipped. The cursor jumps to the coordinates of
+    click/drag actions so sequences play back quickly regardless of the original
+    recording speed.
+    """
     auto = next((a for a in automations if a.get("name") == name), None)
     if not auto:
         return f"[Automation Error] '{name}' not found"
@@ -79,21 +84,24 @@ def run_automation(automations: List[Dict[str, Any]], name: str) -> str:
     except Exception:
         return "[Automation Error] pyautogui not installed."
     events = auto.get("events", [])
-    last = 0.0
+    button_down = None
     for evt in events:
-        delay = evt.get("time", 0) - last
-        if delay > 0:
-            time.sleep(delay)
-        last = evt.get("time", 0)
-        if evt["type"] == "move":
-            pyautogui.moveTo(evt["x"], evt["y"])
-        elif evt["type"] == "click" and evt.get("pressed"):
-            pyautogui.click(evt["x"], evt["y"], button=evt.get("button", "left"))
-        elif evt["type"] == "press":
-            key = evt["key"].replace("'", "")
+        etype = evt.get("type")
+        if etype == "click":
+            btn = evt.get("button", "left")
+            if evt.get("pressed"):
+                pyautogui.moveTo(evt["x"], evt["y"])
+                pyautogui.mouseDown(button=btn)
+                button_down = btn
+            else:
+                pyautogui.moveTo(evt["x"], evt["y"])
+                pyautogui.mouseUp(button=button_down or btn)
+                button_down = None
+        elif etype == "press":
+            key = evt.get("key", "").replace("'", "")
             pyautogui.keyDown(key)
-        elif evt["type"] == "release":
-            key = evt["key"].replace("'", "")
+        elif etype == "release":
+            key = evt.get("key", "").replace("'", "")
             pyautogui.keyUp(key)
     return "Automation executed"
 
