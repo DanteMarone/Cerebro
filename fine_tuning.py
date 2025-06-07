@@ -93,6 +93,16 @@ def start_fine_tune(
     """
 
     def train() -> None:
+        if ":" in model:
+            msg = (
+                f"Invalid model identifier '{model}'. "
+                "Use a Hugging Face repo id or local path instead of an "
+                "Ollama-style name."
+            )
+            if log_callback:
+                log_callback(msg)
+            return
+
         from datasets import load_dataset
         from transformers import (
             AutoModelForCausalLM,
