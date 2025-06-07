@@ -65,6 +65,11 @@ def test_execute_workflow_agent():
         "coordinator": "c1",
         "agents": ["a1", "a2"],
     }
-    log, result = workflows.execute_workflow(wf, "start")
-    assert any("c1" in line for line in log)
+    agents_data = {
+        "a1": {"description": "first", "tools_enabled": []},
+        "a2": {"description": "second", "tools_enabled": []},
+    }
+    log, result = workflows.execute_workflow(wf, "start", agents_data)
+    assert log[0].startswith("[c1]: Task: start")
+    assert any("a1" in line for line in log)
     assert result == "Workflow completed"
