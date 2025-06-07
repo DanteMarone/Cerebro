@@ -360,7 +360,9 @@ class AIChatApp(QMainWindow):
     def quit_from_tray(self):
         """Quit the application from the tray icon."""
         self.force_quit = True
-        self.close()
+        if getattr(self, "tray_icon", None):
+            self.tray_icon.hide()
+        QApplication.quit()
             
     def show_help_dialog(self):
         """Show the help dialog."""
