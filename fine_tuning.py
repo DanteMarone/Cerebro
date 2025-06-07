@@ -67,6 +67,7 @@ def start_fine_tune(
     log_callback: Optional[Callable[[str], None]] = None,
     progress_callback: Optional[Callable[[float], None]] = None,
     stop_event: Optional[threading.Event] = None,
+    model_name: Optional[str] = None,
 ) -> threading.Thread:
     """Start supervised fine-tuning in a background thread.
 
@@ -78,13 +79,15 @@ def start_fine_tune(
         Path to the training dataset (CSV or JSON).
     params: dict
         Training parameters (``learning_rate``, ``epochs``, ``batch_size`` and
-        ``output_dir``).
+        ``output_dir``). ``output_dir`` defaults to ``model_name`` if provided.
     log_callback: Callable[[str], None], optional
         Function called with log messages during training.
     progress_callback: Callable[[float], None], optional
         Receives progress percentage updates from 0-100.
     stop_event: threading.Event, optional
         Event that can be set to request training cancellation.
+    model_name: str, optional
+        Name for the trained model. Used as the default output directory.
 
     Returns
     -------
@@ -129,7 +132,7 @@ def start_fine_tune(
         model_obj = AutoModelForCausalLM.from_pretrained(model)
         collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
         args = TrainingArguments(
-            output_dir=params.get("output_dir", "ft_model"),
+            output_dir=params.get("output_dir", model_name or "ft_model"),
             num_train_epochs=params.get("epochs", 1),
             learning_rate=params.get("learning_rate", 5e-5),
             per_device_train_batch_size=params.get("batch_size", 2),

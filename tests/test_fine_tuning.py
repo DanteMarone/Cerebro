@@ -105,7 +105,7 @@ def test_start_fine_tune_thread(monkeypatch):
     dummy_transformers.Trainer = DummyTrainer
     monkeypatch.setitem(sys.modules, "transformers", dummy_transformers)
 
-    thread = start_fine_tune("model", "data.json", {}, log_callback=logs.append)
+    thread = start_fine_tune("model", "data.json", {}, log_callback=logs.append, model_name="my-model")
     thread.join()
 
     assert any("loss" in log for log in logs)
@@ -193,3 +193,61 @@ def test_start_fine_tune_invalid_model(monkeypatch):
     thread.join()
 
     assert any("Invalid model identifier" in log for log in logs)
+
+
+def test_output_dir_from_model_name(monkeypatch):
+    captured = {}
+
+    dummy_ds = types.SimpleNamespace()
+    dummy_ds.map = lambda fn: dummy_ds
+
+    monkeypatch.setitem(
+        sys.modules,
+        "datasets",
+        types.SimpleNamespace(load_dataset=lambda *a, **k: {"train": dummy_ds}),
+    )
+
+    class DummyTokenizer:
+        def __call__(self, text, truncation=True, padding="max_length"):
+            return {"input_ids": [1]}
+
+        def as_target_tokenizer(self):
+            class DummyCtx:
+                def __enter__(self):
+                    return None
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+            return DummyCtx()
+
+    def dummy_args(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    dummy_transformers = types.SimpleNamespace(
+        AutoTokenizer=types.SimpleNamespace(from_pretrained=lambda m: DummyTokenizer()),
+        AutoModelForCausalLM=types.SimpleNamespace(from_pretrained=lambda m: object()),
+        DataCollatorForLanguageModeling=lambda *a, **k: None,
+        TrainingArguments=dummy_args,
+        Trainer=None,
+        TrainerCallback=object,
+    )
+
+    class DummyTrainer:
+        def __init__(self, *a, **k):
+            pass
+
+        def add_callback(self, cb):
+            pass
+
+        def train(self):
+            pass
+
+    dummy_transformers.Trainer = DummyTrainer
+    monkeypatch.setitem(sys.modules, "transformers", dummy_transformers)
+
+    thread = start_fine_tune("model", "data.json", {}, model_name="cool-model")
+    thread.join()
+
+    assert captured.get("output_dir") == "cool-model"
