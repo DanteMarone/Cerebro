@@ -148,6 +148,8 @@ Open the "Docs" tab or press `Ctrl+7` to view the full user guide.
     ```bash
     python local_llm_helper.py install
     python local_llm_helper.py download llama3
+    # After fine-tuning a model
+    python local_llm_helper.py register my-model path/to/model output_models
     ```
 
 ## Usage
