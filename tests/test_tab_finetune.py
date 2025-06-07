@@ -12,6 +12,7 @@ def test_combo_populated(monkeypatch):
     monkeypatch.setattr(tab_finetune, "get_installed_models", lambda: ["m1", "m2"])
     tab = tab_finetune.FinetuneTab(DummyApp())
     assert tab.model_combo.count() == 2
+    assert tab.model_combo.isEditable()
     assert tab.lr_input.value() > 0
     app.quit()
 

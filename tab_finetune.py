@@ -57,6 +57,7 @@ class FinetuneTab(QWidget):
 
         # Base model selection
         self.model_combo = QComboBox()
+        self.model_combo.setEditable(True)
         self.refresh_models()
         layout.addRow(QLabel("Base Model:"), self.model_combo)
 

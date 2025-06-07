@@ -95,7 +95,7 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 *   **Metrics Dashboard:**
     *   View tool usage frequency, completed tasks, and agent response times.
 *   **Finetune Tab:**
-    *   Choose an installed model, set a new model name, and pick datasets to fine-tune a version.
+    *   Select an installed model or type a Hugging Face repo id, set a new model name, and pick datasets to fine-tune a version.
 *   **Documentation Tab:**
     *   Browse the built-in user guide. Documentation is split across multiple pages for easier navigation.
 
