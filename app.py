@@ -41,6 +41,7 @@ from tab_plugins import PluginsTab
 from tab_automations import AutomationsTab
 from tab_tasks import TasksTab
 from tab_metrics import MetricsTab
+from tab_finetune import FinetuneTab
 from tab_docs import DocumentationTab
 from tab_workflows import WorkflowsTab, WorkflowRunnerDialog
 from metrics import load_metrics, record_tool_usage, record_response_time
@@ -190,8 +191,12 @@ class AIChatApp(QMainWindow):
         self.nav_buttons["metrics"] = self.create_nav_button("Metrics", 7)
         sidebar_layout.addWidget(self.nav_buttons["metrics"])
 
+        # Finetune button
+        self.nav_buttons["finetune"] = self.create_nav_button("Finetune", 8)
+        sidebar_layout.addWidget(self.nav_buttons["finetune"])
+
         # Docs button
-        self.nav_buttons["docs"] = self.create_nav_button("Docs", 8)
+        self.nav_buttons["docs"] = self.create_nav_button("Docs", 9)
         sidebar_layout.addWidget(self.nav_buttons["docs"])
         
         # Add stretcher to push settings button to bottom
@@ -226,6 +231,7 @@ class AIChatApp(QMainWindow):
         self.tasks_tab = TasksTab(self)
         self.workflows_tab = WorkflowsTab(self)
         self.metrics_tab = MetricsTab(self)
+        self.finetune_tab = FinetuneTab(self)
         self.docs_tab = DocumentationTab(self)
         
         # Add pages to stacked widget
@@ -237,6 +243,7 @@ class AIChatApp(QMainWindow):
         self.content_stack.addWidget(self.tasks_tab)
         self.content_stack.addWidget(self.workflows_tab)
         self.content_stack.addWidget(self.metrics_tab)
+        self.content_stack.addWidget(self.finetune_tab)
         self.content_stack.addWidget(self.docs_tab)
         
         main_layout.addWidget(self.content_stack)
@@ -350,7 +357,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7', '8', '9']):
+        for i, key in enumerate(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
