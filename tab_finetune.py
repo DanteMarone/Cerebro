@@ -1,9 +1,28 @@
 from PyQt5.QtWidgets import (
     QWidget, QFormLayout, QLabel, QComboBox, QLineEdit,
     QHBoxLayout, QPushButton, QFileDialog, QDoubleSpinBox, QSpinBox,
-    QMessageBox
+    QMessageBox, QVBoxLayout, QTextEdit, QDialog, QApplication
 )
 from local_llm_helper import get_installed_models
+from fine_tuning import start_fine_tune
+
+
+class TrainingDialog(QDialog):
+    """Dialog window to display training logs."""
+
+    def __init__(self, model: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Fine-tuning - {model}")
+        layout = QVBoxLayout(self)
+        self.log_display = QTextEdit()
+        self.log_display.setReadOnly(True)
+        layout.addWidget(self.log_display)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.reject)
+        layout.addWidget(close_btn)
+
+    def append_line(self, text: str) -> None:
+        self.log_display.append(text)
 
 
 class FinetuneTab(QWidget):
@@ -78,6 +97,24 @@ class FinetuneTab(QWidget):
             self.val_edit.setText(path)
 
     def start_training(self):
-        """Placeholder for starting the training process."""
-        QMessageBox.information(self, "Finetune", "Training not yet implemented.")
+        """Start fine-tuning using the selected options."""
+        model = self.model_combo.currentText()
+        train_path = self.train_edit.text().strip()
+        if not model or not train_path:
+            QMessageBox.warning(self, "Finetune", "Model and training dataset are required.")
+            return
 
+        params = {
+            "learning_rate": self.lr_input.value(),
+            "epochs": self.epochs_input.value(),
+            "batch_size": self.batch_input.value(),
+        }
+
+        dlg = TrainingDialog(model, self)
+        dlg.show()
+
+        def log(msg: str) -> None:
+            dlg.append_line(msg)
+            QApplication.processEvents()
+
+        start_fine_tune(model, train_path, params, log_callback=log)

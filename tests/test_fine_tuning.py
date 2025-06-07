@@ -1,6 +1,13 @@
 import json
 import csv
-from fine_tuning import validate_dataset_path, convert_dataset_format, preview_dataset_samples
+import types
+import sys
+from fine_tuning import (
+    validate_dataset_path,
+    convert_dataset_format,
+    preview_dataset_samples,
+    start_fine_tune,
+)
 
 
 def test_validate_dataset_path(tmp_path):
@@ -45,3 +52,60 @@ def test_preview_dataset_samples(tmp_path):
     json_file.write_text(json.dumps(data))
     preview = preview_dataset_samples(str(json_file), num_samples=2)
     assert preview == data[:2]
+
+
+def test_start_fine_tune_thread(monkeypatch):
+    logs = []
+
+    dummy_ds = types.SimpleNamespace()
+    dummy_ds.map = lambda fn: dummy_ds
+
+    monkeypatch.setitem(
+        sys.modules,
+        "datasets",
+        types.SimpleNamespace(load_dataset=lambda *a, **k: {"train": dummy_ds}),
+    )
+
+    class DummyTokenizer:
+        def __call__(self, text, truncation=True, padding="max_length"):
+            return {"input_ids": [1]}
+
+        def as_target_tokenizer(self):
+            class DummyCtx:
+                def __enter__(self):
+                    return None
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+            return DummyCtx()
+
+    dummy_transformers = types.SimpleNamespace(
+        AutoTokenizer=types.SimpleNamespace(from_pretrained=lambda m: DummyTokenizer()),
+        AutoModelForCausalLM=types.SimpleNamespace(from_pretrained=lambda m: object()),
+        DataCollatorForLanguageModeling=lambda *a, **k: None,
+        TrainingArguments=lambda **k: object(),
+        Trainer=None,
+        TrainerCallback=object,
+    )
+
+    class DummyTrainer:
+        def __init__(self, *a, **k):
+            self.callback = None
+
+        def add_callback(self, cb):
+            self.callback = cb() if isinstance(cb, type) else cb
+
+        def train(self):
+            if self.callback:
+                self.callback.on_log(None, None, None, {"loss": 0.1})
+                self.callback.on_train_end(None, None, None)
+
+    dummy_transformers.Trainer = DummyTrainer
+    monkeypatch.setitem(sys.modules, "transformers", dummy_transformers)
+
+    thread = start_fine_tune("model", "data.json", {}, log_callback=logs.append)
+    thread.join()
+
+    assert any("loss" in log for log in logs)
+    assert logs[-1] == "Training complete"

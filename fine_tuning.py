@@ -1,9 +1,10 @@
 """Utilities for dataset handling during fine-tuning."""
 
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Callable, Optional
 import csv
 import json
+import threading
 
 
 def validate_dataset_path(path: str) -> bool:
@@ -57,3 +58,85 @@ def preview_dataset_samples(path: str, num_samples: int = 5) -> List[Dict[str, s
     """Return the first ``num_samples`` items of the dataset for preview."""
     data = convert_dataset_format(path)
     return data[:num_samples]
+
+
+def start_fine_tune(
+    model: str,
+    dataset: str,
+    params: Dict,
+    log_callback: Optional[Callable[[str], None]] = None,
+) -> threading.Thread:
+    """Start supervised fine-tuning in a background thread.
+
+    Parameters
+    ----------
+    model: str
+        Name or path of the base model.
+    dataset: str
+        Path to the training dataset (CSV or JSON).
+    params: dict
+        Training parameters (``learning_rate``, ``epochs``, ``batch_size`` and
+        ``output_dir``).
+    log_callback: Callable[[str], None], optional
+        Function called with log messages during training.
+
+    Returns
+    -------
+    threading.Thread
+        The thread running the training process.
+    """
+
+    def train() -> None:
+        from datasets import load_dataset
+        from transformers import (
+            AutoModelForCausalLM,
+            AutoTokenizer,
+            DataCollatorForLanguageModeling,
+            Trainer,
+            TrainingArguments,
+            TrainerCallback,
+        )
+
+        ds = load_dataset("json" if dataset.lower().endswith(".json") else "csv", data_files={"train": dataset})
+
+        tokenizer = AutoTokenizer.from_pretrained(model)
+
+        def tokenize(sample):
+            inputs = tokenizer(sample["prompt"], truncation=True, padding="max_length")
+            with tokenizer.as_target_tokenizer():
+                labels = tokenizer(sample["completion"], truncation=True, padding="max_length")
+            inputs["labels"] = labels["input_ids"]
+            return inputs
+
+        ds = ds["train"].map(tokenize)
+
+        model_obj = AutoModelForCausalLM.from_pretrained(model)
+        collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
+        args = TrainingArguments(
+            output_dir=params.get("output_dir", "ft_model"),
+            num_train_epochs=params.get("epochs", 1),
+            learning_rate=params.get("learning_rate", 5e-5),
+            per_device_train_batch_size=params.get("batch_size", 2),
+            logging_steps=1,
+            report_to="none",
+            remove_unused_columns=False,
+        )
+
+        trainer = Trainer(model=model_obj, args=args, train_dataset=ds, data_collator=collator)
+
+        if log_callback:
+            class StreamCallback(TrainerCallback):
+                def on_log(self, args, state, control, logs=None, **kwargs):
+                    if logs:
+                        log_callback(str(logs))
+
+                def on_train_end(self, args, state, control, **kwargs):
+                    log_callback("Training complete")
+
+            trainer.add_callback(StreamCallback)
+
+        trainer.train()
+
+    thread = threading.Thread(target=train, daemon=True)
+    thread.start()
+    return thread

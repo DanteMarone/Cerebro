@@ -195,6 +195,10 @@ ollama run my-model
 
 Select `my-model` in your agent settings to use it in Cerebro.
 
+You can also launch training directly from the **Finetune** tab. Cerebro uses
+the Hugging Face `transformers` library to fine-tune in a background thread and
+streams progress to the UI.
+
 ## Windows Installer
 
 Use PyInstaller to create a stand-alone Windows build. First install PyInstaller and then run `build_windows_installer.bat` from a command prompt. The executable will be created in the `dist` directory.

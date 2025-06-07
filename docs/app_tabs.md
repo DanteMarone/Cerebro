@@ -117,6 +117,8 @@ Prepare datasets and parameters to train a custom model.
 - **Learning Rate** – optimizer step size.
 - **Epochs** – number of passes over the dataset.
 - **Batch Size** – how many samples per batch.
+Start training with the **Start Training** button. Logs stream to a dialog while
+the process runs in the background.
 
 ## Documentation Tab
 
