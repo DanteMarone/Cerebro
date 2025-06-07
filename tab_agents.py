@@ -3,6 +3,7 @@ import os
 import json
 import copy
 import requests
+import tts
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton,
     QHBoxLayout, QComboBox, QFrame, QLineEdit, QTextEdit, QCheckBox,
@@ -190,6 +191,13 @@ class AgentsTab(QWidget):
         self.tts_checkbox = QCheckBox("Enable Text-to-Speech")
         self.tts_checkbox.setToolTip("Speak this agent's replies aloud.")
         self.agent_settings_layout.addRow("", self.tts_checkbox)
+
+        self.voice_combo = QComboBox()
+        self.voice_combo.addItem("Default")
+        for name in tts.get_available_voice_names():
+            self.voice_combo.addItem(name)
+        self.voice_combo.setToolTip("Select the voice used for Text-to-Speech.")
+        self.agent_settings_layout.addRow("Voice", self.voice_combo)
         
         edit_layout.addLayout(self.agent_settings_layout)
 
@@ -210,6 +218,7 @@ class AgentsTab(QWidget):
         self.thinking_checkbox.stateChanged.connect(self.mark_unsaved)
         self.thinking_steps_input.valueChanged.connect(self.mark_unsaved)
         self.tts_checkbox.stateChanged.connect(self.mark_unsaved)
+        self.voice_combo.currentIndexChanged.connect(self.mark_unsaved)
         self.name_input.textChanged.connect(self.mark_unsaved)
         
         # Initially hide the managed agents list
@@ -246,6 +255,7 @@ class AgentsTab(QWidget):
         self.thinking_checkbox.blockSignals(True)
         self.thinking_steps_input.blockSignals(True)
         self.tts_checkbox.blockSignals(True)
+        self.voice_combo.blockSignals(True)
         
         # Set form values
         self.name_input.setText(agent_name)
@@ -288,6 +298,16 @@ class AgentsTab(QWidget):
         self.thinking_checkbox.setChecked(agent_settings.get("thinking_enabled", False))
         self.thinking_steps_input.setValue(agent_settings.get("thinking_steps", 3))
         self.tts_checkbox.setChecked(agent_settings.get("tts_enabled", False))
+        voice_name = agent_settings.get("tts_voice", "")
+        if voice_name:
+            idx = self.voice_combo.findText(voice_name)
+            if idx >= 0:
+                self.voice_combo.setCurrentIndex(idx)
+            else:
+                self.voice_combo.addItem(voice_name)
+                self.voice_combo.setCurrentIndex(self.voice_combo.count() - 1)
+        else:
+            self.voice_combo.setCurrentIndex(0)
         
         # Update tools list
         self.tools_list.clear()
@@ -325,6 +345,7 @@ class AgentsTab(QWidget):
         self.thinking_checkbox.blockSignals(False)
         self.thinking_steps_input.blockSignals(False)
         self.tts_checkbox.blockSignals(False)
+        self.voice_combo.blockSignals(False)
         
         # Update visibility based on current settings
         self.update_managed_agents_visibility()
@@ -397,6 +418,7 @@ class AgentsTab(QWidget):
             "thinking_enabled": self.thinking_checkbox.isChecked(),
             "thinking_steps": self.thinking_steps_input.value(),
             "tts_enabled": self.tts_checkbox.isChecked(),
+            "tts_voice": self.voice_combo.currentText() if self.voice_combo.currentIndex() > 0 else "",
         }
         
         # Get color from button

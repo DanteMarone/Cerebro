@@ -11,6 +11,7 @@ class DummyApp:
                 'tool_use': False,
                 'tools_enabled': [],
                 'tts_enabled': True,
+                'tts_voice': '',
                 'color': '#000'
             }
         }
@@ -25,7 +26,7 @@ def test_tts_called(monkeypatch):
     app = DummyApp()
     broker = message_broker.MessageBroker(app)
     called = {}
-    monkeypatch.setattr(tts, 'speak_text', lambda text: called.setdefault('text', text))
+    monkeypatch.setattr(tts, 'speak_text', lambda text, voice=None: called.setdefault('text', text))
 
     class DummyThread:
         def quit(self):

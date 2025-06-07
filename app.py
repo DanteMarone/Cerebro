@@ -761,7 +761,8 @@ class AIChatApp(QMainWindow):
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
                 )
                 if agent_settings.get('tts_enabled'):
-                    tts.speak_text(clean_content)
+                    voice = agent_settings.get('tts_voice')
+                    tts.speak_text(clean_content, voice)
 
                 # Store only the clean content without thoughts in history
                 append_message(
@@ -797,7 +798,8 @@ class AIChatApp(QMainWindow):
                 f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
             )
             if agent_settings.get('tts_enabled'):
-                tts.speak_text(clean_content)
+                voice = agent_settings.get('tts_voice')
+                tts.speak_text(clean_content, voice)
 
             # Store only the clean content without thoughts in history
             append_message(
@@ -1055,7 +1057,8 @@ class AIChatApp(QMainWindow):
                     "automations_enabled": [],
                 "thinking_enabled": False,
                 "thinking_steps": 3,
-                "tts_enabled": False
+                "tts_enabled": False,
+                "tts_voice": ""
             }
                 self.save_agents()
                 if self.debug_enabled:
