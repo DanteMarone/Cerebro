@@ -44,7 +44,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
     *   The Tool script editor features Python syntax highlighting when QScintilla is installed.
     *   The Settings dialog provides buttons to update the Ollama runtime and refresh individual models. Model names are cached so the dialog opens quickly.
 
-*   **Automations Tab:** Record desktop actions and replay them later.
+*   **Automations Tab:** Record desktop actions and replay them later. Playback
+    jumps directly to click and drag positions for quicker execution.
 
 *   **Task Scheduling:**
     *   Agents can schedule tasks to be executed at a specific time. New tasks default to one minute from the current time.

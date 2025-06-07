@@ -55,6 +55,8 @@ def test_record_and_play(tmp_path, monkeypatch):
     actions = []
     fake_pg = types.SimpleNamespace(
         moveTo=lambda x, y: actions.append(("move", x, y)),
+        mouseDown=lambda button="left": actions.append(("down", button)),
+        mouseUp=lambda button="left": actions.append(("up", button)),
         click=lambda x, y, button="left": actions.append(("click", x, y, button)),
         keyDown=lambda k: actions.append(("down", k)),
         keyUp=lambda k: actions.append(("up", k)),
@@ -64,6 +66,35 @@ def test_record_and_play(tmp_path, monkeypatch):
     result = auto.run_automation([{"name": "test", "events": data}], "test")
     assert "Automation executed" in result
     assert any(a[0] == "move" for a in actions)
+
+
+def test_run_automation_jumps_to_clicks(monkeypatch):
+    events = [
+        {"type": "move", "x": 1, "y": 1, "time": 0.0},
+        {"type": "click", "x": 1, "y": 1, "button": "left", "pressed": True, "time": 0.1},
+        {"type": "move", "x": 2, "y": 2, "time": 0.2},
+        {"type": "move", "x": 3, "y": 3, "time": 0.3},
+        {"type": "click", "x": 5, "y": 5, "button": "left", "pressed": False, "time": 0.4},
+    ]
+
+    actions = []
+    fake_pg = types.SimpleNamespace(
+        moveTo=lambda x, y: actions.append(("move", x, y)),
+        mouseDown=lambda button="left": actions.append(("down", button)),
+        mouseUp=lambda button="left": actions.append(("up", button)),
+        keyDown=lambda k: actions.append(("downkey", k)),
+        keyUp=lambda k: actions.append(("upkey", k)),
+    )
+    monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
+
+    result = auto.run_automation([{"name": "demo", "events": events}], "demo")
+    assert result == "Automation executed"
+    assert actions == [
+        ("move", 1, 1),
+        ("down", "left"),
+        ("move", 5, 5),
+        ("up", "left"),
+    ]
 
 
 def test_missing_modules(monkeypatch):
