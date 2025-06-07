@@ -86,6 +86,8 @@ class AIChatApp(QMainWindow):
         self.screenshot_interval = 5
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
+        self.notifications_paused = False
+        self.screenshot_paused = False
         
         # Initialize notification system
         self.notifications = []
@@ -350,6 +352,19 @@ class AIChatApp(QMainWindow):
         toggle_action.triggered.connect(self.toggle_theme)
         tray_menu.addAction(toggle_action)
 
+        self.pause_notifications_action = QAction("Pause Notifications", self)
+        self.pause_notifications_action.triggered.connect(self.toggle_notifications)
+        tray_menu.addAction(self.pause_notifications_action)
+
+        text = (
+            "Stop Screenshot Capture"
+            if self.screenshot_manager.timer.isActive()
+            else "Start Screenshot Capture"
+        )
+        self.screenshot_capture_action = QAction(text, self)
+        self.screenshot_capture_action.triggered.connect(self.toggle_screenshot_capture)
+        tray_menu.addAction(self.screenshot_capture_action)
+
         quit_action = QAction("Quit", self)
         quit_action.triggered.connect(self.quit_from_tray)
         tray_menu.addAction(quit_action)
@@ -401,11 +416,12 @@ class AIChatApp(QMainWindow):
     def show_notification(self, message, type="info"):
         """Show a toast notification."""
         self.notifications.append({"message": message, "type": type})
-        self.process_notifications()
+        if not self.notifications_paused:
+            self.process_notifications()
         
     def process_notifications(self):
         """Process pending notifications."""
-        if not self.notifications:
+        if self.notifications_paused or not self.notifications:
             return
             
         # Get the next notification
@@ -476,9 +492,31 @@ class AIChatApp(QMainWindow):
         self.dark_mode = not self.dark_mode
         self.apply_updated_styles()
         self.save_settings()
-        
+
         theme_name = "Dark" if self.dark_mode else "Light"
         self.show_notification(f"Switched to {theme_name} Mode")
+
+    def toggle_notifications(self):
+        """Pause or resume toast notifications."""
+        self.notifications_paused = not self.notifications_paused
+        text = "Resume Notifications" if self.notifications_paused else "Pause Notifications"
+        self.pause_notifications_action.setText(text)
+        if not self.notifications_paused:
+            self.process_notifications()
+        state = "paused" if self.notifications_paused else "resumed"
+        self.show_notification(f"Notifications {state}")
+
+    def toggle_screenshot_capture(self):
+        """Start or stop screenshot capture."""
+        self.screenshot_paused = not self.screenshot_paused
+        if self.screenshot_paused:
+            self.screenshot_manager.stop()
+            self.screenshot_capture_action.setText("Start Screenshot Capture")
+            self.show_notification("Screenshot capture stopped")
+        else:
+            self.update_screenshot_timer()
+            self.screenshot_capture_action.setText("Stop Screenshot Capture")
+            self.show_notification("Screenshot capture started")
 
     # -------------------------------------------------------------------------
     # Settings Dialog
@@ -1103,7 +1141,7 @@ class AIChatApp(QMainWindow):
         enabled_agents = [
             a for a in self.agents_data.values() if a.get("desktop_history_enabled", False)
         ]
-        if not enabled_agents:
+        if not enabled_agents or self.screenshot_paused:
             self.screenshot_manager.stop()
             return
 

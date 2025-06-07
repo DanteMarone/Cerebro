@@ -32,6 +32,7 @@ class DummyAppBase:
         self.screenshot_interval = 5
         self.agents_tab = DummyAgentsTab()
         self.screenshot_manager = DummyManager()
+        self.screenshot_paused = False
         self.agents_data = {"a": {"desktop_history_enabled": True}}
     def apply_updated_styles(self):
         pass
@@ -62,6 +63,12 @@ def test_update_screenshot_timer_uses_global(monkeypatch):
     app.AIChatApp.update_screenshot_timer(dummy)
     assert dummy.screenshot_manager.started == 7
 
+    dummy.screenshot_paused = True
+    dummy.screenshot_manager = DummyManager()
+    app.AIChatApp.update_screenshot_timer(dummy)
+    assert dummy.screenshot_manager.stopped
+
+    dummy.screenshot_paused = False
     dummy.agents_data = {}
     dummy.screenshot_manager = DummyManager()
     app.AIChatApp.update_screenshot_timer(dummy)
