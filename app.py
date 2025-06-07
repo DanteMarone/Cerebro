@@ -84,6 +84,7 @@ class AIChatApp(QMainWindow):
         self.accent_color = "#803391"
         self.dark_mode = True
         self.screenshot_interval = 5
+        self.summarization_threshold = 20
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
         
@@ -499,6 +500,9 @@ class AIChatApp(QMainWindow):
             self.debug_enabled = settings_data["debug_enabled"]
             self.screenshot_interval = settings_data.get(
                 "screenshot_interval", self.screenshot_interval
+            )
+            self.summarization_threshold = settings_data.get(
+                "summarization_threshold", self.summarization_threshold
             )
             self.apply_updated_styles()
             self.agents_tab.update_model_dropdown()
@@ -1231,7 +1235,9 @@ class AIChatApp(QMainWindow):
     def build_agent_chat_history(self, agent_name, user_message=None, is_screenshot=False):
         # Reload history from disk to ensure persistence
         self.chat_history = load_history(self.debug_enabled)
-        self.chat_history = summarize_history(self.chat_history)
+        self.chat_history = summarize_history(
+            self.chat_history, threshold=self.summarization_threshold
+        )
 
         system_prompt = ""
         agent_settings = self.agents_data.get(agent_name, {})
@@ -1329,6 +1335,7 @@ class AIChatApp(QMainWindow):
             "accent_color": self.accent_color,
             "dark_mode": self.dark_mode,
             "screenshot_interval": self.screenshot_interval,
+            "summarization_threshold": self.summarization_threshold,
         }
         try:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -1353,6 +1360,9 @@ class AIChatApp(QMainWindow):
                 self.dark_mode = settings.get("dark_mode", False)
                 self.screenshot_interval = settings.get(
                     "screenshot_interval", self.screenshot_interval
+                )
+                self.summarization_threshold = settings.get(
+                    "summarization_threshold", self.summarization_threshold
                 )
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")

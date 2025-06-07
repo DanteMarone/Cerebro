@@ -276,6 +276,17 @@ class SettingsDialog(QDialog):
         )
         layout.addWidget(self.interval_spin)
 
+        # Summarization Threshold
+        layout.addWidget(QLabel("Summarization Threshold:"))
+        self.threshold_spin = QSpinBox()
+        self.threshold_spin.setRange(0, 200)
+        self.threshold_spin.setValue(self.parent.summarization_threshold)
+        self.threshold_spin.setToolTip(
+            "Number of recent messages to keep before summarizing."
+            " Set to 0 to disable summarization."
+        )
+        layout.addWidget(self.threshold_spin)
+
         # --- Ollama Updates ---
         update_label = QLabel("Update Ollama and Models:")
         layout.addWidget(update_label)
@@ -329,6 +340,7 @@ class SettingsDialog(QDialog):
             "accent_color": self.parent.accent_color,
             "debug_enabled": self.debug_enabled_checkbox.isChecked(),
             "screenshot_interval": self.interval_spin.value(),
+            "summarization_threshold": self.threshold_spin.value(),
         }
 
     def update_ollama(self):

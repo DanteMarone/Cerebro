@@ -235,6 +235,8 @@ user_name: The user's display name.
 user_color: The user's chat message color.
 accent_color: The primary UI accent color used in the application theme.
 dark_mode: Enables dark mode (boolean, default true).
+summarization_threshold: Number of recent messages to keep before summarizing.
+    Set to 0 to disable summarization.
 tools.json
 This file defines available tools.
 
