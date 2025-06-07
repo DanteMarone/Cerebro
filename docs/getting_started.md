@@ -31,6 +31,6 @@ Follow these steps to set up Cerebro.
    ```bash
    python main.py
    ```
-   Set the environment variable `DEBUG_MODE=1` to enable verbose logging.
+   Debug logging is enabled by default. Set the environment variable `DEBUG_MODE=0` to disable it.
 
 To create a Windows installer, install PyInstaller and run `build_windows_installer.bat`. The resulting executable will appear in the `dist` directory.

@@ -170,10 +170,10 @@ Open the "Docs" tab or press `Ctrl+7` to view the full user guide.
     python main.py
     ```
 
-    *   To enable debug mode, set the `DEBUG_MODE` environment variable to 1:
+    *   Debug mode is enabled by default. Set the `DEBUG_MODE` environment variable to 0 to disable it:
 
-        *   **Linux/macOS:** `DEBUG_MODE=1 python main.py`
-        *   **Windows:** `set DEBUG_MODE=1 & python main.py`
+        *   **Linux/macOS:** `DEBUG_MODE=0 python main.py`
+        *   **Windows:** `set DEBUG_MODE=0 & python main.py`
 
 ## Fine-tuning a Model
 
@@ -261,7 +261,7 @@ This file stores the configuration for each agent.
 settings.json
 This file stores global application settings.
 
-debug_enabled: Enables debug mode (boolean).
+debug_enabled: Enables debug mode (boolean, default true).
 include_image: Currently unused.
 include_screenshot: Deprecated.
 image_path: Currently unused.
