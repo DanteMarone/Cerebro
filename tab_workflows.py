@@ -12,8 +12,10 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QLabel,
+    QTextEdit,
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
 
 import workflows
 
@@ -34,6 +36,42 @@ class StepWidget(QWidget):
         layout.addWidget(self.agent_combo)
         layout.addWidget(QLabel("Prompt"))
         layout.addWidget(self.prompt_edit)
+
+
+class PromptDialog(QDialog):
+    """Prompt dialog for starting a workflow."""
+
+    def __init__(self, workflow_name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Run {workflow_name}")
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Initial Prompt"))
+        self.prompt_edit = QLineEdit()
+        layout.addWidget(self.prompt_edit)
+        start_btn = QPushButton("Start Workflow")
+        start_btn.clicked.connect(self.accept)
+        layout.addWidget(start_btn)
+
+    def get_prompt(self):
+        return self.prompt_edit.text().strip()
+
+
+class WorkflowRunnerDialog(QDialog):
+    """Simple window to show workflow execution logs."""
+
+    def __init__(self, workflow_name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Workflow Runner - {workflow_name}")
+        layout = QVBoxLayout(self)
+        self.log_display = QTextEdit()
+        self.log_display.setReadOnly(True)
+        layout.addWidget(self.log_display)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+    def append_line(self, text):
+        self.log_display.append(text)
 
 
 class WorkflowDialog(QDialog):
@@ -177,14 +215,17 @@ class WorkflowsTab(QWidget):
         self.add_btn = QPushButton("Add Workflow")
         self.edit_btn = QPushButton("Edit")
         self.del_btn = QPushButton("Delete")
+        self.run_btn = QPushButton("Run")
         btn_layout.addWidget(self.add_btn)
         btn_layout.addWidget(self.edit_btn)
         btn_layout.addWidget(self.del_btn)
+        btn_layout.addWidget(self.run_btn)
         layout.addLayout(btn_layout)
 
         self.add_btn.clicked.connect(self.add_workflow)
         self.edit_btn.clicked.connect(self.edit_workflow)
         self.del_btn.clicked.connect(self.delete_workflow)
+        self.run_btn.clicked.connect(self.run_workflow)
 
         self.refresh_list()
 
@@ -231,3 +272,23 @@ class WorkflowsTab(QWidget):
             workflows.delete_workflow(self.workflows, wf_id)
             self.parent_app.workflows = self.workflows
             self.refresh_list()
+
+    def run_workflow(self):
+        item = self.list_widget.currentItem()
+        if not item:
+            return
+        wf_id = item.data(Qt.UserRole)
+        wf = next((w for w in self.workflows if w['id'] == wf_id), None)
+        if not wf:
+            return
+        prompt_dlg = PromptDialog(wf['name'], self)
+        if prompt_dlg.exec_() != QDialog.Accepted:
+            return
+        start_prompt = prompt_dlg.get_prompt()
+        runner = WorkflowRunnerDialog(wf['name'], self)
+        runner.show()
+        log, result = workflows.execute_workflow(wf, start_prompt, self.parent_app.agents_data)
+        for line in log:
+            runner.append_line(line)
+            QApplication.processEvents()
+        QMessageBox.information(self, "Workflow Result", result)
