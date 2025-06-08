@@ -241,7 +241,7 @@ class TaskDialog(QDialog):
         self.repeat_spin.setMaximum(525600)  # up to a year
         self.repeat_spin.setValue(self.repeat_interval)
         self.repeat_spin.setToolTip("Minutes between repetitions. 0 for none.")
-details_layout.addWidget(self.repeat_spin)
+        details_layout.addWidget(self.repeat_spin)
 
         # Priority
         details_layout.addWidget(QLabel("Priority:"))
