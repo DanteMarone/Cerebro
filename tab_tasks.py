@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
 )
 from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData, QRect
+from datetime import timedelta
 from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
 from dialogs import TaskDialog
 from tasks import (
@@ -29,7 +30,17 @@ from tasks import (
     update_task_due_time,
     compute_task_progress,
     save_tasks,
+    compute_task_times,
 )
+
+# Mapping of task status to display color and icon.
+STATUS_STYLES = {
+    "pending": {"color": "#3daee9", "icon": QStyle.SP_FileDialogNewFolder},
+    "in_progress": {"color": "#ff9800", "icon": QStyle.SP_MediaPlay},
+    "completed": {"color": "#4caf50", "icon": QStyle.SP_DialogApplyButton},
+    "failed": {"color": "#f44336", "icon": QStyle.SP_MessageBoxWarning},
+    "on_hold": {"color": "#9e9e9e", "icon": QStyle.SP_MediaPause},
+}
 
 
 class TaskListWidget(QListWidget):
@@ -119,14 +130,25 @@ class TasksTab(QWidget):
         # Filter controls
         filter_layout = QHBoxLayout()
         self.agent_filter = QComboBox()
-        self.agent_filter.addItem("All Agents")
+        self.agent_filter.setToolTip("Filter tasks by assignee")
+        self.agent_filter.addItem("All Assignees")
         for name in getattr(self.parent_app, "agents_data", {}).keys():
             self.agent_filter.addItem(name)
         self.agent_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.agent_filter)
 
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["All Statuses", "pending", "completed"])
+        self.status_filter = QComboBox()
+        self.status_filter.setToolTip("Filter tasks by status")
+        self.status_filter.addItems([
+            "All Statuses",
+            "pending",
+            "in_progress",
+            "completed",
+            "failed",
+            "on_hold",
+        ])
+        self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.status_filter)
         self.layout.addLayout(filter_layout)
@@ -217,7 +239,7 @@ class TasksTab(QWidget):
         status_filter = self.status_filter.currentText()
         filtered = []
         for task in self.tasks:
-            if agent_filter != "All Agents" and task.get("agent_name") != agent_filter:
+            if agent_filter != "All Assignees" and task.get("agent_name") != agent_filter:
                 continue
             if status_filter != "All Statuses" and task.get("status", "pending") != status_filter:
                 continue
@@ -251,9 +273,24 @@ class TasksTab(QWidget):
         status = task.get("status", "pending")
         repeat = task.get("repeat_interval", 0)
         repeat_str = f" every {repeat}m" if repeat else ""
-        summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
+        summary = f"[{due_time}] {agent_name}{repeat_str} - {prompt[:30]}..."
         label = QLabel(summary)
+        label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
         layout.addWidget(label)
+
+        style = STATUS_STYLES.get(status, {"color": "black", "icon": QStyle.SP_FileIcon})
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        icon_label = QLabel()
+        icon = self.style().standardIcon(style["icon"])
+        icon_label.setPixmap(icon.pixmap(16, 16))
+        status_layout.addWidget(icon_label)
+        text_label = QLabel(status.replace("_", " ").title())
+        text_label.setStyleSheet(f"color: {style['color']}; font-weight: bold;")
+        status_layout.addWidget(text_label)
+        status_widget = QWidget()
+        status_widget.setLayout(status_layout)
+        layout.addWidget(status_widget)
 
         progress = compute_task_progress(task)
         bar = QProgressBar()
@@ -261,6 +298,12 @@ class TasksTab(QWidget):
         bar.setValue(progress)
         bar.setFixedWidth(100)
         layout.addWidget(bar)
+
+        elapsed, remaining = compute_task_times(task)
+        elapsed_label = QLabel(f"Elapsed: {timedelta(seconds=elapsed)}")
+        remaining_label = QLabel(f"ETA: {timedelta(seconds=remaining)}")
+        layout.addWidget(elapsed_label)
+        layout.addWidget(remaining_label)
 
         edit_btn = QPushButton("Edit")
         edit_btn.setProperty("task_id", task["id"])
