@@ -18,6 +18,7 @@ Select a topic from the list below or from the Docs tab within the application t
     - Metrics Tab
     - Finetune Tab (see also [Fine-tuning a Model](#fine-tuning-a-model) below)
     - Documentation Tab
+- **[Agents Help](agents_help.md):** Quick reference for agent configuration options accessed via the "?" buttons.
 - **[Configuration](configuration.md):** Explanation of the various JSON configuration files used by Cerebro (`agents.json`, `settings.json`, etc.).
 - **[Plugins and Tools](plugins.md):** Understanding how to use and develop tools and plugins for Cerebro.
 - **[System Tray](system_tray.md):** Using the system tray icon for quick actions.
@@ -29,7 +30,8 @@ Cerebro is a multi-agent AI application with a rich set of features:
 
 - **Agent Management:** Configure multiple AI agents with different models, roles (Coordinator, Assistant, Specialist), and capabilities.
 - **Tool Integration:** Extend agent capabilities with custom tools.
-- **Task Automation:** Record desktop automations and schedule tasks for agents.
+- **Task Automation:** Record desktop automations and schedule tasks for agents with inline editing, bulk changes, drag-and-drop reordering, duplication, and undo for deleted tasks.
+Reasoning for this resolution:
 - **Workflows:** Define complex, multi-agent workflows.
 - **Customization:** Personalize the UI with themes, colors, and more.
 - **Model Fine-tuning:** Adapt existing language models with your own data directly within the application.
@@ -53,7 +55,12 @@ FROM llama3
 ADAPTER ./train.jsonl
 ```
 
+
 Then run `ollama create my-model -f Modelfile` and `ollama run my-model` to test the result. Once created, you can select `my-model` in your agent settings within Cerebro.
+
+## Troubleshooting and Logs
+
+Cerebro records debug output to `cerebro.log` in the application directory. Error messages shown in the chat include a **View Logs** link that opens this file. Checking the log is useful when diagnosing connection issues or other problems.
 
 ## Staying Updated
 
