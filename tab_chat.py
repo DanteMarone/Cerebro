@@ -1,7 +1,19 @@
 #tab_chat.py
 from PyQt5 import QtCore
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5 import QtCore
+from PyQt5.QtCore import (
+    Qt,
+    QTimer,
+    QPoint,
+    QPropertyAnimation,
+    QAbstractAnimation,
+)
 from datetime import datetime, timedelta
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
+    QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
+    QFileDialog, QToolTip
+)
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
     QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
@@ -205,11 +217,19 @@ class ChatTab(QWidget):
         if obj == self.user_input and event.type() == QtCore.QEvent.KeyPress:
             if event.key() == QtCore.Qt.Key_Return and not event.modifiers() & QtCore.Qt.ShiftModifier:
                 if not self.user_input.toPlainText().strip():
-                    # Show a tooltip
-                    tooltip_duration = 2000 # milliseconds
-                    tooltip_position = self.user_input.mapToGlobal(self.user_input.rect().bottomLeft())
-                    QToolTip.showText(tooltip_position, "Cannot send an empty message", self.user_input, self.user_input.rect(), tooltip_duration)
-                    return True # Event handled, don't proceed to send
+                    tooltip_duration = 2000  # milliseconds
+                    tooltip_position = self.user_input.mapToGlobal(
+                        self.user_input.rect().bottomLeft()
+                    )
+                    QToolTip.showText(
+                        tooltip_position,
+                        "Cannot send an empty message",
+                        self.user_input,
+                        self.user_input.rect(),
+                        tooltip_duration,
+                    )
+                    self.shake_widget(self.user_input)
+                    return True  # Event handled, don't proceed to send
                 self.on_send_clicked()
                 return True
         return super().eventFilter(obj, event)
@@ -221,6 +241,19 @@ class ChatTab(QWidget):
             self.send_button.setEnabled(False)
         else:
             self.send_button.setEnabled(True)
+
+    def shake_widget(self, widget):
+        """Perform a subtle shake animation on the given widget."""
+        animation = QPropertyAnimation(widget, b"pos", self)
+        start_pos = widget.pos()
+        offset = 5
+        animation.setDuration(200)
+        animation.setKeyValueAt(0, start_pos)
+        animation.setKeyValueAt(0.25, start_pos + QPoint(-offset, 0))
+        animation.setKeyValueAt(0.5, start_pos + QPoint(offset, 0))
+        animation.setKeyValueAt(0.75, start_pos + QPoint(-offset, 0))
+        animation.setKeyValueAt(1, start_pos)
+        animation.start(QAbstractAnimation.DeleteWhenStopped)
 
     def adjust_input_height(self):
         doc_height = self.user_input.document().size().height()
