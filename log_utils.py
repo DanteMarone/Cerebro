@@ -1,16 +1,20 @@
 import os
 import logging
 
+logger = logging.getLogger("cerebro")
+
 LOG_FILE = os.path.join(os.path.dirname(__file__), "cerebro.log")
 
 
 def setup_logging(debug_enabled: bool = False) -> None:
     """Configure application logging."""
+    level = logging.DEBUG if debug_enabled else logging.INFO
     logging.basicConfig(
         filename=LOG_FILE,
-        level=logging.DEBUG if debug_enabled else logging.INFO,
+        level=level,
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
+    logger.setLevel(level)
 
 
 def get_log_file_path() -> str:
