@@ -5,8 +5,9 @@ from PyQt5.QtWidgets import (
     QComboBox, QTextEdit, QAbstractItemView, QApplication, QDialog, QDialogButtonBox
 )
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QTimer
 import os # For checking screenshot path
+import pyautogui
 
 from automation_sequences import (
     create_step, # Import create_step
@@ -102,6 +103,21 @@ class AutomationsTab(QWidget):
         self._setup_step_based_automations_ui()
 
         self.refresh_automations_list() # Initial refresh for recorded automations
+
+        # Mouse coordinate tracking
+        self.mouse_tracker_timer = QTimer(self)
+        self.mouse_tracker_timer.timeout.connect(self._update_mouse_coordinates)
+        self.mouse_tracker_timer.start(100) # Update every 100ms
+
+    def _update_mouse_coordinates(self):
+        try:
+            x, y = pyautogui.position()
+            if hasattr(self, 'coordinates_label'): # Check if label exists
+                self.coordinates_label.setText(f"X: {x}, Y: {y}")
+        except Exception as e:
+            # Optional: Log error e
+            if hasattr(self, 'coordinates_label'): # Check if label exists
+                self.coordinates_label.setText("X: Err, Y: Err")
 
     def _minimize_main_window(self):
         """Minimize the application's main window if possible."""
@@ -232,10 +248,15 @@ class AutomationsTab(QWidget):
         # Adjust initial sizes of splitter panes
         splitter.setSizes([150, 300, 250]) # Adjust as needed
 
+        # Coordinates Display Label
+        self.coordinates_label = QLabel("X: -, Y: -")
+        self.coordinates_label.setAlignment(Qt.AlignCenter) # Optional: Align text to center
+
         # Bottom Buttons for Step Automations
         step_bottom_btn_layout = QHBoxLayout()
         main_step_layout_container = QVBoxLayout() # This will be the main layout for step_automations_tab
         main_step_layout_container.addWidget(splitter) # Add splitter here
+        main_step_layout_container.addWidget(self.coordinates_label) # Add the coordinates label here
         main_step_layout_container.addLayout(step_bottom_btn_layout)
         self.step_automations_tab.setLayout(main_step_layout_container)
 
