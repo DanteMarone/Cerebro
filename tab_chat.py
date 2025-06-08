@@ -54,7 +54,8 @@ class ChatTab(QWidget):
         # Add search button
         search_btn = QToolButton()
         search_btn.setObjectName("chatToolButton")
-        search_btn.setText("🔍")
+        search_icon = self.style().standardIcon(QStyle.SP_FileDialogContentsView)
+        search_btn.setIcon(search_icon)
         search_btn.setToolTip("Search conversation")
         header_layout.addWidget(search_btn)
         
