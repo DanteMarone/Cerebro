@@ -2,6 +2,7 @@ TOOL_METADATA = {
     "name": "notification-hub",
     "description": "Send desktop notifications with optional delay, sound and push webhook.",
     "args": ["title", "message", "delay", "sound", "push_url"],
+    "dependencies": ["requests", "plyer", "win10toast"],
 }
 
 import sys

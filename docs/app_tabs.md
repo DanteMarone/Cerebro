@@ -52,6 +52,7 @@ Manage scripts that agents can invoke.
 3. **Delete** – remove a tool.
 4. **Run** – execute a tool manually with JSON arguments.
    The editor supports syntax highlighting when QScintilla is installed.
+5. **Setup** – view dependencies and open Settings when a tool requires configuration.
 
 Bundled plugins include:
 - **file-summarizer** – summarize text files.
@@ -64,6 +65,8 @@ Bundled plugins include:
 - **credential-manager** – securely store credentials.
 - **update-manager** – download new Cerebro versions on Windows 11.
 - **run-automation** – execute a recorded button sequence.
+
+Tools that require additional setup display a **Needs Configuration** label next to their name.
 
 Tools are triggered when an agent returns a JSON block in the format produced by `generate_tool_instructions_message()`.
 
