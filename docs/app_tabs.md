@@ -45,6 +45,7 @@ Agents are automated workers that perform tasks for you.
     - The 'MathSpecialist' then receives the original user query (plus any context from the coordinator) and its response is directed back through the coordinator or directly to the chat, depending on the system's flow. The key is the explicit delegation.
 
 Press **Save** after editing or **Cancel** to discard changes. Use **Add New Agent** to create one.
+Deleting an agent will prompt for confirmation. If the agent is assigned to any tasks, the warning will show how many tasks may be affected.
 
 ## Tools Tab
 
