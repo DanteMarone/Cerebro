@@ -2,7 +2,13 @@ import json
 import os
 import time
 from typing import List, Dict, Any, Literal, Union
-from log_utils import logger # Import logger
+from log_utils import logger  # Import logger
+
+# Attempt to import pyautogui globally so tests can patch it easily.
+try:
+    import pyautogui  # type: ignore
+except Exception:  # pragma: no cover - optional dependency may be missing
+    pyautogui = None
 
 AUTOMATIONS_FILE = "automations.json"
 STEP_AUTOMATIONS_FILE = "step_automations.json"
@@ -141,10 +147,13 @@ def run_automation(automations: List[Dict[str, Any]], name: str,
     auto = next((a for a in automations if a.get("name") == name), None)
     if not auto:
         return f"[Automation Error] '{name}' not found"
-    try:
-        import pyautogui
-    except Exception:
-        return "[Automation Error] pyautogui not installed."
+    global pyautogui
+    if pyautogui is None:
+        try:
+            import pyautogui as _pg  # type: ignore
+            pyautogui = _pg
+        except Exception:
+            return "[Automation Error] pyautogui not installed."
     events = auto.get("events", [])
     button_down = None
     for evt in events:
@@ -234,18 +243,21 @@ def run_step_automation(
         context['if_stack'] = []
 
 
-    try:
-        import pyautogui
-    except ImportError:
-        context['status'] = 'error'
-        context['error_message'] = "[Automation Error] pyautogui is not installed."
-        logger.error(context['error_message'])
-        return context
-    except Exception as e:
-        context['status'] = 'error'
-        context['error_message'] = f"[Automation Error] Failed to import pyautogui: {e}"
-        logger.error(context['error_message'])
-        return context
+    global pyautogui
+    if pyautogui is None:
+        try:
+            import pyautogui as _pg  # type: ignore
+            pyautogui = _pg
+        except ImportError:
+            context['status'] = 'error'
+            context['error_message'] = "[Automation Error] pyautogui is not installed."
+            logger.error(context['error_message'])
+            return context
+        except Exception as e:
+            context['status'] = 'error'
+            context['error_message'] = f"[Automation Error] Failed to import pyautogui: {e}"
+            logger.error(context['error_message'])
+            return context
 
     i = context['current_step_index']
     loop_stack = context['loop_stack']
