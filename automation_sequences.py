@@ -54,9 +54,15 @@ class AskAgentParams(Dict):
     prompt: str
     screenshot_path: Union[str, None] # Optional
 
+class MouseDragParams(Dict):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
+
 class LoopStartParams(Dict):
-    count: Union[int, None] # Optional, for count-based loops
-    condition: Union[str, None] # Optional, for condition-based loops
+    count: Union[int, None]  # Optional, for count-based loops
+    condition: Union[str, None]  # Optional, for condition-based loops
 
 # LoopEnd, Else, EndIf typically don't have parameters, but can be empty dicts if needed.
 
@@ -67,14 +73,8 @@ StepParams = Union[
     AskAgentParams,
     LoopStartParams,
     MouseDragParams,
-    Dict[str, Any], # For steps with no specific params like LoopEnd, Else, EndIf
+    Dict[str, Any],  # For steps with no specific params like LoopEnd, Else, EndIf
 ]
-
-class MouseDragParams(Dict):
-    start_x: int
-    start_y: int
-    end_x: int
-    end_y: int
 
 class Step(Dict):
     type: SupportedStepType

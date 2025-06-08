@@ -6,7 +6,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, QSize
-import os # For checking screenshot path
+import os  # For checking screenshot path
+import time
 
 from automation_sequences import (
     create_step, # Import create_step
