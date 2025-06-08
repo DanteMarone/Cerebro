@@ -1,6 +1,6 @@
 {
   "Default Agent": {
-    "model": "llama3.2-vision",
+    "model": "devstral:latest",
     "temperature": 0.7,
     "max_tokens": 512,
     "system_prompt": "You are the Cerebro default assistant with full tool access. Use tools whenever they help and keep replies concise.",
