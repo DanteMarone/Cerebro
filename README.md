@@ -13,6 +13,7 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 *   **Thinking Mode:** Enable agents to iteratively generate a series of thoughts before producing a final answer. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
 *   **Automations:** Record and replay desktop actions (mouse and keyboard sequences). (Details: [Application Tabs - Automations](docs/app_tabs.md#automations-tab))
 *   **Task Scheduling:** Schedule prompts for agents to run at specific times, with optional repetition and OS scheduler integration. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
+*   **Task Progress Indicators:** View elapsed time and an ETA for scheduled tasks.
 *   **Workflow Builder:** Design and execute reusable, multi-agent workflows. (Details: [Application Tabs - Workflows](docs/app_tabs.md#workflows-tab))
 * **Chat Management:** Save, export, clear, and search chat history. Messages include avatars, colored names and timestamps grouped by date. Use the chat menu to search saved history. Long conversations are automatically summarized. (Details: [Application Tabs - Chat](docs/app_tabs.md#chat-tab))
 *   **Desktop History:** Allow agents to receive periodic screenshots of your desktop for visual context. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))

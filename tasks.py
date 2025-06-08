@@ -256,3 +256,30 @@ def compute_task_progress(task, now=None):
     elapsed = (now - created_dt).total_seconds()
     percent = int(max(0, min(100, (elapsed / total) * 100)))
     return percent
+
+
+def compute_task_times(task, now=None):
+    """Return elapsed and remaining seconds for a task."""
+    now = now or datetime.utcnow()
+    due_str = task.get("due_time", "")
+    created_str = task.get("created_time", "")
+    try:
+        due_dt = (
+            datetime.fromisoformat(due_str)
+            if "T" in due_str
+            else datetime.strptime(due_str, "%Y-%m-%d %H:%M:%S")
+        )
+    except Exception:
+        return 0, 0
+    try:
+        created_dt = (
+            datetime.fromisoformat(created_str)
+            if "T" in created_str
+            else datetime.strptime(created_str, "%Y-%m-%d %H:%M:%S")
+        )
+    except Exception:
+        created_dt = now
+
+    elapsed = max(0, int((now - created_dt).total_seconds()))
+    remaining = max(0, int((due_dt - now).total_seconds()))
+    return elapsed, remaining

@@ -96,6 +96,8 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Filters** – filter by agent or status.
 - **Row Actions** – each row includes Edit, Delete and Complete buttons.
 - **Progress Bar** – indicates how close the task is to its due time.
+- **Elapsed Time** – shows how long the task has existed.
+- **ETA** – estimated time until the due time is reached.
 - **Repeat Interval** – optional minutes after which the task repeats.
 - **Time Format** – ISO 8601 or `YYYY-MM-DD HH:MM:SS` local time.
 

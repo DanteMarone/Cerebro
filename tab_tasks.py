@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
 )
 from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData, QRect
+from datetime import timedelta
 from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
 from dialogs import TaskDialog
 from tasks import (
@@ -27,6 +28,7 @@ from tasks import (
     set_task_status,
     update_task_due_time,
     compute_task_progress,
+    compute_task_times,
 )
 
 
@@ -239,6 +241,12 @@ class TasksTab(QWidget):
         bar.setValue(progress)
         bar.setFixedWidth(100)
         layout.addWidget(bar)
+
+        elapsed, remaining = compute_task_times(task)
+        elapsed_label = QLabel(f"Elapsed: {timedelta(seconds=elapsed)}")
+        remaining_label = QLabel(f"ETA: {timedelta(seconds=remaining)}")
+        layout.addWidget(elapsed_label)
+        layout.addWidget(remaining_label)
 
         edit_btn = QPushButton("Edit")
         edit_btn.setProperty("task_id", task["id"])
