@@ -165,7 +165,9 @@ def run_automation(automations: List[Dict[str, Any]], name: str,
             pyautogui = _pg
         except Exception:
             return "[Automation Error] pyautogui not installed."
-    events = auto.get("events", [])
+    events = auto.get("events")
+    if not isinstance(events, list):
+        return f"[Automation Error] Invalid event list for '{name}'"
     button_down = None
     for evt in events:
         etype = evt.get("type")

@@ -156,6 +156,13 @@ def test_run_automation_delay(monkeypatch):
     assert sleeps == [0.25, 0.25]
 
 
+def test_run_automation_invalid_events(monkeypatch):
+    """run_automation should handle missing or invalid events list."""
+    monkeypatch.setattr(auto.time, "sleep", lambda s: None)
+    result = auto.run_automation([{"name": "bad", "events": None}], "bad", step_delay=0)
+    assert "Invalid event list" in result
+
+
 # --- Tests for Step-based Automations ---
 
 @patch('automation_sequences.pyautogui', new_callable=MagicMock)
