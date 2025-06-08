@@ -53,7 +53,12 @@ FROM llama3
 ADAPTER ./train.jsonl
 ```
 
+
 Then run `ollama create my-model -f Modelfile` and `ollama run my-model` to test the result. Once created, you can select `my-model` in your agent settings within Cerebro.
+
+## Troubleshooting and Logs
+
+Cerebro records debug output to `cerebro.log` in the application directory. Error messages shown in the chat include a **View Logs** link that opens this file. Checking the log is useful when diagnosing connection issues or other problems.
 
 ## Staying Updated
 
