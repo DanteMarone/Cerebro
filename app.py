@@ -108,6 +108,7 @@ class AIChatApp(QMainWindow):
         self.notifications_paused = False
         self.screenshot_paused = False
         self.summarization_threshold = 20
+        self.agents_onboarding_complete = False
         
         # Initialize notification system
         self.notifications = []
@@ -167,6 +168,7 @@ class AIChatApp(QMainWindow):
         
         # Agents button
         self.nav_buttons["agents"] = self.create_nav_button("Agents", 1)
+        self.nav_buttons["agents"].setToolTip("Manage automated workers that perform tasks.")
         sidebar_layout.addWidget(self.nav_buttons["agents"])
         
         # Tools button
@@ -344,6 +346,9 @@ class AIChatApp(QMainWindow):
     def change_tab(self, index, button=None):
         """Change the active tab and update button styles."""
         self.content_stack.setCurrentIndex(index)
+
+        if index == 1 and not self.agents_onboarding_complete:
+            self.show_agents_onboarding()
         
         # Update button styles
         for btn in self.nav_buttons.values():
@@ -419,7 +424,7 @@ class AIChatApp(QMainWindow):
             
     def show_help_dialog(self):
         """Show the help dialog."""
-        QMessageBox.information(self, "Cerebro Help", 
+        QMessageBox.information(self, "Cerebro Help",
                               "Cerebro is a multi-agent AI chat application.\n\n"
                               "• Chat: Interact with AI agents\n"
                               "• Agents: Configure your AI assistants\n"
@@ -428,6 +433,16 @@ class AIChatApp(QMainWindow):
                               "• Tasks: Schedule future agent actions\n\n"
                               "• Docs: View the built-in user guide\n\n"
                               "Press Ctrl+K to view keyboard shortcuts.")
+
+    def show_agents_onboarding(self):
+        """Display a brief onboarding message for the Agents tab."""
+        QMessageBox.information(
+            self,
+            "Welcome to Agents",
+            "Agents are automated workers that perform tasks. Configure them here."
+        )
+        self.agents_onboarding_complete = True
+        self.save_settings()
     
     def show_keyboard_shortcuts(self):
         """Show keyboard shortcuts dialog."""
@@ -1457,6 +1472,7 @@ class AIChatApp(QMainWindow):
             "screenshot_interval": self.screenshot_interval,
             "summarization_threshold": self.summarization_threshold,
             "ollama_port": self.ollama_port,
+            "agents_onboarding_complete": self.agents_onboarding_complete,
         }
         try:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -1487,6 +1503,9 @@ class AIChatApp(QMainWindow):
                 )
                 self.ollama_port = settings.get("ollama_port", self.ollama_port)
                 self.api_url = self.build_api_url()
+                self.agents_onboarding_complete = settings.get(
+                    "agents_onboarding_complete", False
+                )
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
             except Exception as e:

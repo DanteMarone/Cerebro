@@ -6,9 +6,10 @@ Use `Ctrl+1` through `Ctrl+7` to switch between tabs.
 
 - The Chat tab is the main interface for sending prompts to your agents.
 - Enter a prompt and press **Send** or use the 🎤 button to dictate a prompt.
-- Messages show in speech bubbles with small avatars and appear in a scrollable pane. A typing indicator shows when an agent is responding.
+- Messages show in speech bubbles with avatars or initials next to the sender name. Each message includes a timestamp and conversations are grouped by date so you can quickly see when a discussion happened.
 - Use the menu to copy, save, export or clear the conversation.
 - Click the 🔍 button to search the current conversation.
+- From the same menu choose **Search saved history** to look across chats.
 - Long conversations are automatically summarized to keep prompts short.
   You can adjust or disable this threshold in the **Settings** dialog.
 - Agents with *desktop history* enabled attach periodic screenshots for visual context.
@@ -16,6 +17,7 @@ Use `Ctrl+1` through `Ctrl+7` to switch between tabs.
 ## Agents Tab
 
 Create, edit and delete agents.
+Agents are automated workers that perform tasks for you.
 - **Model** – select an installed Ollama model such as `llava` or `llama3.2-vision`.
 - **Temperature** – controls randomness of responses.
 - **Max Tokens** – maximum reply length (up to 100000 tokens).
@@ -42,7 +44,8 @@ Create, edit and delete agents.
     - The Coordinator's response (which is logged in the chat) could include: `I need help with a calculation. Next Response By: MathSpecialist`
     - The 'MathSpecialist' then receives the original user query (plus any context from the coordinator) and its response is directed back through the coordinator or directly to the chat, depending on the system's flow. The key is the explicit delegation.
 
-Press **Save** after editing or **Add New Agent** to create one.
+Press **Save** after editing or **Cancel** to discard changes. Use **Add New Agent** to create one.
+Deleting an agent will prompt for confirmation. If the agent is assigned to any tasks, the warning will show how many tasks may be affected.
 
 ## Tools Tab
 

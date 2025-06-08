@@ -64,6 +64,23 @@ def export_history(dest_path, debug_enabled=False):
     except Exception as e:
         print(f"[Error] Failed to export history: {e}")
 
+
+def search_history(history, query, role=None, agent=None):
+    """Search history entries matching the query and optional filters."""
+    if not query:
+        return []
+    query_lower = query.lower()
+    results = []
+    for msg in history:
+        if role and msg.get("role") != role:
+            continue
+        if agent and msg.get("agent") != agent:
+            continue
+        content = msg.get("content", "")
+        if query_lower in content.lower():
+            results.append(msg)
+    return results
+
 def summarize_history(history, threshold=20, max_chars=1000):
     """Condense older history into a single system message.
 
