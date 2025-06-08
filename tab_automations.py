@@ -133,11 +133,9 @@ class AutomationsTab(QWidget):
 
     def _setup_step_based_automations_ui(self):
         """Sets up the UI for the Step-based Automations sub-tab."""
-        step_tab_layout = QHBoxLayout(self.step_automations_tab)
-
         # Use QSplitter for resizable panels
         splitter = QSplitter(Qt.Horizontal)
-        step_tab_layout.addWidget(splitter)
+        # step_tab_layout was removed, splitter will be added to main_step_layout_container later
 
         # Left Panel: Available Steps
         left_panel = QWidget()
@@ -191,9 +189,9 @@ class AutomationsTab(QWidget):
         # Right Panel: Step Parameters
         # right_panel = QWidget() # QGroupBox is already a QWidget
         self.step_parameter_editor_area = QGroupBox("Step Parameters")
-        self.param_form_layout = QFormLayout(self.step_parameter_editor_area) # Use QFormLayout
+        self.param_form_layout = QFormLayout() # Initialize without parent
 
-        self.placeholder_param_label = QLabel("Select a step from the sequence to edit its parameters.")
+        self.placeholder_param_label = QLabel("Select a step from the sequence to edit its parameters.", parent=self.step_parameter_editor_area)
         self.placeholder_param_label.setAlignment(Qt.AlignCenter)
         self.placeholder_param_label.setWordWrap(True)
         # Add placeholder to the layout, it will be hidden/shown as needed
@@ -215,8 +213,8 @@ class AutomationsTab(QWidget):
 
         # Bottom Buttons for Step Automations
         step_bottom_btn_layout = QHBoxLayout()
-        main_step_layout_container = QVBoxLayout()
-        main_step_layout_container.addWidget(splitter)
+        main_step_layout_container = QVBoxLayout() # This will be the main layout for step_automations_tab
+        main_step_layout_container.addWidget(splitter) # Add splitter here
         main_step_layout_container.addLayout(step_bottom_btn_layout)
         self.step_automations_tab.setLayout(main_step_layout_container)
 
