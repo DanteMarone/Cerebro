@@ -1,0 +1,35 @@
+{
+  "update-manager": {
+    "enabled": true
+  },
+  "file-summarizer": {
+    "enabled": true
+  },
+  "ar-overlay": {
+    "enabled": true
+  },
+  "credential-manager": {
+    "enabled": true
+  },
+  "echo-plugin": {
+    "enabled": true
+  },
+  "web-scraper": {
+    "enabled": true
+  },
+  "math-solver": {
+    "enabled": true
+  },
+  "windows-notifier": {
+    "enabled": true
+  },
+  "huggingface-auth": {
+    "enabled": true
+  },
+  "notification-hub": {
+    "enabled": true
+  },
+  "desktop-automation": {
+    "enabled": true
+  }
+}

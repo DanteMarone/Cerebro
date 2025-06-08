@@ -661,8 +661,9 @@ class AIChatApp(QMainWindow):
             if agent_settings.get('enabled', False) and agent_settings.get('role') == 'Coordinator'
         ]
 
-        # If no Coordinator is enabled, fall back to the old logic of sending to all enabled agents, except Specialists.
-        if not enabled_coordinator_agents:
+        if enabled_coordinator_agents: # If there are coordinators, use them
+            enabled_agents = enabled_coordinator_agents
+        else: # Otherwise, fall back to other enabled agents (excluding Specialists)
             enabled_agents = [
                 (agent_name, agent_settings)
                 for agent_name, agent_settings in self.agents_data.items()
@@ -678,8 +679,8 @@ class AIChatApp(QMainWindow):
             QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one Assistant agent or a Coordinator agent.")
             self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
             return
-        else:
-            enabled_agents = enabled_coordinator_agents
+        # The problematic 'else' block has been removed.
+        # 'enabled_agents' is now correctly populated by the if/else logic above.
 
         def process_next_agent(index):
             if index is None or index >= len(enabled_agents):
