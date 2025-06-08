@@ -895,7 +895,7 @@ class TasksTab(QWidget):
         self.tasks[:] = ordered
         save_tasks(self.tasks, self.parent_app.debug_enabled)
 
-     def open_tasks_help(self):
+    def open_tasks_help(self):
         """Open the documentation tab to the Tasks Help section."""
         app = self.parent_app
         # Assuming tab index 9 is 'Docs'
