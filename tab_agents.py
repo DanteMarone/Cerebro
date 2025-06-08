@@ -37,6 +37,10 @@ class AgentsTab(QWidget):
         self.list_page = QWidget()
         list_layout = QVBoxLayout(self.list_page)
 
+        intro_label = QLabel("Manage automated workers that perform tasks.")
+        intro_label.setWordWrap(True)
+        list_layout.addWidget(intro_label)
+
         self.agent_table = QTableWidget(0, 5)
         self.agent_table.setHorizontalHeaderLabels([
             "Name",
