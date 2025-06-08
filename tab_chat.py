@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
     QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
-    QFileDialog
+    QFileDialog, QToolTip
 )
 
 from dialogs import SearchDialog
@@ -161,6 +161,7 @@ class ChatTab(QWidget):
         # Create send button with modern styling
         self.send_button = QPushButton("Send")
         self.send_button.setObjectName("sendButton")
+        self.send_button.setEnabled(False)
         icon = self.style().standardIcon(QStyle.SP_ArrowRight)
         self.send_button.setIcon(icon)
         self.send_button.setIconSize(QtCore.QSize(16, 16))
@@ -191,6 +192,7 @@ class ChatTab(QWidget):
         self.clear_chat_button.clicked.connect(self.on_clear_chat_clicked)
         self.voice_button.clicked.connect(self.on_voice_clicked)
         self.user_input.textChanged.connect(self.adjust_input_height)
+        self.user_input.textChanged.connect(self.update_send_button_state)
         search_btn.clicked.connect(self.show_search)
 
     def eventFilter(self, obj, event):
@@ -199,9 +201,23 @@ class ChatTab(QWidget):
         """
         if obj == self.user_input and event.type() == QtCore.QEvent.KeyPress:
             if event.key() == QtCore.Qt.Key_Return and not event.modifiers() & QtCore.Qt.ShiftModifier:
+                if not self.user_input.toPlainText().strip():
+                    # Show a tooltip
+                    tooltip_duration = 2000 # milliseconds
+                    tooltip_position = self.user_input.mapToGlobal(self.user_input.rect().bottomLeft())
+                    QToolTip.showText(tooltip_position, "Cannot send an empty message", self.user_input, self.user_input.rect(), tooltip_duration)
+                    return True # Event handled, don't proceed to send
                 self.on_send_clicked()
                 return True
         return super().eventFilter(obj, event)
+
+    def update_send_button_state(self):
+        """Enable or disable the send button based on input field content."""
+        user_text = self.user_input.toPlainText().strip()
+        if not user_text:
+            self.send_button.setEnabled(False)
+        else:
+            self.send_button.setEnabled(True)
 
     def adjust_input_height(self):
         doc_height = self.user_input.document().size().height()
