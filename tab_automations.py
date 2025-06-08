@@ -23,6 +23,7 @@ from automation_sequences import (
     STEP_TYPE_IF_CONDITION,
     STEP_TYPE_ELSE,
     STEP_TYPE_END_IF,
+    STEP_TYPE_MOUSE_DRAG,
     load_step_automations,
     save_step_automations,
     run_step_automation,
@@ -163,6 +164,7 @@ class AutomationsTab(QWidget):
         # Populate with step types
         self.step_types = [ # Ensure this list is comprehensive
             STEP_TYPE_MOUSE_CLICK,
+            STEP_TYPE_MOUSE_DRAG, # Added MouseDrag
             STEP_TYPE_KEYBOARD_INPUT,
             STEP_TYPE_WAIT,
             STEP_TYPE_ASK_AGENT,
@@ -405,6 +407,8 @@ class AutomationsTab(QWidget):
             return STEP_TYPE_END_IF
         elif step_type == STEP_TYPE_LOOP_END: # Explicitly handle LoopEnd if not covered by generic
             return STEP_TYPE_LOOP_END
+        elif step_type == STEP_TYPE_MOUSE_DRAG:
+            return f"{step_type} (start:({params.get('start_x',0)},{params.get('start_y',0)}), end:({params.get('end_x',0)},{params.get('end_y',0)}))"
         # Fallback for any other types that might be simple
         elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF]: # Redundant but safe
             return step_type
@@ -432,6 +436,8 @@ class AutomationsTab(QWidget):
             default_params = {"count": 1}
         elif step_type_name == STEP_TYPE_IF_CONDITION:
             default_params = {"condition": "true"} # Default If condition to "true"
+        elif step_type_name == STEP_TYPE_MOUSE_DRAG:
+            default_params = {"start_x": 0, "start_y": 0, "end_x": 100, "end_y": 100}
         # For Else, EndIf, LoopEnd, params dict remains empty {}
 
         new_step_data = create_step(step_type_name, default_params)
@@ -558,6 +564,28 @@ class AutomationsTab(QWidget):
             self.current_param_widgets["condition"] = QLineEdit(params.get("condition", "true")) # Default to "true"
             self.param_form_layout.addRow("Condition (true/false):", self.current_param_widgets["condition"])
 
+        elif step_type == STEP_TYPE_MOUSE_DRAG:
+            self.current_param_widgets["start_x"] = QSpinBox()
+            self.current_param_widgets["start_x"].setRange(0, 10000)
+            self.current_param_widgets["start_x"].setValue(params.get("start_x", 0))
+            self.param_form_layout.addRow("Start X:", self.current_param_widgets["start_x"])
+
+            self.current_param_widgets["start_y"] = QSpinBox()
+            self.current_param_widgets["start_y"].setRange(0, 10000)
+            self.current_param_widgets["start_y"].setValue(params.get("start_y", 0))
+            self.param_form_layout.addRow("Start Y:", self.current_param_widgets["start_y"])
+
+            self.current_param_widgets["end_x"] = QSpinBox()
+            self.current_param_widgets["end_x"].setRange(0, 10000)
+            self.current_param_widgets["end_x"].setValue(params.get("end_x", 100))
+            self.param_form_layout.addRow("End X:", self.current_param_widgets["end_x"])
+
+            self.current_param_widgets["end_y"] = QSpinBox()
+            self.current_param_widgets["end_y"].setRange(0, 10000)
+            self.current_param_widgets["end_y"].setValue(params.get("end_y", 100))
+            self.param_form_layout.addRow("End Y:", self.current_param_widgets["end_y"])
+            # Consider adding a button parameter here as well in future
+
         elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF]:
             self.param_form_layout.addRow(QLabel(f"{step_type} (No parameters)"))
             self.apply_param_changes_btn.setVisible(False)
@@ -611,6 +639,11 @@ class AutomationsTab(QWidget):
                     QMessageBox.warning(self, "Invalid Condition", "Condition for If step must be 'true' or 'false'.")
                     return # Don't apply changes
                 new_params["condition"] = condition_val
+            elif step_type == STEP_TYPE_MOUSE_DRAG:
+                new_params["start_x"] = self.current_param_widgets["start_x"].value()
+                new_params["start_y"] = self.current_param_widgets["start_y"].value()
+                new_params["end_x"] = self.current_param_widgets["end_x"].value()
+                new_params["end_y"] = self.current_param_widgets["end_y"].value()
             # No params for LoopEnd, Else, EndIf to read, so new_params remains {} for them, which is fine.
 
             step_data["params"] = new_params # Update params, even if it's empty for some types

@@ -23,9 +23,11 @@ STEP_TYPE_LOOP_END = "LoopEnd"
 STEP_TYPE_IF_CONDITION = "IfCondition"
 STEP_TYPE_ELSE = "Else"
 STEP_TYPE_END_IF = "EndIf"
+STEP_TYPE_MOUSE_DRAG = "MouseDrag"
 
 SupportedStepType = Literal[
     "MouseClick",
+    "MouseDrag",
     "KeyboardInput",
     "Wait",
     "AskAgent",
@@ -64,8 +66,15 @@ StepParams = Union[
     WaitParams,
     AskAgentParams,
     LoopStartParams,
+    MouseDragParams,
     Dict[str, Any], # For steps with no specific params like LoopEnd, Else, EndIf
 ]
+
+class MouseDragParams(Dict):
+    start_x: int
+    start_y: int
+    end_x: int
+    end_y: int
 
 class Step(Dict):
     type: SupportedStepType
@@ -342,6 +351,21 @@ def run_step_automation(
                 pyautogui.moveTo(x, y)
                 pyautogui.click(x=x, y=y, button=button)
 
+            elif step_type == STEP_TYPE_MOUSE_DRAG:
+                start_x = params.get("start_x")
+                start_y = params.get("start_y")
+                end_x = params.get("end_x")
+                end_y = params.get("end_y")
+                # TODO(agent): Consider adding button parameter for drag
+                if not all(isinstance(val, int) for val in [start_x, start_y, end_x, end_y]):
+                    context['status'] = 'error'
+                    context['error_message'] = f"[Automation Error] Step {i+1} (MouseDrag): Start and End X, Y must be integers. Got start_x={start_x}, start_y={start_y}, end_x={end_x}, end_y={end_y}."
+                    context['current_step_index'] = i
+                    logger.error(context['error_message'])
+                    return context
+                pyautogui.moveTo(start_x, start_y)
+                pyautogui.dragTo(end_x, end_y, duration=0.2) # Default duration, can be parameterized
+
             elif step_type == STEP_TYPE_KEYBOARD_INPUT:
                 keys = params.get("keys", "")
                 if not isinstance(keys, str):
@@ -570,6 +594,11 @@ def is_valid_step(step_dict: Dict[str, Any]) -> bool:
         return True # No specific params required, or params can be an empty dict
     elif step_type == STEP_TYPE_IF_CONDITION:
         return "condition" in params and isinstance(params["condition"], str)
+    elif step_type == STEP_TYPE_MOUSE_DRAG:
+        return "start_x" in params and isinstance(params["start_x"], int) and \
+               "start_y" in params and isinstance(params["start_y"], int) and \
+               "end_x" in params and isinstance(params["end_x"], int) and \
+               "end_y" in params and isinstance(params["end_y"], int)
 
     return False # Unknown step type
 
