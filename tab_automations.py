@@ -26,6 +26,7 @@ from automation_sequences import (
     STEP_TYPE_IF_CONDITION,
     STEP_TYPE_ELSE,
     STEP_TYPE_END_IF,
+    STEP_TYPE_END_ELF,
     STEP_TYPE_MOUSE_DRAG,
     STEP_TYPE_SET_VARIABLE,
     load_step_automations,
@@ -195,7 +196,8 @@ class AutomationsTab(QWidget):
             STEP_TYPE_LOOP_END,
             STEP_TYPE_IF_CONDITION,
             STEP_TYPE_ELSE,
-            STEP_TYPE_END_IF
+            STEP_TYPE_END_IF,
+            STEP_TYPE_END_ELF
         ]
         for step_type_name in self.step_types:
             self.available_steps_list.addItem(QListWidgetItem(step_type_name))
@@ -440,12 +442,14 @@ class AutomationsTab(QWidget):
             return STEP_TYPE_ELSE
         elif step_type == STEP_TYPE_END_IF:
             return STEP_TYPE_END_IF
+        elif step_type == STEP_TYPE_END_ELF:
+            return STEP_TYPE_END_ELF
         elif step_type == STEP_TYPE_LOOP_END: # Explicitly handle LoopEnd if not covered by generic
             return STEP_TYPE_LOOP_END
         elif step_type == STEP_TYPE_MOUSE_DRAG:
             return f"{step_type} (start:({params.get('start_x',0)},{params.get('start_y',0)}), end:({params.get('end_x',0)},{params.get('end_y',0)}))"
         # Fallback for any other types that might be simple
-        elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF]: # Redundant but safe
+        elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF, STEP_TYPE_END_ELF]: # Redundant but safe
             return step_type
         return f"Unknown Step: {step_type}"
 
@@ -665,7 +669,7 @@ class AutomationsTab(QWidget):
             # Show current coordinates within the parameter editor
             self.param_form_layout.addRow("Current Position:", self.coordinates_label)
 
-        elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF]:
+        elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF, STEP_TYPE_END_ELF]:
             self.param_form_layout.addRow(QLabel(f"{step_type} (No parameters)"))
             self.apply_param_changes_btn.setVisible(False)
 

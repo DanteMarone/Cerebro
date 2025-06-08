@@ -33,6 +33,7 @@ Cerebro is a multi-agent AI application with a rich set of features:
 - **Tool Integration:** Extend agent capabilities with custom tools.
 - **Task Automation:** Record desktop automations and schedule tasks for agents with recurring options and templates, inline editing, bulk changes, drag-and-drop reordering, duplication, and undo for deleted tasks.
 - **SetVariable Step:** Step-based automations can store custom variables using a dedicated `SetVariable` step.
+- **EndElf Step:** Use `EndElf` to close an `IfCondition` block when building step-based automations.
 - **Failure Details:** When a task cannot run, the task entry shows the reason along with a link to more information and any suggested actions.
 Reasoning for this resolution:
 - **Workflows:** Define complex, multi-agent workflows.
