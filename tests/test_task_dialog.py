@@ -32,3 +32,12 @@ def test_focus_on_first_missing_field():
     dlg.accept()
     assert dlg.prompt_edit.styleSheet() != ""
     app.quit()
+
+
+def test_priority_field_present():
+    app = QApplication.instance() or QApplication([])
+    parent = DummyParent()
+    dlg = dialogs.TaskDialog(parent, {"agent1": {}}, priority=2)
+    data = dlg.get_data()
+    assert data["priority"] == 2
+    app.quit()

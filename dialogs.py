@@ -157,12 +157,13 @@ class TaskDialog(QDialog):
     """
     A dialog to create or edit a task.
     """
-    def __init__(self, parent, agents_data, task_id=None, agent_name="", prompt="", due_time="", repeat_interval=0):
+    def __init__(self, parent, agents_data, task_id=None, agent_name="", prompt="", due_time="", repeat_interval=0, priority=1):
         super().__init__(parent)
         self.setWindowTitle("Add/Edit Task")
         self.agents_data = agents_data
         self.task_id = task_id
         self.repeat_interval = repeat_interval
+        self.priority = priority
 
         layout = QVBoxLayout(self)
 
@@ -221,6 +222,13 @@ class TaskDialog(QDialog):
         self.repeat_spin.setValue(self.repeat_interval)
         self.repeat_spin.setToolTip("Minutes between repetitions. 0 for none.")
         layout.addWidget(self.repeat_spin)
+
+        layout.addWidget(QLabel("Priority:"))
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItems(["Low", "Medium", "High"])
+        idx = max(1, min(3, self.priority)) - 1
+        self.priority_combo.setCurrentIndex(idx)
+        layout.addWidget(self.priority_combo)
         
 
         # Buttons
@@ -244,6 +252,7 @@ class TaskDialog(QDialog):
             "prompt": self.prompt_edit.toPlainText().strip(),
             "due_time": self.due_time_edit.dateTime().toString(Qt.ISODate),
             "repeat_interval": self.repeat_spin.value(),
+            "priority": self.priority_combo.currentIndex() + 1,
         }
 
     def validate_fields(self):
