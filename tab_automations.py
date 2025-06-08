@@ -255,15 +255,14 @@ class AutomationsTab(QWidget):
         # Adjust initial sizes of splitter panes
         splitter.setSizes([150, 300, 250]) # Adjust as needed
 
-        # Coordinates Display Label
+        # Coordinates Display Label - will be added dynamically for certain steps
         self.coordinates_label = QLabel("X: -, Y: -")
-        self.coordinates_label.setAlignment(Qt.AlignCenter) # Optional: Align text to center
+        self.coordinates_label.setAlignment(Qt.AlignCenter)
 
         # Bottom Buttons for Step Automations
         step_bottom_btn_layout = QHBoxLayout()
         main_step_layout_container = QVBoxLayout() # This will be the main layout for step_automations_tab
         main_step_layout_container.addWidget(splitter) # Add splitter here
-        main_step_layout_container.addWidget(self.coordinates_label) # Add the coordinates label here
         main_step_layout_container.addLayout(step_bottom_btn_layout)
         self.step_automations_tab.setLayout(main_step_layout_container)
 
@@ -573,6 +572,9 @@ class AutomationsTab(QWidget):
             self.current_param_widgets["button"].setCurrentText(params.get("button", "left"))
             self.param_form_layout.addRow("Button:", self.current_param_widgets["button"])
 
+            # Show current coordinates within the parameter editor
+            self.param_form_layout.addRow("Current Position:", self.coordinates_label)
+
         elif step_type == STEP_TYPE_KEYBOARD_INPUT:
             self.current_param_widgets["keys"] = QLineEdit(params.get("keys", ""))
             self.param_form_layout.addRow("Keys:", self.current_param_widgets["keys"])
@@ -659,6 +661,9 @@ class AutomationsTab(QWidget):
             self.current_param_widgets["end_y"].setValue(params.get("end_y", 100))
             self.param_form_layout.addRow("End Y:", self.current_param_widgets["end_y"])
             # Consider adding a button parameter here as well in future
+
+            # Show current coordinates within the parameter editor
+            self.param_form_layout.addRow("Current Position:", self.coordinates_label)
 
         elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF]:
             self.param_form_layout.addRow(QLabel(f"{step_type} (No parameters)"))
