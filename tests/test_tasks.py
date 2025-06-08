@@ -27,6 +27,14 @@ def test_add_task(monkeypatch):
     assert "created_time" in task
     assert task["status"] == "pending"
     assert task["repeat_interval"] == 30
+    assert task["priority"] == 1
+
+
+def test_add_task_with_priority(monkeypatch):
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    tid = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00", priority=3)
+    assert task_list[0]["priority"] == 3
 
 
 def test_edit_task(monkeypatch):
@@ -161,3 +169,16 @@ def test_compute_task_times():
     elapsed, remaining = tasks.compute_task_times(task, now)
     assert elapsed == 3600
     assert remaining == 3600
+
+
+def test_task_templates(monkeypatch):
+    templates = []
+    monkeypatch.setattr(tasks, "save_task_templates", lambda *a, **k: None)
+    tasks.add_task_template(templates, "t1", "agent1", "p", 5)
+    assert templates[0]["name"] == "t1"
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    tid = tasks.create_task_from_template(task_list, templates, "t1", "2024-01-01 10:00")
+    assert tid is not None
+    assert task_list[0]["agent_name"] == "agent1"
+    assert task_list[0]["repeat_interval"] == 5
