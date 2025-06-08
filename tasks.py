@@ -233,12 +233,26 @@ def duplicate_task(tasks, task_id, debug_enabled=False, os_schedule=False):
         _schedule_os_task(new_task["id"], new_task.get("due_time", ""), debug_enabled)
     return new_task["id"]
 
-def set_task_status(tasks, task_id, status, debug_enabled=False):
-    """Set the status of a task."""
+def set_task_status(
+    tasks,
+    task_id,
+    status,
+    reason=None,
+    action_hint=None,
+    error_link=None,
+    debug_enabled=False,
+):
+    """Set the status of a task and optional failure details."""
     task = next((t for t in tasks if t["id"] == task_id), None)
     if not task:
         return f"[Task Error] Task '{task_id}' not found."
     task["status"] = status
+    if reason is not None:
+        task["status_reason"] = reason
+    if action_hint is not None:
+        task["action_hint"] = action_hint
+    if error_link is not None:
+        task["error_link"] = error_link
     save_tasks(tasks, debug_enabled)
     if debug_enabled:
         print(f"[Debug] Set task {task_id} status to '{status}'")

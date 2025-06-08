@@ -77,9 +77,20 @@ def test_set_task_status(monkeypatch):
     task_list = []
     monkeypatch.setattr(tasks, "save_tasks", noop_save)
     task_id = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00")
-    err = tasks.set_task_status(task_list, task_id, "completed")
+    err = tasks.set_task_status(
+        task_list,
+        task_id,
+        "completed",
+        reason="done",
+        action_hint="restart",
+        error_link="http://example.com",
+    )
     assert err is None
-    assert task_list[0]["status"] == "completed"
+    task = task_list[0]
+    assert task["status"] == "completed"
+    assert task["status_reason"] == "done"
+    assert task["action_hint"] == "restart"
+    assert task["error_link"] == "http://example.com"
 
 
 def test_set_task_status_missing(monkeypatch):

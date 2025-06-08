@@ -367,9 +367,32 @@ class TasksTab(QWidget):
         layout.addWidget(due_edit)
 
         summary_label = QLabel(f"{prompt[:30]}...{repeat_str} ({status})")
-        # Added tooltip from 'main' branch for more context on hover
-        summary_label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
+        tooltip = f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}"
+        reason = task.get("status_reason", "")
+        action_hint = task.get("action_hint", "")
+        link = task.get("error_link", "")
+        if reason:
+            tooltip += f"\nReason: {reason}"
+        if action_hint:
+            tooltip += f"\nAction: {action_hint}"
+        summary_label.setToolTip(tooltip)
         layout.addWidget(summary_label)
+
+        if reason and status in ("failed", "on_hold"):
+            reason_label = QLabel(reason)
+            color = "#f44336" if status == "failed" else "#9e9e9e"
+            reason_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+            reason_label.setWordWrap(True)
+            layout.addWidget(reason_label)
+            if action_hint:
+                hint_label = QLabel(action_hint)
+                hint_label.setStyleSheet("font-style: italic;")
+                hint_label.setWordWrap(True)
+                layout.addWidget(hint_label)
+            if link:
+                link_label = QLabel(f'<a href="{link}">More Info</a>')
+                link_label.setOpenExternalLinks(True)
+                layout.addWidget(link_label)
 
         style = STATUS_STYLES.get(status, {"color": "black", "icon": QStyle.SP_FileIcon})
         status_layout = QHBoxLayout()
@@ -580,7 +603,8 @@ class TasksTab(QWidget):
                 self.parent_app.refresh_metrics_display()
             self.refresh_tasks_list()
 
-def inline_set_agent(self, task_id, agent_name):
+
+    def inline_set_agent(self, task_id, agent_name):
         """Inline update of the task's agent."""
         update_task_agent(
             self.tasks, task_id, agent_name, debug_enabled=self.parent_app.debug_enabled
