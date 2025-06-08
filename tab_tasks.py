@@ -31,6 +31,15 @@ from tasks import (
     compute_task_times,
 )
 
+# Mapping of task status to display color and icon.
+STATUS_STYLES = {
+    "pending": {"color": "#3daee9", "icon": QStyle.SP_FileDialogNewFolder},
+    "in_progress": {"color": "#ff9800", "icon": QStyle.SP_MediaPlay},
+    "completed": {"color": "#4caf50", "icon": QStyle.SP_DialogApplyButton},
+    "failed": {"color": "#f44336", "icon": QStyle.SP_MessageBoxWarning},
+    "on_hold": {"color": "#9e9e9e", "icon": QStyle.SP_MediaPause},
+}
+
 
 class TaskListWidget(QListWidget):
     """List widget that starts drags with the task ID."""
@@ -115,7 +124,14 @@ class TasksTab(QWidget):
         filter_layout.addWidget(self.agent_filter)
 
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["All Statuses", "pending", "completed"])
+        self.status_filter.addItems([
+            "All Statuses",
+            "pending",
+            "in_progress",
+            "completed",
+            "failed",
+            "on_hold",
+        ])
         self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.status_filter)
         self.layout.addLayout(filter_layout)
@@ -231,9 +247,23 @@ class TasksTab(QWidget):
         status = task.get("status", "pending")
         repeat = task.get("repeat_interval", 0)
         repeat_str = f" every {repeat}m" if repeat else ""
-        summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
+        summary = f"[{due_time}] {agent_name}{repeat_str} - {prompt[:30]}..."
         label = QLabel(summary)
         layout.addWidget(label)
+
+        style = STATUS_STYLES.get(status, {"color": "black", "icon": QStyle.SP_FileIcon})
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        icon_label = QLabel()
+        icon = self.style().standardIcon(style["icon"])
+        icon_label.setPixmap(icon.pixmap(16, 16))
+        status_layout.addWidget(icon_label)
+        text_label = QLabel(status.replace("_", " ").title())
+        text_label.setStyleSheet(f"color: {style['color']}; font-weight: bold;")
+        status_layout.addWidget(text_label)
+        status_widget = QWidget()
+        status_widget.setLayout(status_layout)
+        layout.addWidget(status_widget)
 
         progress = compute_task_progress(task)
         bar = QProgressBar()

@@ -18,6 +18,7 @@ Select a topic from the list below or from the Docs tab within the application t
     - Metrics Tab
     - Finetune Tab (see also [Fine-tuning a Model](#fine-tuning-a-model) below)
     - Documentation Tab
+- **[Agents Help](agents_help.md):** Quick reference for agent configuration options accessed via the "?" buttons.
 - **[Configuration](configuration.md):** Explanation of the various JSON configuration files used by Cerebro (`agents.json`, `settings.json`, etc.).
 - **[Plugins and Tools](plugins.md):** Understanding how to use and develop tools and plugins for Cerebro.
 - **[System Tray](system_tray.md):** Using the system tray icon for quick actions.
@@ -53,7 +54,12 @@ FROM llama3
 ADAPTER ./train.jsonl
 ```
 
+
 Then run `ollama create my-model -f Modelfile` and `ollama run my-model` to test the result. Once created, you can select `my-model` in your agent settings within Cerebro.
+
+## Troubleshooting and Logs
+
+Cerebro records debug output to `cerebro.log` in the application directory. Error messages shown in the chat include a **View Logs** link that opens this file. Checking the log is useful when diagnosing connection issues or other problems.
 
 ## Staying Updated
 

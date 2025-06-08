@@ -12,8 +12,8 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 *   **Tool Integration:** Grant agents the ability to use tools (Python scripts) to perform actions and retrieve information. Tools can be bundled, custom-developed, or installed as plugins. (Details: [Plugins and Tools](docs/plugins.md), [Application Tabs - Tools](docs/app_tabs.md#tools-tab))
 *   **Thinking Mode:** Enable agents to iteratively generate a series of thoughts before producing a final answer. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
 *   **Automations:** Record and replay desktop actions (mouse and keyboard sequences). (Details: [Application Tabs - Automations](docs/app_tabs.md#automations-tab))
-*   **Task Scheduling:** Schedule prompts for agents to run at specific times, with optional repetition and OS scheduler integration. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
-*   **Task Progress Indicators:** View elapsed time and an ETA for scheduled tasks.
+*   **Task Scheduling:** Schedule prompts for agents to run at specific times, with optional repetition and OS scheduler integration. Tasks display color-coded status labels with icons. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
+*   *   **Task Progress Indicators:** View elapsed time and an ETA for scheduled tasks.
 *   **Workflow Builder:** Design and execute reusable, multi-agent workflows. (Details: [Application Tabs - Workflows](docs/app_tabs.md#workflows-tab))
 * **Chat Management:** Save, export, clear, and search chat history. Messages include avatars, colored names and timestamps grouped by date. Use the chat menu to search saved history. Long conversations are automatically summarized. (Details: [Application Tabs - Chat](docs/app_tabs.md#chat-tab))
 *   **Desktop History:** Allow agents to receive periodic screenshots of your desktop for visual context. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
@@ -24,6 +24,8 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 ## In-App Documentation
 
 The most comprehensive and up-to-date documentation is available directly within the Cerebro application. Navigate to the **Docs** tab (or press `Ctrl+0`) to browse the full user guide, including detailed explanations of all features, configuration options, and development guides.
+
+Contextual help buttons (`?`) appear in the Agents tab next to complex settings. Clicking these opens the new **Agents Help** section of the documentation for quick reference.
 
 You can also view the documentation online here: **[Cerebro User Guide](docs/user_guide.md)**
 
@@ -56,6 +58,7 @@ For detailed installation and setup instructions, please see the **[Getting Star
 1.  **Start the Ollama server.** (e.g., `ollama serve` or `python local_llm_helper.py serve`)
 2.  **Run the Cerebro application:** `python main.py`
     *   Debug mode is enabled by default. To disable, set `DEBUG_MODE=0` (see [Configuration - Debug Mode](docs/configuration.md#understanding-debug-mode)).
+    *   Errors are saved to `cerebro.log` in the application directory.
 
 ## Configuration
 
