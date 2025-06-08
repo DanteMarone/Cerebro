@@ -16,6 +16,7 @@ Use `Ctrl+1` through `Ctrl+7` to switch between tabs.
 ## Agents Tab
 
 Create, edit and delete agents.
+Agents are automated workers that perform tasks for you.
 - **Model** – select an installed Ollama model such as `llava` or `llama3.2-vision`.
 - **Temperature** – controls randomness of responses.
 - **Max Tokens** – maximum reply length (up to 100000 tokens).
