@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton,
     QHBoxLayout, QComboBox, QFrame, QLineEdit, QTextEdit, QCheckBox,
     QColorDialog, QFormLayout, QGroupBox, QDoubleSpinBox, QSpinBox,
-    QListWidget, QListWidgetItem, QMessageBox, QStackedWidget
+    QListWidget, QListWidgetItem, QMessageBox, QStackedWidget, QTabWidget, QToolButton
 )
 from PyQt5.QtCore import Qt
 
@@ -53,7 +53,17 @@ class AgentsTab(QWidget):
 
         self.add_agent_btn = QPushButton("Add New Agent")
         self.add_agent_btn.clicked.connect(self.parent_app.add_agent)
-        list_layout.addWidget(self.add_agent_btn, alignment=Qt.AlignLeft)
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(self.add_agent_btn)
+
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setToolTip("Open Agents help")
+        help_btn.clicked.connect(self.open_agents_help)
+        btn_row.addWidget(help_btn)
+
+        btn_row.addStretch()
+        list_layout.addLayout(btn_row)
 
         self.stacked.addWidget(self.list_page)
 
@@ -70,7 +80,14 @@ class AgentsTab(QWidget):
         self.save_button.clicked.connect(self.on_save_agent_clicked)
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.on_delete_agent_clicked)
+
+        help_btn_edit = QToolButton()
+        help_btn_edit.setText("?")
+        help_btn_edit.setToolTip("Open Agents help")
+        help_btn_edit.clicked.connect(self.open_agents_help)
+
         nav_layout.addStretch()
+        nav_layout.addWidget(help_btn_edit)
         nav_layout.addWidget(self.cancel_button)
         nav_layout.addWidget(self.save_button)
         nav_layout.addWidget(self.delete_button)
@@ -81,27 +98,86 @@ class AgentsTab(QWidget):
         separator.setFrameShadow(QFrame.Sunken)
         edit_layout.addWidget(separator)
 
-        # Agent settings form
-        self.agent_settings_layout = QFormLayout()
+        # Settings tabs with progressive disclosure
+        self.settings_tabs = QTabWidget()
+
+        # -------------------
+        # General tab
+        # -------------------
+        self.general_tab = QWidget()
+        self.general_form = QFormLayout(self.general_tab)
 
         # Agent name
         self.name_label = QLabel("Agent Name:")
         self.name_input = QLineEdit()
         self.name_input.setToolTip("Unique name for this agent.")
-        self.agent_settings_layout.addRow(self.name_label, self.name_input)
+        self.general_form.addRow(self.name_label, self.name_input)
 
-        # --- Basic Settings ---
         self.model_label = QLabel("Model:")
         self.model_combo = QComboBox()
         self.model_combo.setToolTip("Select the model to use for this agent.")
-        self.agent_settings_layout.addRow(self.model_label, self.model_combo)
-        
-        # --- Prompt Settings Group ---
+        self.general_form.addRow(self.model_label, self.model_combo)
+
+        self.enabled_checkbox = QCheckBox("Enable Agent")
+        self.enabled_checkbox.setToolTip("Enable or disable this agent.")
+        self.general_form.addRow("", self.enabled_checkbox)
+
+        self.role_label = QLabel("Agent Role:")
+        self.role_combo = QComboBox()
+        self.role_combo.addItems(["Assistant", "Coordinator", "Specialist"])
+        self.role_combo.setToolTip("Select the role for this agent.")
+        self.general_form.addRow(self.role_label, self.role_combo)
+
+        self.description_label = QLabel("Description:")
+        self.description_input = QLineEdit()
+        self.description_input.setToolTip("Brief description of this agent's capabilities.")
+        self.general_form.addRow(self.description_label, self.description_input)
+
+        self.color_label = QLabel("Agent Color:")
+        self.color_button = QPushButton()
+        self.color_button.setToolTip("Select a color for this agent's messages.")
+        self.color_button.setFixedWidth(80)
+        self.color_button.clicked.connect(self.on_color_button_clicked)
+        self.general_form.addRow(self.color_label, self.color_button)
+
+        # -------------------
+        # Triggers tab
+        # -------------------
+        self.triggers_tab = QWidget()
+        self.triggers_form = QFormLayout(self.triggers_tab)
+
+        self.managed_agents_label = QLabel("Managed Agents:")
+        self.managed_agents_list = QListWidget()
+        self.managed_agents_list.setToolTip("Select agents that this Coordinator can manage.")
+        self.managed_agents_list.setSelectionMode(QListWidget.MultiSelection)
+        self.triggers_form.addRow(self.managed_agents_label, self.managed_agents_list)
+
+        self.tool_use_checkbox = QCheckBox("Enable Tool Use")
+        self.tool_use_checkbox.setToolTip("Allow this agent to use tools.")
+        self.triggers_form.addRow("", self.tool_use_checkbox)
+
+        self.tools_label = QLabel("Enabled Tools:")
+        self.tools_list = QListWidget()
+        self.tools_list.setToolTip("Select tools that this agent can use.")
+        self.tools_list.setSelectionMode(QListWidget.MultiSelection)
+        self.triggers_form.addRow(self.tools_label, self.tools_list)
+
+        self.automations_label = QLabel("Enabled Automations:")
+        self.automations_list = QListWidget()
+        self.automations_list.setToolTip("Select automations that this agent can use.")
+        self.automations_list.setSelectionMode(QListWidget.MultiSelection)
+        self.triggers_form.addRow(self.automations_label, self.automations_list)
+
+        # -------------------
+        # Advanced tab
+        # -------------------
+        self.advanced_tab = QWidget()
+        self.advanced_form = QFormLayout(self.advanced_tab)
+
         self.prompt_settings_group = QGroupBox("Prompt Settings")
         self.prompt_settings_layout = QFormLayout()
         self.prompt_settings_group.setLayout(self.prompt_settings_layout)
-        
-        # Temperature setting
+
         self.temperature_label = QLabel("Temperature:")
         self.temperature_input = QDoubleSpinBox()
         self.temperature_input.setMinimum(0.0)
@@ -109,16 +185,13 @@ class AgentsTab(QWidget):
         self.temperature_input.setSingleStep(0.1)
         self.temperature_input.setToolTip("Controls randomness. Lower values produce more predictable outputs.")
         self.prompt_settings_layout.addRow(self.temperature_label, self.temperature_input)
-        
-        # Max tokens setting
+
         self.max_tokens_label = QLabel("Max Tokens:")
         self.max_tokens_input = QSpinBox()
         self.max_tokens_input.setMinimum(1)
         self.max_tokens_input.setMaximum(100000)
         self.max_tokens_input.setToolTip("Maximum number of tokens in the response.")
         self.prompt_settings_layout.addRow(self.max_tokens_label, self.max_tokens_input)
-        
-        self.agent_settings_layout.addRow(self.prompt_settings_group)
 
         self.system_prompt_label = QLabel("Custom System Prompt:")
         self.system_prompt_input = QTextEdit()
@@ -127,82 +200,37 @@ class AgentsTab(QWidget):
         self.system_prompt_input.setToolTip("Enter a custom system prompt for the agent.")
         self.prompt_settings_layout.addRow(self.system_prompt_label, self.system_prompt_input)
 
-        # --- Other Settings ---
-        self.enabled_checkbox = QCheckBox("Enable Agent")
-        self.enabled_checkbox.setToolTip("Enable or disable this agent.")
-        self.agent_settings_layout.addRow("", self.enabled_checkbox)
-        
-        # Agent role
-        self.role_label = QLabel("Agent Role:")
-        self.role_combo = QComboBox()
-        self.role_combo.addItems(["Assistant", "Coordinator", "Specialist"])
-        self.role_combo.setToolTip("Select the role for this agent.")
-        self.agent_settings_layout.addRow(self.role_label, self.role_combo)
-        
-        # Agent description
-        self.description_label = QLabel("Description:")
-        self.description_input = QLineEdit()
-        self.description_input.setToolTip("Brief description of this agent's capabilities.")
-        self.agent_settings_layout.addRow(self.description_label, self.description_input)
-        
-        # Color picker
-        self.color_label = QLabel("Agent Color:")
-        self.color_button = QPushButton()
-        self.color_button.setToolTip("Select a color for this agent's messages.")
-        self.color_button.setFixedWidth(80)
-        self.color_button.clicked.connect(self.on_color_button_clicked)
-        self.agent_settings_layout.addRow(self.color_label, self.color_button)
-        
-        # Managed agents (for Coordinator role)
-        self.managed_agents_label = QLabel("Managed Agents:")
-        self.managed_agents_list = QListWidget()
-        self.managed_agents_list.setToolTip("Select agents that this Coordinator can manage.")
-        self.managed_agents_list.setSelectionMode(QListWidget.MultiSelection)
-        self.agent_settings_layout.addRow(self.managed_agents_label, self.managed_agents_list)
-        
-        # Tool use
-        self.tool_use_checkbox = QCheckBox("Enable Tool Use")
-        self.tool_use_checkbox.setToolTip("Allow this agent to use tools.")
-        self.agent_settings_layout.addRow("", self.tool_use_checkbox)
-        
-        # Tools enabled
-        self.tools_label = QLabel("Enabled Tools:")
-        self.tools_list = QListWidget()
-        self.tools_list.setToolTip("Select tools that this agent can use.")
-        self.tools_list.setSelectionMode(QListWidget.MultiSelection)
-        self.agent_settings_layout.addRow(self.tools_label, self.tools_list)
+        self.advanced_form.addRow(self.prompt_settings_group)
 
-        # Automations enabled
-        self.automations_label = QLabel("Enabled Automations:")
-        self.automations_list = QListWidget()
-        self.automations_list.setToolTip("Select automations that this agent can use.")
-        self.automations_list.setSelectionMode(QListWidget.MultiSelection)
-        self.agent_settings_layout.addRow(self.automations_label, self.automations_list)
-
-        # Thinking options
         self.thinking_checkbox = QCheckBox("Enable Thinking")
         self.thinking_checkbox.setToolTip("Allow the agent to think in steps before answering.")
-        self.agent_settings_layout.addRow("", self.thinking_checkbox)
+        self.advanced_form.addRow("", self.thinking_checkbox)
 
         self.thinking_steps_label = QLabel("Thinking Steps:")
         self.thinking_steps_input = QSpinBox()
         self.thinking_steps_input.setMinimum(1)
         self.thinking_steps_input.setMaximum(10)
         self.thinking_steps_input.setToolTip("Number of thinking iterations before responding.")
-        self.agent_settings_layout.addRow(self.thinking_steps_label, self.thinking_steps_input)
+        self.advanced_form.addRow(self.thinking_steps_label, self.thinking_steps_input)
 
         self.tts_checkbox = QCheckBox("Text-to-Speech Enabled")
         self.tts_checkbox.setToolTip("Speak this agent's replies aloud.")
-        self.agent_settings_layout.addRow("", self.tts_checkbox)
+        self.advanced_form.addRow("", self.tts_checkbox)
 
         self.voice_combo = QComboBox()
         self.voice_combo.addItem("Default")
         for name in tts.get_available_voice_names():
             self.voice_combo.addItem(name)
         self.voice_combo.setToolTip("Select the voice used for Text-to-Speech.")
-        self.agent_settings_layout.addRow("Voice", self.voice_combo)
+        self.advanced_form.addRow("Voice", self.voice_combo)
 
-        edit_layout.addLayout(self.agent_settings_layout)
+        # Add tabs to widget
+        self.settings_tabs.addTab(self.general_tab, "General")
+        self.settings_tabs.addTab(self.triggers_tab, "Triggers")
+        self.settings_tabs.addTab(self.advanced_tab, "Advanced")
+
+        edit_layout.addWidget(self.settings_tabs)
+
 
         # Navigation buttons at the bottom
         edit_layout.addLayout(nav_layout)
@@ -577,3 +605,10 @@ class AgentsTab(QWidget):
         models = self.global_agent_preferences.get("available_models", [])
         self.model_combo.addItems(models)
         self.model_combo.blockSignals(False)
+
+    def open_agents_help(self):
+        """Open the documentation tab to the Agents Help section."""
+        app = self.parent_app
+        app.change_tab(9, app.nav_buttons.get("docs"))
+        if "Agents Help" in app.docs_tab.doc_map:
+            app.docs_tab.selector.setCurrentText("Agents Help")

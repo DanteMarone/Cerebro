@@ -50,4 +50,7 @@ def test_filters_and_row_actions():
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
+    labels = [l for l in item_widget.findChildren(QLabel) if l.text() in ("Pending", "Completed")]
+    assert labels
+    assert "color" in labels[0].styleSheet()
     app.quit()

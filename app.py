@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from PyQt5 import QtCore
-from PyQt5.QtCore import QThread, Qt, QTimer, QObject, pyqtSignal
+from PyQt5.QtCore import QThread, Qt, QTimer, QObject, pyqtSignal, QUrl
 from PyQt5 import sip
 
 from screenshot import ScreenshotManager
@@ -16,6 +16,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QKeySequence
 
 from theme_utils import load_style_sheet
+from log_utils import setup_logging, get_log_file_path, format_user_friendly
+import logging
 
 from worker import AIWorker
 from tools import load_tools, run_tool
@@ -83,6 +85,7 @@ class AIChatApp(QMainWindow):
             self.debug_enabled = False
         else:
             self.debug_enabled = True
+        setup_logging(self.debug_enabled)
 
         # Basic window settings
         self.setWindowTitle("Cerebro 1.0")
@@ -768,12 +771,18 @@ class AIChatApp(QMainWindow):
         self.current_responses[agent_name] += chunk
 
     def handle_worker_error(self, error_message):
+        logging.error(error_message)
+        friendly = format_user_friendly(error_message, self.api_url)
+        log_link = QUrl.fromLocalFile(get_log_file_path()).toString()
         timestamp = datetime.now().strftime("%H:%M:%S")
-        self.chat_tab.append_message_html(f"[{timestamp}] {error_message}")
+        self.chat_tab.append_message_html(
+            f"[{timestamp}] <span style='color:red;'>{friendly} "
+            f"<a href='{log_link}'>View Logs</a></span>"
+        )
         self.chat_tab.hide_typing_indicator()
         if self.chat_tab.last_user_message_id:
             self.chat_tab.update_message_status(self.chat_tab.last_user_message_id, "failed")
-        self.show_notification(f"Error: {error_message}", "error")
+        self.show_notification(f"Error: {friendly}", "error")
 
     def worker_finished_sequential(self, sender_worker, thread, agent_name, index, process_next_agent):
         assistant_content = self.current_responses.get(agent_name, "")

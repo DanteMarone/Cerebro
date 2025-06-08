@@ -113,3 +113,14 @@ def test_compute_task_progress():
     now = datetime.strptime("2024-01-01 11:00:00", "%Y-%m-%d %H:%M:%S")
     pct = tasks.compute_task_progress(task, now)
     assert pct == 50
+
+
+def test_compute_task_times():
+    task = {
+        "due_time": "2024-01-01 12:00:00",
+        "created_time": "2024-01-01 10:00:00",
+    }
+    now = datetime.strptime("2024-01-01 11:00:00", "%Y-%m-%d %H:%M:%S")
+    elapsed, remaining = tasks.compute_task_times(task, now)
+    assert elapsed == 3600
+    assert remaining == 3600
