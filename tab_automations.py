@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QPushButton, QHBoxLayout,
     QListWidgetItem, QLabel, QMessageBox, QInputDialog, QLineEdit, QStyle,
     QTabWidget, QGroupBox, QSplitter, QFormLayout, QSpinBox, QDoubleSpinBox,
-    QComboBox, QTextEdit, QAbstractItemView, QApplication, QDialog, QDialogButtonBox
+    QComboBox, QTextEdit, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
+    QCheckBox
 )
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, QSize, QTimer
