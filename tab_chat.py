@@ -20,6 +20,9 @@ class ChatTab(QWidget):
         self.user_avatar = "\N{slightly smiling face}"
         self.typing_dots_count = 0
         self.typing_timer = None
+        self.message_counter = 0
+        self.last_user_message_id = None
+        self.typing_name = "Assistant"
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -241,8 +244,12 @@ class ChatTab(QWidget):
                 self.user_input.setPlainText(text)
             self.adjust_input_height()
 
-    def append_message_html(self, html_text):
-        """Append a new message with simple avatar styling."""
+    def append_message_html(self, html_text, from_user=False):
+        """Append a new message with simple avatar styling.
+
+        If ``from_user`` is True a status span will be added and the message id
+        returned so the status can be updated later.
+        """
         import re
         pattern1 = r'<span style="color:(#[0-9A-Fa-f]{6});">\[([0-9:]+)\]\s*(.+?):</span>\s*(.*)'
         pattern2 = r'\[([0-9:]+)\]\s*<span style=\'color:(#[0-9A-Fa-f]{6});\'>(.+?):</span>\s*(.*)'
@@ -271,8 +278,41 @@ class ChatTab(QWidget):
             else:
                 html_text = f"<div style='display:flex;justify-content:{align};margin:4px;'>{avatar_html}{bubble_html}</div>"
 
+        msg_id = None
+        if from_user:
+            self.message_counter += 1
+            msg_id = f"msg{self.message_counter}"
+            html_text += f" <a name='{msg_id}'></a>⏳"
+            self.last_user_message_id = msg_id
+
         self.chat_display.append(html_text)
         self.chat_display.verticalScrollBar().setValue(self.chat_display.verticalScrollBar().maximum())
+        return msg_id
+
+    def update_message_status(self, message_id, status):
+        """Update the status icon for a message."""
+        import re
+
+        icons = {
+            "sending": "\u23F3",  # hourglass not done
+            "sent": "\u2713",
+            "delivered": "\u2713\u2713",
+            "read": "<span style='color:blue'>\u2713\u2713</span>",
+            "failed": "<span style='color:red'>\u2757</span>",
+        }
+        tooltips = {
+            "sending": "Sending",
+            "sent": "Sent",
+            "delivered": "Delivered",
+            "read": "Read by all recipients",
+            "failed": "Failed to send",
+        }
+        html = self.chat_display.toHtml()
+        pattern = rf"<a name=\"{message_id}\"></a>[^<]*"
+        replacement = f"<a name=\"{message_id}\"></a>{icons.get(status, '')}"
+        new_html, count = re.subn(pattern, replacement, html)
+        if count:
+            self.chat_display.setHtml(new_html)
     
     def show_search(self):
         """Display a dialog to search conversation history."""
@@ -316,10 +356,11 @@ class ChatTab(QWidget):
         except Exception as e:  # pragma: no cover - just in case
             self.parent_app.show_notification(f"Failed to save conversation: {e}", "error")
 
-    def show_typing_indicator(self):
+    def show_typing_indicator(self, name="Assistant"):
         """Show the typing indicator with animated dots."""
+        self.typing_name = name
         self.typing_indicator.show()
-        self.typing_indicator.setText("<span style='font-size:20px'>🤔</span>")
+        self.typing_indicator.setText(f"<span style='font-size:20px'>🤔</span> {name} is typing")
         if self.typing_timer is None:
             self.typing_timer = QTimer(self)
             self.typing_timer.timeout.connect(self.update_typing_indicator)
@@ -336,7 +377,9 @@ class ChatTab(QWidget):
         """Update the typing indicator animation"""
         self.typing_dots_count = (self.typing_dots_count + 1) % 4
         dots = "." * self.typing_dots_count
-        self.typing_indicator.setText(f"<span style='font-size:20px'>🤔</span> thinking{dots}")
+        self.typing_indicator.setText(
+            f"<span style='font-size:20px'>🤔</span> {self.typing_name} is typing{dots}"
+        )
 
     def get_avatar(self, name):
         if name.startswith(self.parent_app.user_name):

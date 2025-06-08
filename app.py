@@ -616,7 +616,9 @@ class AIChatApp(QMainWindow):
         
         timestamp = datetime.now().strftime("%H:%M:%S")
         user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
-        self.chat_tab.append_message_html(user_message_html)
+        msg_id = self.chat_tab.append_message_html(user_message_html, from_user=True)
+        if msg_id:
+            self.chat_tab.update_message_status(msg_id, "sent")
 
         # Persist the user message once and keep the entry for history building
         user_message = append_message(
@@ -643,11 +645,13 @@ class AIChatApp(QMainWindow):
                 and agent_settings.get('role') != 'Specialist'
             ]
 
-            if not enabled_agents:
-                self.chat_tab.hide_typing_indicator()
-                QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one Assistant agent or a Coordinator agent.")
-                self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
-                return
+        if not enabled_agents:
+            self.chat_tab.hide_typing_indicator()
+            if self.chat_tab.last_user_message_id:
+                self.chat_tab.update_message_status(self.chat_tab.last_user_message_id, "failed")
+            QMessageBox.warning(self, "No Agents Enabled", "Please enable at least one Assistant agent or a Coordinator agent.")
+            self.chat_tab.send_button.setEnabled(True)  # Re-enable send button
+            return
         else:
             enabled_agents = enabled_coordinator_agents
 
@@ -655,6 +659,8 @@ class AIChatApp(QMainWindow):
             if index is None or index >= len(enabled_agents):
                 self.chat_tab.send_button.setEnabled(True)  # Re-enable send button after all agents have responded
                 self.chat_tab.hide_typing_indicator()
+                if self.chat_tab.last_user_message_id:
+                    self.chat_tab.update_message_status(self.chat_tab.last_user_message_id, "read")
                 return
 
             agent_name, agent_settings = enabled_agents[index]
@@ -742,6 +748,8 @@ class AIChatApp(QMainWindow):
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.chat_tab.append_message_html(f"[{timestamp}] {error_message}")
         self.chat_tab.hide_typing_indicator()
+        if self.chat_tab.last_user_message_id:
+            self.chat_tab.update_message_status(self.chat_tab.last_user_message_id, "failed")
         self.show_notification(f"Error: {error_message}", "error")
 
     def worker_finished_sequential(self, sender_worker, thread, agent_name, index, process_next_agent):
