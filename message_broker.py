@@ -125,10 +125,6 @@ class MessageBroker:
             self.app.chat_tab.append_message_html(error_msg)
             return
 
-        # Only allow users to send messages to the Director agent
-        if sender == "user" and recipient != "Director":
-            return
-
         # Role-based checks
         # If a Specialist, only allow messages from Coordinator.
         if agent_settings.get('role') == 'Specialist' and sender != 'Coordinator':
