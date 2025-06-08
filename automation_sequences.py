@@ -25,6 +25,7 @@ STEP_TYPE_IF_CONDITION = "IfCondition"
 STEP_TYPE_ELSE = "Else"
 STEP_TYPE_END_IF = "EndIf"
 STEP_TYPE_MOUSE_DRAG = "MouseDrag"
+STEP_TYPE_SET_VARIABLE = "SetVariable"
 
 SupportedStepType = Literal[
     "MouseClick",
@@ -37,6 +38,7 @@ SupportedStepType = Literal[
     "IfCondition",
     "Else",
     "EndIf",
+    "SetVariable",
 ]
 
 # Define parameter structures for each step type (optional, but good for clarity)
@@ -62,6 +64,10 @@ class MouseDragParams(Dict):
     end_x: int
     end_y: int
 
+class SetVariableParams(Dict):
+    name: str
+    value: Any
+
 class LoopStartParams(Dict):
     count: Union[int, None]  # Optional, for count-based loops
     condition: Union[str, None]  # Optional, for condition-based loops
@@ -75,6 +81,7 @@ StepParams = Union[
     AskAgentParams,
     LoopStartParams,
     MouseDragParams,
+    SetVariableParams,
     Dict[str, Any],  # For steps with no specific params like LoopEnd, Else, EndIf
 ]
 
@@ -225,7 +232,8 @@ DEFAULT_EXECUTION_CONTEXT = {
     'ask_agent_agent_name': None, # New field
     'ask_agent_send_screenshot': False, # New field
     'ask_agent_screenshot_path': None,
-    'next_step_index_after_ask': None
+    'next_step_index_after_ask': None,
+    'variables': {}
 }
 
 def run_step_automation(
@@ -435,6 +443,17 @@ def run_step_automation(
                     return context
                 time.sleep(duration)
 
+            elif step_type == STEP_TYPE_SET_VARIABLE:
+                var_name = params.get("name")
+                var_value = params.get("value")
+                if not isinstance(var_name, str):
+                    context['status'] = 'error'
+                    context['error_message'] = f"[Automation Error] Step {i+1} (SetVariable): 'name' must be a string."
+                    context['current_step_index'] = i
+                    logger.error(context['error_message'])
+                    return context
+                context.setdefault('variables', {})[var_name] = var_value
+
             elif step_type == STEP_TYPE_IF_CONDITION:
                 condition_str = params.get("condition", "").lower()
                 if condition_str not in ["true", "false"]:
@@ -627,6 +646,8 @@ def is_valid_step(step_dict: Dict[str, Any]) -> bool:
                "start_y" in params and isinstance(params["start_y"], int) and \
                "end_x" in params and isinstance(params["end_x"], int) and \
                "end_y" in params and isinstance(params["end_y"], int)
+    elif step_type == STEP_TYPE_SET_VARIABLE:
+        return "name" in params and isinstance(params["name"], str) and "value" in params
 
     return False # Unknown step type
 
