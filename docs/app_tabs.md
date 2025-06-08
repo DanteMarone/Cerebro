@@ -88,6 +88,7 @@ Record and play back desktop actions.
   skipped so the cursor jumps to each click or drag location. Each step waits
   0.5 seconds by default but the delay can be customized when you run it.
 - **Delete** – remove a saved automation.
+- **Step-based Automations** – build sequences from predefined steps. Double-click a step to add it and drag steps in the Automation Sequence panel to reorder them.
 
 ## Tasks Tab
 
