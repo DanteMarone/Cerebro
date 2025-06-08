@@ -612,3 +612,7 @@ class AgentsTab(QWidget):
         app.change_tab(9, app.nav_buttons.get("docs"))
         if "Agents Help" in app.docs_tab.doc_map:
             app.docs_tab.selector.setCurrentText("Agents Help")
+
+    def get_agent_names(self):
+        """Return a list of all configured agent names."""
+        return list(getattr(self.parent_app, "agents_data", {}).keys())
