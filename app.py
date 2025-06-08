@@ -1181,9 +1181,10 @@ class AIChatApp(QMainWindow):
             a.get("enabled", False)
             for a in self.agents_data.values()
             if not a.get("desktop_history_enabled", False)
-            and a.get("role") != 'Specialist'
+            and a.get("role") != "Specialist"
         )
-        self.chat_tab.send_button.setEnabled(any_enabled)
+        has_text = bool(self.chat_tab.user_input.toPlainText().strip())
+        self.chat_tab.send_button.setEnabled(any_enabled and has_text)
 
     def update_screenshot_timer(self):
         """Update screenshot timer based on agent settings."""

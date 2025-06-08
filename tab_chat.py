@@ -2,9 +2,21 @@
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
-    QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
-    QFileDialog
+    QWidget,
+    QVBoxLayout,
+    QTextEdit,
+    QPushButton,
+    QHBoxLayout,
+    QStyle,
+    QLabel,
+    QSplitter,
+    QFrame,
+    QScrollArea,
+    QToolButton,
+    QMenu,
+    QAction,
+    QFileDialog,
+    QToolTip,
 )
 
 from dialogs import SearchDialog
@@ -188,6 +200,7 @@ class ChatTab(QWidget):
         self.clear_chat_button.clicked.connect(self.on_clear_chat_clicked)
         self.voice_button.clicked.connect(self.on_voice_clicked)
         self.user_input.textChanged.connect(self.adjust_input_height)
+        self.user_input.textChanged.connect(self.on_user_text_changed)
         search_btn.clicked.connect(self.show_search)
 
     def eventFilter(self, obj, event):
@@ -205,16 +218,28 @@ class ChatTab(QWidget):
         new_height = int(doc_height + 10)
         self.user_input.setFixedHeight(min(new_height, 100))
 
+    def on_user_text_changed(self):
+        """Notify the parent app to update the send button state."""
+        if hasattr(self.parent_app, "update_send_button_state"):
+            self.parent_app.update_send_button_state()
+
     def on_send_clicked(self):
         """
         Send message to the AIChatApp logic.
         """
         user_text = self.user_input.toPlainText().strip()
         if not user_text:
+            QToolTip.showText(
+                self.send_button.mapToGlobal(self.send_button.rect().center()),
+                "Cannot send an empty message",
+                self.send_button,
+            )
             return
         self.user_input.clear()
         self.user_input.setFixedHeight(40)
         self.parent_app.send_message(user_text)
+        if hasattr(self.parent_app, "update_send_button_state"):
+            self.parent_app.update_send_button_state()
 
     def on_clear_chat_clicked(self):
         """
