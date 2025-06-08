@@ -448,18 +448,47 @@ class TasksTab(QWidget):
             created = task.get("created_time", "")[:16].replace("T", " ")
             layout.addWidget(QLabel(created))
 
+        # Create an elided summary label (from main)
         fm = QFontMetrics(widget.font())
-        # Elide the prompt itself to a reasonable length before combining
         elided_prompt = fm.elidedText(prompt, Qt.ElideRight, 120)
-        
         summary_label = QLabel(f"{elided_prompt}{repeat_str} ({status})")
         summary_label.setStyleSheet("font-weight: bold; font-size: 13px;")
-        # Added tooltip from 'main' branch for more context on hover
-        summary_label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
+
+        # Create a detailed tooltip (from codex)
+        tooltip = f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}"
+        reason = task.get("status_reason", "")
+        action_hint = task.get("action_hint", "")
+        if reason:
+            tooltip += f"\nReason: {reason}"
+        if action_hint:
+            tooltip += f"\nAction: {action_hint}"
+        summary_label.setToolTip(tooltip)
+        
         layout.addWidget(summary_label)
 
+        # Display Priority if column is visible (from main)
         if self.visible_columns.get("Priority", True):
             layout.addWidget(QLabel(f"P{task.get('priority', 1)}"))
+
+        # Display reason, hint, and link if present for failed/on_hold tasks (from codex)
+        link = task.get("error_link", "")
+        if reason and status in ("failed", "on_hold"):
+            reason_label = QLabel(reason)
+            color = "#f44336" if status == "failed" else "#9e9e9e"
+            reason_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+            reason_label.setWordWrap(True)
+            layout.addWidget(reason_label)
+            
+            if action_hint:
+                hint_label = QLabel(action_hint)
+                hint_label.setStyleSheet("font-style: italic;")
+                hint_label.setWordWrap(True)
+                layout.addWidget(hint_label)
+            
+            if link:
+                link_label = QLabel(f'<a href="{link}">More Info</a>')
+                link_label.setOpenExternalLinks(True)
+                layout.addWidget(link_label)
 
         style = STATUS_STYLES.get(status, {"color": "black", "icon": QStyle.SP_FileIcon})
         status_layout = QHBoxLayout()

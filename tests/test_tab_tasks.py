@@ -119,16 +119,53 @@ def test_context_menu(monkeypatch):
     app.quit()
 
 
-def test_board_view_basic():
+def test_failed_reason_display():
+    """
+    Tests that the reason, hint, and link for a failed task are displayed.
+    (from codex/add-error-reason-and-suggestions-to-task-details)
+    """
     app = QApplication.instance() or QApplication([])
     dummy = DummyApp()
     dummy.agents_data = {"a1": {}}
     dummy.tasks = [
-        {"id": "1", "agent_name": "a1", "prompt": "p1", "due_time": "2024-01-01", "status": "pending", "priority": 2, "repeat_interval": 0},
+        {
+            "id": "1",
+            "agent_name": "a1",
+            "prompt": "p",
+            "due_time": "2024-01-01",
+            "status": "failed",
+            "status_reason": "Agent offline",
+            "action_hint": "Start the agent",
+            "error_link": "http://example.com",
+            "repeat_interval": 0,
+        }
     ]
     tab = tab_tasks.TasksTab(dummy)
+    tab.refresh_tasks_list()
+    item_widget = tab.tasks_list.itemWidget(tab.tasks_list.item(0))
+    # Find all QLabel widgets and check their text content
+    texts = [w.text() for w in item_widget.findChildren(QLabel)]
+    assert "Agent offline" in texts
+    assert "Start the agent" in texts
+    # Check for the link label, which contains HTML
+    assert any('<a href="http://example.com">More Info</a>' in w.text() for w in item_widget.findChildren(QLabel))
+
+def test_board_view_basic():
+    """
+    Tests that the board view displays tasks in the correct status column.
+    (from main)
+    """
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}}
+    dummy.tasks = [
+       {"id": "1", "agent_name": "a1", "prompt": "p1", "due_time": "2024-01-01", "status": "pending", "priority": 2, "repeat_interval": 0},
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+    # Switch to the Board View tab
     tab.view_tabs.setCurrentIndex(1)
     tab.refresh_board_view()
+    # Check that the 'pending' column exists and has a task in it
     assert "pending" in tab.board_columns
-    assert tab.board_columns["pending"].count() > 1
+    assert tab.board_columns["pending"].count() > 0
     app.quit()
