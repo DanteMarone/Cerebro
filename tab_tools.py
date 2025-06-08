@@ -4,10 +4,12 @@ from PyQt5.QtWidgets import (
     QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView, QInputDialog,
     QLineEdit
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QDesktopServices
 from dialogs import ToolDialog
 from tools import add_tool, edit_tool, delete_tool, run_tool
 import json
+from pathlib import Path
 
 
 class ToolsTab(QWidget):
@@ -61,11 +63,18 @@ class ToolsTab(QWidget):
         self.run_button.setEnabled(False)
         btn_layout.addWidget(self.run_button)
 
+        self.learn_more_button = QPushButton("Learn More")
+        self.learn_more_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_MessageBoxInformation')))
+        self.learn_more_button.setToolTip("Open documentation for the selected tool.")
+        self.learn_more_button.setEnabled(False)
+        btn_layout.addWidget(self.learn_more_button)
+
         # Connect signals
         self.add_button.clicked.connect(self.add_tool_ui)
         self.edit_tool_button.clicked.connect(self.edit_tool_ui)
         self.delete_button.clicked.connect(self.delete_tool_ui)
         self.run_button.clicked.connect(self.run_tool_ui)
+        self.learn_more_button.clicked.connect(self.open_learn_more)
 
         self.refresh_tools_list()
 
@@ -78,11 +87,14 @@ class ToolsTab(QWidget):
             self.edit_tool_button.setEnabled(False)
             self.delete_button.setEnabled(False)
             self.run_button.setEnabled(False)
+            self.learn_more_button.setEnabled(False)
             return
 
         self.run_button.setEnabled(True)
         self.edit_tool_button.setEnabled(True)
         self.delete_button.setEnabled(True)
+        link = selected_items[0].data(Qt.UserRole + 2)
+        self.learn_more_button.setEnabled(bool(link))
 
     def refresh_tools_list(self):
         self.tools_list.clear()
@@ -99,6 +111,7 @@ class ToolsTab(QWidget):
             item = QListWidgetItem(f"{tool['name']}: {tool['description']}")
             item.setData(Qt.UserRole, tool['name'])
             item.setData(Qt.UserRole + 1, 'plugin_module' in tool)
+            item.setData(Qt.UserRole + 2, tool.get('learn_more', ''))
             if 'plugin_module' in tool:
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self.tools_list.addItem(item)
@@ -192,3 +205,20 @@ class ToolsTab(QWidget):
 
         output = run_tool(self.tools, tool_name, args, self.parent_app.debug_enabled)
         QMessageBox.information(self, "Tool Output", output)
+
+    def open_learn_more(self):
+        selected_items = self.tools_list.selectedItems()
+        if not selected_items:
+            return
+
+        url = selected_items[0].data(Qt.UserRole + 2)
+        if not url:
+            return
+
+        if '://' not in url:
+            from pathlib import Path
+            url = str(Path(url).absolute())
+            QDesktopServices.openUrl(QUrl.fromLocalFile(url))
+        else:
+            QDesktopServices.openUrl(QUrl(url))
+

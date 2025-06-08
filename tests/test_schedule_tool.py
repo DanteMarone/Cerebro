@@ -21,7 +21,7 @@ def test_schedule_tool(monkeypatch):
     monkeypatch.setattr(tasks, "load_tasks", lambda debug=False: [])
 
     args = {"agent_name": "tester", "prompt": "hello", "due_time": "2099-01-01T00:00:00"}
-    result = tools.run_tool(tools_list, "schedule-task", args)
+    result = tools.run_tool(tools_list, "schedule-reminder", args)
 
     assert "Task scheduled" in result
     assert captured == {"agent": "tester", "prompt": "hello", "due_time": "2099-01-01T00:00:00"}
