@@ -158,3 +158,16 @@ def test_compute_task_times():
     elapsed, remaining = tasks.compute_task_times(task, now)
     assert elapsed == 3600
     assert remaining == 3600
+
+
+def test_task_templates(monkeypatch):
+    templates = []
+    monkeypatch.setattr(tasks, "save_task_templates", lambda *a, **k: None)
+    tasks.add_task_template(templates, "t1", "agent1", "p", 5)
+    assert templates[0]["name"] == "t1"
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    tid = tasks.create_task_from_template(task_list, templates, "t1", "2024-01-01 10:00")
+    assert tid is not None
+    assert task_list[0]["agent_name"] == "agent1"
+    assert task_list[0]["repeat_interval"] == 5

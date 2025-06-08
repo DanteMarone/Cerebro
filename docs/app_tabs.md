@@ -102,13 +102,14 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Row Actions** – each row includes Edit, Duplicate, Delete and Complete buttons.
 - **Bulk Edit** – select multiple tasks to change them at once.
 - **Drag and Drop** – reorder tasks by dragging them up or down.
+- **Templates** – save any task as a template and start new tasks from saved templates.
 - **Undo Toast** – after deleting a task a popup allows you to undo.
 - **Context Menu** – right-click a task in any view to Edit, Delete or change its status.
 ## How It Was Resolved
 - **Progress Bar** – indicates how close the task is to its due time.
 - **Elapsed Time** – shows how long the task has existed.
 - **ETA** – estimated time until the due time is reached.
-- **Repeat Interval** – optional minutes after which the task repeats.
+- **Repeat Interval** – choose daily, weekly, monthly, or a custom number of minutes.
 - **Time Format** – ISO 8601 or `YYYY-MM-DD HH:MM:SS` local time.
 
 When a task becomes due the prompt is sent automatically. Tasks can also be registered with the operating system scheduler so they run even if Cerebro is not open.

@@ -61,7 +61,10 @@ def test_filters_and_row_actions():
     combos = item_widget.findChildren(QComboBox)
     edits = item_widget.findChildren(QDateTimeEdit)
     assert combos and edits
-    assert tab.tasks_list.selectionMode() == tab_tasks.QAbstractItemView.ExtendedSelection
+    assert (
+        tab.tasks_list.selectionMode()
+        == tab_tasks.QAbstractItemView.ExtendedSelection
+    )
     app.quit()
 
 

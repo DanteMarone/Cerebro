@@ -39,6 +39,8 @@ from tasks import (
     compute_task_progress,
     save_tasks,
     compute_task_times,
+    load_task_templates,
+    add_task_template,
 )
 
 # Mapping of task status to display color and icon.
@@ -215,6 +217,7 @@ class TasksTab(QWidget):
         super().__init__()
         self.parent_app = parent_app
         self.tasks = self.parent_app.tasks
+        self.templates = load_task_templates(self.parent_app.debug_enabled)
         self.last_deleted_task = None
         self.visible_columns = {
             "Assignee": True,
@@ -301,6 +304,10 @@ class TasksTab(QWidget):
         self.add_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileIcon')))
         self.add_button.setToolTip("Create a new task.")
         btn_layout.addWidget(self.add_button)
+        self.template_button = QPushButton("From Template")
+        self.template_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DirIcon')))
+        self.template_button.setToolTip("Create a task from a saved template.")
+        btn_layout.addWidget(self.template_button)
         self.layout.addLayout(btn_layout)
 
         # Edit and Delete Buttons (initially hidden)
@@ -336,6 +343,7 @@ class TasksTab(QWidget):
 
         # Connect signals
         self.add_button.clicked.connect(self.add_task_ui)
+        self.template_button.clicked.connect(self.add_task_from_template_ui)
         self.edit_button.clicked.connect(self.edit_task_ui)
         self.bulk_edit_button.clicked.connect(self.bulk_edit_ui)
         self.delete_button.clicked.connect(self.delete_task_ui)
@@ -541,6 +549,56 @@ class TasksTab(QWidget):
                 priority=data.get("priority", 1),
                 debug_enabled=self.parent_app.debug_enabled
             )
+            if data.get("save_as_template"):
+                add_task_template(
+                    self.templates,
+                    data.get("template_name") or prompt[:20],
+                    agent_name,
+                    prompt,
+                    repeat_interval=repeat_interval,
+                    debug_enabled=self.parent_app.debug_enabled,
+                )
+            self.refresh_tasks_list()
+
+    def add_task_from_template_ui(self):
+        """Prompt for a template and create a task from it."""
+        if not self.templates:
+            QMessageBox.information(self, "No Templates", "No task templates available.")
+            return
+        names = [t.get("name") for t in self.templates]
+        name, ok = QInputDialog.getItem(self, "Select Template", "Template:", names, 0, False)
+        if not ok:
+            return
+        tmpl = next((t for t in self.templates if t.get("name") == name), None)
+        if not tmpl:
+            return
+        dialog = TaskDialog(
+            self,
+            self.parent_app.agents_data,
+            agent_name=tmpl.get("agent_name", ""),
+            prompt=tmpl.get("prompt", ""),
+            repeat_interval=tmpl.get("repeat_interval", 0),
+        )
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+            add_task(
+                self.tasks,
+                data["agent_name"],
+                data["prompt"],
+                data["due_time"],
+                creator="user",
+                repeat_interval=data.get("repeat_interval", 0),
+                debug_enabled=self.parent_app.debug_enabled,
+            )
+            if data.get("save_as_template"):
+                add_task_template(
+                    self.templates,
+                    data.get("template_name") or data["prompt"][:20],
+                    data["agent_name"],
+                    data["prompt"],
+                    repeat_interval=data.get("repeat_interval", 0),
+                    debug_enabled=self.parent_app.debug_enabled,
+                )
             self.refresh_tasks_list()
 
     def edit_task_ui(self, task_id=None):
@@ -581,6 +639,15 @@ class TasksTab(QWidget):
             if err:
                 QMessageBox.warning(self, "Error Editing Task", err)
             else:
+                if data.get("save_as_template"):
+                    add_task_template(
+                        self.templates,
+                        data.get("template_name") or data["prompt"][:20],
+                        data["agent_name"],
+                        data["prompt"],
+                        repeat_interval=data.get("repeat_interval", 0),
+                        debug_enabled=self.parent_app.debug_enabled,
+                    )
                 self.refresh_tasks_list()
 
     def delete_task_ui(self, task_id=None):
