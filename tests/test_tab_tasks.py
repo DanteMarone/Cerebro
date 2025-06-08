@@ -1,5 +1,12 @@
 import os
-from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QProgressBar
+from PyQt5.QtWidgets import (
+    QApplication,
+    QLabel,
+    QPushButton,
+    QProgressBar,
+    QComboBox,
+    QDateTimeEdit,
+)
 import tab_tasks
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -50,4 +57,34 @@ def test_filters_and_row_actions():
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
+    combos = item_widget.findChildren(QComboBox)
+    edits = item_widget.findChildren(QDateTimeEdit)
+    assert combos and edits
+    assert tab.tasks_list.selectionMode() == tab_tasks.QAbstractItemView.ExtendedSelection
+    app.quit()
+
+
+def test_bulk_edit(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}, "a2": {}}
+    dummy.tasks = [
+        {"id": "1", "agent_name": "a1", "prompt": "p1", "due_time": "2024-01-01", "status": "pending", "repeat_interval": 0},
+        {"id": "2", "agent_name": "a1", "prompt": "p2", "due_time": "2024-01-01", "status": "pending", "repeat_interval": 0},
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+
+    class FakeDlg:
+        def exec_(self):
+            return tab_tasks.QDialog.Accepted
+
+        def get_data(self):
+            return {"agent_name": "a2"}
+
+    monkeypatch.setattr(tab_tasks, "BulkEditDialog", lambda *args, **kwargs: FakeDlg())
+    tab.refresh_tasks_list()
+    for i in range(2):
+        tab.tasks_list.item(i).setSelected(True)
+    tab.bulk_edit_ui()
+    assert all(t["agent_name"] == "a2" for t in dummy.tasks)
     app.quit()

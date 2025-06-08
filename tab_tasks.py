@@ -16,6 +16,9 @@ from PyQt5.QtWidgets import (
     QCalendarWidget,
     QInputDialog,
     QComboBox,
+    QDateTimeEdit,
+    QCheckBox,
+    QDialogButtonBox,
 )
 from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData, QRect
 from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
@@ -25,6 +28,7 @@ from tasks import (
     edit_task,
     delete_task,
     set_task_status,
+    update_task_agent,
     update_task_due_time,
     compute_task_progress,
 )
@@ -91,6 +95,57 @@ class DroppableCalendarWidget(QCalendarWidget):
             parent.reschedule_task(task_id, date)
         event.acceptProposedAction()
 
+
+class BulkEditDialog(QDialog):
+    """Dialog to edit multiple tasks at once."""
+
+    def __init__(self, parent, agents):
+        super().__init__(parent)
+        self.setWindowTitle("Bulk Edit Tasks")
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel("Agent:"))
+        self.agent_combo = QComboBox()
+        self.agent_combo.addItem("(No Change)")
+        self.agent_combo.addItems(agents)
+        layout.addWidget(self.agent_combo)
+
+        self.due_check = QCheckBox("Change Due Time")
+        layout.addWidget(self.due_check)
+        self.due_edit = QDateTimeEdit(QDateTime.currentDateTime())
+        self.due_edit.setCalendarPopup(True)
+        self.due_edit.setEnabled(False)
+        layout.addWidget(self.due_edit)
+        self.due_check.stateChanged.connect(
+            lambda: self.due_edit.setEnabled(self.due_check.isChecked())
+        )
+
+        self.status_check = QCheckBox("Change Status")
+        layout.addWidget(self.status_check)
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["pending", "completed"])
+        self.status_combo.setEnabled(False)
+        layout.addWidget(self.status_combo)
+        self.status_check.stateChanged.connect(
+            lambda: self.status_combo.setEnabled(self.status_check.isChecked())
+        )
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_data(self):
+        data = {}
+        agent = self.agent_combo.currentText()
+        if agent and agent != "(No Change)":
+            data["agent_name"] = agent
+        if self.due_check.isChecked():
+            data["due_time"] = self.due_edit.dateTime().toString(Qt.ISODate)
+        if self.status_check.isChecked():
+            data["status"] = self.status_combo.currentText()
+        return data
+
 class TasksTab(QWidget):
     """
     Manages the display and interaction with scheduled tasks.
@@ -120,7 +175,7 @@ class TasksTab(QWidget):
 
         # Tasks list
         self.tasks_list = TaskListWidget()
-        self.tasks_list.setSelectionMode(QAbstractItemView.SingleSelection)  # Enforce single selection
+        self.tasks_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tasks_list.setDragEnabled(True)
         self.tasks_list.itemSelectionChanged.connect(self.on_item_selection_changed)
         self.tasks_list.itemDoubleClicked.connect(self.toggle_status_ui)
@@ -151,6 +206,12 @@ class TasksTab(QWidget):
         self.edit_button.hide()
         btn_layout.addWidget(self.edit_button)
 
+        self.bulk_edit_button = QPushButton("Bulk Edit")
+        self.bulk_edit_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogContentsView')))
+        self.bulk_edit_button.setToolTip("Edit multiple tasks.")
+        self.bulk_edit_button.hide()
+        btn_layout.addWidget(self.bulk_edit_button)
+
         self.delete_button = QPushButton("Delete")
         self.delete_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_TrashIcon')))
         self.delete_button.setToolTip("Delete the selected task.")
@@ -166,6 +227,7 @@ class TasksTab(QWidget):
         # Connect signals
         self.add_button.clicked.connect(self.add_task_ui)
         self.edit_button.clicked.connect(self.edit_task_ui)
+        self.bulk_edit_button.clicked.connect(self.bulk_edit_ui)
         self.delete_button.clicked.connect(self.delete_task_ui)
         self.status_button.clicked.connect(self.toggle_status_ui)
 
@@ -181,10 +243,15 @@ class TasksTab(QWidget):
             self.edit_button.show()
             self.delete_button.show()
             self.status_button.show()
+            if len(selected_items) > 1:
+                self.bulk_edit_button.show()
+            else:
+                self.bulk_edit_button.hide()
         else:
             self.edit_button.hide()
             self.delete_button.hide()
             self.status_button.hide()
+            self.bulk_edit_button.hide()
 
     def refresh_tasks_list(self):
         """
@@ -229,9 +296,32 @@ class TasksTab(QWidget):
         status = task.get("status", "pending")
         repeat = task.get("repeat_interval", 0)
         repeat_str = f" every {repeat}m" if repeat else ""
-        summary = f"[{due_time}] {agent_name}{repeat_str} ({status}) - {prompt[:30]}..."
-        label = QLabel(summary)
-        layout.addWidget(label)
+
+        agent_combo = QComboBox()
+        agent_combo.addItems(self.parent_app.agents_data.keys())
+        agent_combo.setCurrentText(agent_name)
+        agent_combo.setProperty("task_id", task["id"])
+        agent_combo.currentTextChanged.connect(
+            lambda val, tid=task["id"]: self.inline_set_agent(tid, val)
+        )
+        layout.addWidget(agent_combo)
+
+        due_edit = QDateTimeEdit()
+        dt = QDateTime.fromString(due_time, Qt.ISODate)
+        if not dt.isValid():
+            dt = QDateTime.fromString(due_time, "yyyy-MM-dd HH:mm:ss")
+        if dt.isValid():
+            due_edit.setDateTime(dt)
+        due_edit.setCalendarPopup(True)
+        due_edit.setDisplayFormat("yyyy-MM-dd HH:mm")
+        due_edit.setProperty("task_id", task["id"])
+        due_edit.editingFinished.connect(
+            lambda tid=task["id"], widget=due_edit: self.inline_set_due(tid, widget.dateTime())
+        )
+        layout.addWidget(due_edit)
+
+        summary_label = QLabel(f"{prompt[:30]}...{repeat_str} ({status})")
+        layout.addWidget(summary_label)
 
         progress = compute_task_progress(task)
         bar = QProgressBar()
@@ -384,6 +474,45 @@ class TasksTab(QWidget):
                 from metrics import record_task_completion
                 record_task_completion(self.parent_app.metrics, task.get("agent_name", "unknown"), self.parent_app.debug_enabled)
                 self.parent_app.refresh_metrics_display()
+            self.refresh_tasks_list()
+
+    def inline_set_agent(self, task_id, agent_name):
+        """Inline update of the task's agent."""
+        update_task_agent(
+            self.tasks, task_id, agent_name, debug_enabled=self.parent_app.debug_enabled
+        )
+        self.refresh_tasks_list()
+
+    def inline_set_due(self, task_id, qdatetime):
+        """Inline update of the task's due time."""
+        due_str = qdatetime.toString(Qt.ISODate)
+        update_task_due_time(
+            self.tasks, task_id, due_str, debug_enabled=self.parent_app.debug_enabled
+        )
+        self.refresh_tasks_list()
+
+    def bulk_edit_ui(self):
+        """Edit multiple selected tasks at once."""
+        selected_items = self.tasks_list.selectedItems()
+        if len(selected_items) < 2:
+            return
+        ids = [it.data(Qt.UserRole) for it in selected_items]
+        dialog = BulkEditDialog(self, list(self.parent_app.agents_data.keys()))
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+            for tid in ids:
+                if "agent_name" in data:
+                    update_task_agent(
+                        self.tasks, tid, data["agent_name"], debug_enabled=self.parent_app.debug_enabled
+                    )
+                if "due_time" in data:
+                    update_task_due_time(
+                        self.tasks, tid, data["due_time"], debug_enabled=self.parent_app.debug_enabled
+                    )
+                if "status" in data:
+                    set_task_status(
+                        self.tasks, tid, data["status"], debug_enabled=self.parent_app.debug_enabled
+                    )
             self.refresh_tasks_list()
 
     def on_date_activated(self, qdate):

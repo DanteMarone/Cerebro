@@ -91,10 +91,12 @@ Record and play back desktop actions.
 Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Add Task** – create a prompt for a specific agent. Defaults to one minute from now.
 - **Edit** – change an existing task.
+- **Inline Edit** – adjust the assignee or due date directly in the task list.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark a task as completed or pending.
 - **Filters** – filter by agent or status.
 - **Row Actions** – each row includes Edit, Delete and Complete buttons.
+- **Bulk Edit** – select multiple tasks to change them at once.
 - **Progress Bar** – indicates how close the task is to its due time.
 - **Repeat Interval** – optional minutes after which the task repeats.
 - **Time Format** – ISO 8601 or `YYYY-MM-DD HH:MM:SS` local time.
