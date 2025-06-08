@@ -390,7 +390,7 @@ class AIChatApp(QMainWindow):
         open_action.triggered.connect(self.show)
         tray_menu.addAction(open_action)
 
-        add_task_action = QAction("Add Task", self)
+        add_task_action = QAction("New Task", self)
         add_task_action.triggered.connect(self.tasks_tab.add_task_ui)
         tray_menu.addAction(add_task_action)
 
