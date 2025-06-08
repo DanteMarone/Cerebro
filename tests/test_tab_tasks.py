@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QPushButton,
     QProgressBar,
+    QMenu,
     QComboBox,
     QDateTimeEdit,
 )
@@ -87,4 +88,29 @@ def test_bulk_edit(monkeypatch):
         tab.tasks_list.item(i).setSelected(True)
     tab.bulk_edit_ui()
     assert all(t["agent_name"] == "a2" for t in dummy.tasks)
+    app.quit()
+
+
+def test_context_menu(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}}
+    dummy.tasks = [
+        {"id": "1", "agent_name": "a1", "prompt": "p", "due_time": "2024-01-01", "status": "pending", "repeat_interval": 0}
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+    tab.refresh_tasks_list()
+
+    captured = []
+
+    def fake_exec_(self, *_args, **_kwargs):
+        captured.extend([a.text() for a in self.actions()])
+
+    monkeypatch.setattr(QMenu, "exec_", fake_exec_)
+    item = tab.tasks_list.item(0)
+    pos = tab.tasks_list.visualItemRect(item).center()
+    tab.show_tasks_context_menu(pos)
+
+    assert "Edit" in captured and "Delete" in captured
+    assert any(t in captured for t in ["Mark Completed", "Mark Pending"])
     app.quit()
