@@ -34,13 +34,20 @@ def test_focus_on_first_missing_field():
     app.quit()
 
 
-def test_template_fields():
+def test_priority_and_template_fields():
     app = QApplication.instance() or QApplication([])
     parent = DummyParent()
-    dlg = dialogs.TaskDialog(parent, {"agent1": {}})
+    dlg = dialogs.TaskDialog(parent, {"agent1": {}}, priority=2)
+    
+    # Set template fields
     dlg.save_template_cb.setChecked(True)
     dlg.template_name_edit.setText("temp")
+    
+    # Get data
     data = dlg.get_data()
+    
+    # Assert all conditions
+    assert data["priority"] == 2
     assert data["save_as_template"] is True
     assert data["template_name"] == "temp"
     app.quit()

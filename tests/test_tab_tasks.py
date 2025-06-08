@@ -117,3 +117,18 @@ def test_context_menu(monkeypatch):
     assert "Edit" in captured and "Delete" in captured
     assert any(t in captured for t in ["Mark Completed", "Mark Pending"])
     app.quit()
+
+
+def test_board_view_basic():
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}}
+    dummy.tasks = [
+        {"id": "1", "agent_name": "a1", "prompt": "p1", "due_time": "2024-01-01", "status": "pending", "priority": 2, "repeat_interval": 0},
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+    tab.view_tabs.setCurrentIndex(1)
+    tab.refresh_board_view()
+    assert "pending" in tab.board_columns
+    assert tab.board_columns["pending"].count() > 1
+    app.quit()
