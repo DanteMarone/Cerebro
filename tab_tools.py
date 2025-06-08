@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QInputDialog,
     QLineEdit,
 )
+from importlib import util as importlib_util
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from dialogs import ToolDialog
@@ -81,11 +82,18 @@ class ToolsTab(QWidget):
         self.run_button.setEnabled(False)
         btn_layout.addWidget(self.run_button)
 
+        self.setup_button = QPushButton("Setup")
+        self.setup_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DialogHelpButton')))
+        self.setup_button.setToolTip("Configure the selected tool.")
+        self.setup_button.setEnabled(False)
+        btn_layout.addWidget(self.setup_button)
+
         # Connect signals
         self.add_button.clicked.connect(self.add_tool_ui)
         self.edit_tool_button.clicked.connect(self.edit_tool_ui)
         self.delete_button.clicked.connect(self.delete_tool_ui)
         self.run_button.clicked.connect(self.run_tool_ui)
+        self.setup_button.clicked.connect(self.setup_tool_ui)
 
         self.refresh_tools_list()
 
@@ -98,11 +106,17 @@ class ToolsTab(QWidget):
             self.edit_tool_button.setEnabled(False)
             self.delete_button.setEnabled(False)
             self.run_button.setEnabled(False)
+            self.setup_button.setEnabled(False)
             return
 
         self.run_button.setEnabled(True)
         self.edit_tool_button.setEnabled(True)
         self.delete_button.setEnabled(True)
+
+        tool_name = selected_items[0].data(Qt.UserRole)
+        tool = next((t for t in self.tools if t['name'] == tool_name), None)
+        needs_setup = tool and (self.missing_dependencies(tool) or tool.get('needs_config'))
+        self.setup_button.setEnabled(bool(needs_setup))
 
     def refresh_tools_list(self):
         self.tools_list.clear()
@@ -118,27 +132,42 @@ class ToolsTab(QWidget):
             self.no_tools_label.show()
             return
 
-        for tool in builtins:
-            item = QTreeWidgetItem([tool['name'], tool['description'], 'Enabled'])
-            item.setData(0, Qt.UserRole, tool['name'])
-            item.setData(0, Qt.UserRole + 1, False)
-            style = TOOL_STATUS_STYLES['Enabled']
-            icon = self.style().standardIcon(style['icon'])
-            item.setIcon(2, icon)
-            self.tools_list.addTopLevelItem(item)
+        for tool in all_tools:
+            # Determine the status of the tool
+            if self.missing_dependencies(tool) or tool.get('needs_config'):
+                status_text = "Needs Configuration"
+            elif not tool.get('enabled', True): # Default to True for built-ins
+                status_text = "Disabled"
+            else:
+                status_text = "Enabled"
 
-        for plug in plugins:
-            status_text = 'Enabled' if plug.get('enabled') else 'Disabled'
-            item = QTreeWidgetItem([plug['name'], plug['description'], status_text])
-            item.setData(0, Qt.UserRole, plug['name'])
-            item.setData(0, Qt.UserRole + 1, True)
-            style = TOOL_STATUS_STYLES[status_text]
-            icon = self.style().standardIcon(style['icon'])
-            item.setIcon(2, icon)
-            if not plug.get('enabled'):
-                for i in range(3):
+            # Create the tree widget item with columns
+            item = QTreeWidgetItem([tool['name'], tool['description'], status_text])
+            
+            # Store metadata in the item
+            item.setData(0, Qt.UserRole, tool['name'])
+            item.setData(0, Qt.UserRole + 1, 'plugin_module' in tool)
+
+            # Apply visual styling based on the status
+            style_info = TOOL_STATUS_STYLES.get(status_text, {})
+            if style_info.get('icon'):
+                icon = self.style().standardIcon(style_info['icon'])
+                item.setIcon(2, icon)
+            
+            if status_text == "Disabled":
+                for i in range(3): # Gray out all columns
                     item.setForeground(i, QColor('gray'))
-                item.setFlags(item.flags() & ~Qt.ItemIsEnabled & ~Qt.ItemIsSelectable)
+                # Keep item selectable but not enabled for interaction
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            
+            elif status_text == "Needs Configuration":
+                 for i in range(3): # Use a distinct color for configuration needed
+                    item.setForeground(i, QColor('#c67500')) # An orange/amber color
+            
+            # For non-editable plugin tools
+            if 'plugin_module' in tool:
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+
             self.tools_list.addTopLevelItem(item)
 
     def add_tool_ui(self):
@@ -230,3 +259,30 @@ class ToolsTab(QWidget):
 
         output = run_tool(self.tools, tool_name, args, self.parent_app.debug_enabled)
         QMessageBox.information(self, "Tool Output", output)
+
+    def missing_dependencies(self, tool):
+        missing = []
+        for dep in tool.get('dependencies', []):
+            if importlib_util.find_spec(dep) is None:
+                missing.append(dep)
+        return missing
+
+    def setup_tool_ui(self):
+        selected_items = self.tools_list.selectedItems()
+        if not selected_items:
+            return
+
+        tool_name = selected_items[0].data(Qt.UserRole)
+        tool = next((t for t in self.tools if t['name'] == tool_name), None)
+        if not tool:
+            return
+
+        missing = self.missing_dependencies(tool)
+        msg = tool.get('description', '')
+        if missing:
+            msg += f"\nMissing dependencies: {', '.join(missing)}\nInstall with: pip install {' '.join(missing)}"
+        if tool.get('needs_config'):
+            msg += "\nAdditional configuration is required in Settings."
+        QMessageBox.information(self, "Tool Setup", msg)
+        if tool.get('needs_config'):
+            self.parent_app.open_settings_dialog()

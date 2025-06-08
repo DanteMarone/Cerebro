@@ -53,8 +53,9 @@ Manage scripts that agents can invoke.
 4. **Run** – execute a tool manually with JSON arguments.
    The editor supports syntax highlighting when QScintilla is installed.
 5. **Status Column** – Enable or disable a tool using the toggle switch. This column displays a color-coded icon to indicate the tool's current status, and the entire row for a disabled tool will appear greyed out.
-6. **Configure** – Open a settings dialog for tools that expose options.
-7. **Revert to Default** – Discard changes to a tool's configuration if needed.
+6. **Setup** – View dependencies and open Settings when a tool requires initial configuration before it can be used. This button is only shown for tools that need it.
+7. **Configure** – Open a settings dialog for tools that have adjustable options.
+8. **Revert to Default** – Discard any custom changes to a tool's configuration.
 
 Bundled plugins include:
 - **file-summarizer** – summarize text files.
@@ -67,6 +68,8 @@ Bundled plugins include:
 - **credential-manager** – securely store credentials.
 - **update-manager** – download new Cerebro versions on Windows 11.
 - **run-automation** – execute a recorded button sequence.
+
+Tools that require additional setup display a **Needs Configuration** label next to their name.
 
 Tools are triggered when an agent returns a JSON block in the format produced by `generate_tool_instructions_message()`.
 

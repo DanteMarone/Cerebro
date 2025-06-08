@@ -1,7 +1,8 @@
 TOOL_METADATA = {
     "name": "math-solver",
     "description": "Solve mathematical expressions or equations using SymPy and return a JSON-formatted result.",
-    "args": ["expression", "equation"]
+    "args": ["expression", "equation"],
+    "dependencies": ["sympy"]
 }
 
 import json

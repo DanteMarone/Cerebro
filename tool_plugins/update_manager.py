@@ -12,6 +12,7 @@ TOOL_METADATA = {
     "name": "update-manager",
     "description": "Check for new versions and download updates.",
     "args": ["action", "version", "repo", "download_dir"],
+    "dependencies": ["requests"],
 }
 
 
