@@ -20,7 +20,8 @@ from PyQt5.QtWidgets import (
     QFileDialog, QToolTip
 )
 
-from dialogs import SearchDialog
+from dialogs import SearchDialog, HistorySearchDialog
+from transcripts import load_history
 import voice_input
 
 class ChatTab(QWidget):
@@ -98,6 +99,10 @@ class ChatTab(QWidget):
         export_hist_action = QAction("Export history", self)
         export_hist_action.triggered.connect(self.parent_app.export_chat_histories)
         options_menu.addAction(export_hist_action)
+
+        search_hist_action = QAction("Search saved history", self)
+        search_hist_action.triggered.connect(self.show_history_search)
+        options_menu.addAction(search_hist_action)
 
         clear_hist_action = QAction("Clear saved history", self)
         clear_hist_action.triggered.connect(self.parent_app.clear_chat_histories)
@@ -381,6 +386,15 @@ class ChatTab(QWidget):
             self.parent_app.show_notification("No conversation to search", "info")
             return
         dialog = SearchDialog(self, text)
+        dialog.exec_()
+
+    def show_history_search(self):
+        """Display a dialog to search persisted chat history."""
+        history = load_history()
+        if not history:
+            self.parent_app.show_notification("No stored history", "info")
+            return
+        dialog = HistorySearchDialog(self, history)
         dialog.exec_()
     
     def copy_conversation(self):

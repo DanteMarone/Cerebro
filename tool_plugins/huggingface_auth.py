@@ -1,7 +1,7 @@
 TOOL_METADATA = {
     "name": "huggingface-auth",
     "description": "Login or logout of Hugging Face to access private models.",
-"args": ["action", "token"],
+    "args": ["action", "token"],
 }
 
 try:
@@ -25,8 +25,6 @@ def logout():
 
 def run_tool(args):
     """Authenticate with Hugging Face using huggingface_hub."""
-    if hf_login is None or hf_logout is None:
-        return "[huggingface-auth Error] huggingface_hub not installed."
 
     action = args.get("action", "login")
 
