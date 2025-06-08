@@ -44,7 +44,7 @@ Agents are automated workers that perform tasks for you.
     - The Coordinator's response (which is logged in the chat) could include: `I need help with a calculation. Next Response By: MathSpecialist`
     - The 'MathSpecialist' then receives the original user query (plus any context from the coordinator) and its response is directed back through the coordinator or directly to the chat, depending on the system's flow. The key is the explicit delegation.
 
-Press **Save** after editing or **Add New Agent** to create one.
+Press **Save** after editing or **Cancel** to discard changes. Use **Add New Agent** to create one.
 
 ## Tools Tab
 
