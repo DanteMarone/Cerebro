@@ -37,7 +37,7 @@ def test_worker_thinking(monkeypatch):
 
     history = [{"role": "system", "content": ""}, {"role": "user", "content": "Hi"}]
     agents = {"a": {"thinking_enabled": True, "thinking_steps": 2}}
-    w = worker.AIWorker("model", history, 0.7, 10, False, "a", agents)
+    w = worker.AIWorker("model", history, 0.7, 10, False, "a", agents, "http://localhost:11434/api/chat")
 
     collected = []
     w.response_received.connect(lambda chunk, name: collected.append(chunk))

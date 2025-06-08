@@ -31,6 +31,7 @@ class DummyAppBase:
         self.debug_enabled = False
         self.screenshot_interval = 5
         self.summarization_threshold = 20
+        self.ollama_port = 11434
         self.agents_tab = DummyAgentsTab()
         self.screenshot_manager = DummyManager()
         self.screenshot_paused = False
@@ -55,9 +56,24 @@ def test_settings_dialog_returns_interval():
     dlg = dialogs.SettingsDialog(dummy)
     dlg.interval_spin.setValue(8)
     dlg.threshold_spin.setValue(30)
+    dlg.port_spin.setValue(1234)
     data = dlg.get_data()
     assert data["screenshot_interval"] == 8
     assert data["summarization_threshold"] == 30
+    assert data["ollama_port"] == 1234
+    app_instance.quit()
+
+
+def test_settings_dialog_validation():
+    app_instance = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dlg = dialogs.SettingsDialog(dummy)
+    dlg.user_name_edit.setText("")
+    dlg.validate_fields()
+    assert not dlg.ok_button.isEnabled()
+    dlg.user_name_edit.setText("Alice")
+    dlg.validate_fields()
+    assert dlg.ok_button.isEnabled()
     app_instance.quit()
 
 def test_update_screenshot_timer_uses_global(monkeypatch):

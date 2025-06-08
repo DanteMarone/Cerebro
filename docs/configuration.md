@@ -38,6 +38,7 @@ summaries.
 It also stores:
     - `accent_color`: Defines the primary UI accent color for themes.
     - `screenshot_interval`: (Global) Sets the default interval in seconds between desktop screenshot captures for agents with Desktop History enabled. This can be overridden by individual agent settings.
+    - `ollama_port`: Port used to connect to the local Ollama server (default 11434).
 
 ## Understanding Debug Mode
 Debug mode is enabled by default. Set `DEBUG_MODE=0` before launching to disable verbose console logging.

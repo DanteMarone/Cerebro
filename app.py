@@ -101,6 +101,8 @@ class AIChatApp(QMainWindow):
         self.accent_color = "#803391"
         self.dark_mode = True
         self.screenshot_interval = 5
+        self.ollama_port = 11434
+        self.api_url = self.build_api_url()
         self.screenshot_manager = ScreenshotManager()
         self.active_worker_threads = []
         self.notifications_paused = False
@@ -581,6 +583,8 @@ class AIChatApp(QMainWindow):
             self.summarization_threshold = settings_data.get(
                 "summarization_threshold", self.summarization_threshold
             )
+            self.ollama_port = settings_data.get("ollama_port", self.ollama_port)
+            self.api_url = self.build_api_url()
             self.apply_updated_styles()
             self.agents_tab.update_model_dropdown()
             self.update_screenshot_timer()
@@ -592,6 +596,10 @@ class AIChatApp(QMainWindow):
             self.apply_dark_mode_style()
         else:
             self.apply_light_mode_style()
+
+    def build_api_url(self):
+        """Return the Ollama API URL based on the configured port."""
+        return f"http://localhost:{self.ollama_port}/api/chat"
 
     # -------------------------------------------------------------------------
     # Chat / UI Utility
@@ -686,7 +694,7 @@ class AIChatApp(QMainWindow):
             
             thread = QThread()
             # Pass the agents_data to the AIWorker
-            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data)
+            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url)
             worker.moveToThread(thread)
             self.active_worker_threads.append((worker, thread))
 
@@ -1059,7 +1067,7 @@ class AIChatApp(QMainWindow):
 
             thread = QThread()
             # Pass the agents_data to the AIWorker
-            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data)
+            worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url)
             worker.moveToThread(thread)
             self.active_worker_threads.append((worker, thread))
 
@@ -1326,7 +1334,7 @@ class AIChatApp(QMainWindow):
 
         thread = QThread()
         # Pass the agents_data to the AIWorker
-        worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data)
+        worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url)
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
 
@@ -1448,6 +1456,7 @@ class AIChatApp(QMainWindow):
             "dark_mode": self.dark_mode,
             "screenshot_interval": self.screenshot_interval,
             "summarization_threshold": self.summarization_threshold,
+            "ollama_port": self.ollama_port,
         }
         try:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -1476,6 +1485,8 @@ class AIChatApp(QMainWindow):
                 self.summarization_threshold = settings.get(
                     "summarization_threshold", self.summarization_threshold
                 )
+                self.ollama_port = settings.get("ollama_port", self.ollama_port)
+                self.api_url = self.build_api_url()
                 if self.debug_enabled:
                     print("[Debug] Settings loaded.")
             except Exception as e:
