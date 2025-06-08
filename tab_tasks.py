@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
     QProgressBar,
     QMessageBox,
     QDialog,
+    QMenu,
     QStyle,
     QAbstractItemView,
     QCalendarWidget,
@@ -124,6 +125,8 @@ class TasksTab(QWidget):
         self.tasks_list.setDragEnabled(True)
         self.tasks_list.itemSelectionChanged.connect(self.on_item_selection_changed)
         self.tasks_list.itemDoubleClicked.connect(self.toggle_status_ui)
+        self.tasks_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tasks_list.customContextMenuRequested.connect(self.show_tasks_context_menu)
         self.layout.addWidget(self.tasks_list)
 
         # Label shown when there are no tasks
@@ -385,6 +388,22 @@ class TasksTab(QWidget):
                 record_task_completion(self.parent_app.metrics, task.get("agent_name", "unknown"), self.parent_app.debug_enabled)
                 self.parent_app.refresh_metrics_display()
             self.refresh_tasks_list()
+
+    def show_tasks_context_menu(self, pos):
+        """Show context menu for the task under the cursor."""
+        item = self.tasks_list.itemAt(pos)
+        if not item:
+            return
+        task_id = item.data(Qt.UserRole)
+        task = next((t for t in self.tasks if t["id"] == task_id), None)
+        if not task:
+            return
+        menu = QMenu(self)
+        menu.addAction("Edit", lambda tid=task_id: self.edit_task_ui(tid))
+        menu.addAction("Delete", lambda tid=task_id: self.delete_task_ui(tid))
+        status_text = "Mark Completed" if task.get("status") != "completed" else "Mark Pending"
+        menu.addAction(status_text, lambda tid=task_id: self.toggle_status_ui(tid))
+        menu.exec_(self.tasks_list.mapToGlobal(pos))
 
     def on_date_activated(self, qdate):
         """Ask to mark tasks on the activated date as completed."""

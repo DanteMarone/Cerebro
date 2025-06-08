@@ -95,6 +95,7 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Toggle Status** – mark a task as completed or pending.
 - **Filters** – filter by agent or status.
 - **Row Actions** – each row includes Edit, Delete and Complete buttons.
+- **Context Menu** – right-click a task in any view to Edit, Delete or change its status.
 - **Progress Bar** – indicates how close the task is to its due time.
 - **Repeat Interval** – optional minutes after which the task repeats.
 - **Time Format** – ISO 8601 or `YYYY-MM-DD HH:MM:SS` local time.

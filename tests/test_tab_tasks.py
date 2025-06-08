@@ -1,5 +1,5 @@
 import os
-from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QProgressBar
+from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QProgressBar, QMenu
 import tab_tasks
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -50,4 +50,29 @@ def test_filters_and_row_actions():
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
+    app.quit()
+
+
+def test_context_menu(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}}
+    dummy.tasks = [
+        {"id": "1", "agent_name": "a1", "prompt": "p", "due_time": "2024-01-01", "status": "pending", "repeat_interval": 0}
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+    tab.refresh_tasks_list()
+
+    captured = []
+
+    def fake_exec_(self, *_args, **_kwargs):
+        captured.extend([a.text() for a in self.actions()])
+
+    monkeypatch.setattr(QMenu, "exec_", fake_exec_)
+    item = tab.tasks_list.item(0)
+    pos = tab.tasks_list.visualItemRect(item).center()
+    tab.show_tasks_context_menu(pos)
+
+    assert "Edit" in captured and "Delete" in captured
+    assert any(t in captured for t in ["Mark Completed", "Mark Pending"])
     app.quit()
