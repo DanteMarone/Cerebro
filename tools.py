@@ -170,7 +170,9 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                     "script_path": path,
                     "script": script_text,
-                    "args": meta.get("args", [])
+                    "args": meta.get("args", []),
+                    "dependencies": meta.get("dependencies", []),
+                    "needs_config": meta.get("needs_config", False),
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
@@ -206,7 +208,9 @@ def discover_plugin_tools(debug_enabled=False):
                     "plugin_module": module,
                     "script_path": path,
                     "script": script_text,
-                    "args": meta.get("args", [])
+                    "args": meta.get("args", []),
+                    "dependencies": meta.get("dependencies", []),
+                    "needs_config": meta.get("needs_config", False),
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")
