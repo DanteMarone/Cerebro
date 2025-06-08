@@ -411,6 +411,7 @@ class TasksTab(QWidget):
         widget = QWidget()
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         due_time = task.get("due_time", "")
         agent_name = task.get("agent_name", "")
@@ -448,8 +449,11 @@ class TasksTab(QWidget):
             layout.addWidget(QLabel(created))
 
         fm = QFontMetrics(widget.font())
-        summary_text = fm.elidedText(f"{prompt}{repeat_str}", Qt.ElideRight, 120)
-        summary_label = QLabel(f"{summary_text} ({status})")
+        # Elide the prompt itself to a reasonable length before combining
+        elided_prompt = fm.elidedText(prompt, Qt.ElideRight, 120)
+        
+        summary_label = QLabel(f"{elided_prompt}{repeat_str} ({status})")
+        summary_label.setStyleSheet("font-weight: bold; font-size: 13px;")
         # Added tooltip from 'main' branch for more context on hover
         summary_label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
         layout.addWidget(summary_label)

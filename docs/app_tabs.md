@@ -91,6 +91,7 @@ Record and play back desktop actions.
 Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **New Task** – create a prompt for a specific agent. Defaults to one minute from now.
 - **Required Fields** – Task dialog marks required fields with * and the save button stays disabled until they are filled.
+- **Collapsible Sections** – Task details are organized in a QToolBox so advanced fields can be hidden.
 - **Edit** – change an existing task.
 - **Inline Edit** – adjust the assignee or due date directly in the task list.
 - **Delete** – remove a task after confirmation.
