@@ -90,6 +90,7 @@ Record and play back desktop actions.
 
 Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Add Task** – create a prompt for a specific agent. Defaults to one minute from now.
+- **Required Fields** – Task dialog marks required fields with * and the save button stays disabled until they are filled.
 - **Edit** – change an existing task.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark a task as completed or pending.

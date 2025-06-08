@@ -111,10 +111,9 @@ def run_tool(args):
         layout.addWidget(self.button_box)
 
         # Connect inputs to validation
-        self.user_name_edit.textChanged.connect(self.validate_fields)
-        self.interval_spin.valueChanged.connect(self.validate_fields)
-        self.threshold_spin.valueChanged.connect(self.validate_fields)
-        self.port_spin.valueChanged.connect(self.validate_fields)
+        self.prompt_edit.textChanged.connect(self.validate_fields)
+        self.due_time_edit.dateTimeChanged.connect(self.validate_fields)
+        self.agent_selector.currentIndexChanged.connect(self.validate_fields)
 
         self.validate_fields()
 
@@ -167,23 +166,23 @@ class TaskDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Agent
-        layout.addWidget(QLabel("Agent:"))
+        # Agent (required)
+        layout.addWidget(QLabel("Agent*:"))
         self.agent_selector = QComboBox()
         self.agent_selector.addItems(self.agents_data.keys())
         self.agent_selector.setCurrentText(agent_name)
         self.agent_selector.setToolTip("Select the agent for this task.")
         layout.addWidget(self.agent_selector)
 
-        # Prompt
-        layout.addWidget(QLabel("Prompt:"))
+        # Prompt (required)
+        layout.addWidget(QLabel("Prompt*:"))
         self.prompt_edit = QTextEdit()
         self.prompt_edit.setPlainText(prompt)
         self.prompt_edit.setToolTip("Enter the prompt for the task.")
         layout.addWidget(self.prompt_edit)
 
-        # Due Time
-        layout.addWidget(QLabel("Due Time:"))
+        # Due Time (required)
+        layout.addWidget(QLabel("Due Time*:"))
         self.due_time_edit = QDateTimeEdit()
         if due_time:
             try:
@@ -233,10 +232,9 @@ class TaskDialog(QDialog):
         layout.addWidget(self.button_box)
 
         # Connect inputs to validation
-        self.user_name_edit.textChanged.connect(self.validate_fields)
-        self.interval_spin.valueChanged.connect(self.validate_fields)
-        self.threshold_spin.valueChanged.connect(self.validate_fields)
-        self.port_spin.valueChanged.connect(self.validate_fields)
+        self.prompt_edit.textChanged.connect(self.validate_fields)
+        self.due_time_edit.dateTimeChanged.connect(self.validate_fields)
+        self.agent_selector.currentIndexChanged.connect(self.validate_fields)
 
         self.validate_fields()
 
@@ -248,13 +246,31 @@ class TaskDialog(QDialog):
             "repeat_interval": self.repeat_spin.value(),
         }
 
+    def validate_fields(self):
+        """Enable or disable the OK button based on required fields."""
+        agent_ok = bool(self.agent_selector.currentText().strip())
+        prompt_ok = bool(self.prompt_edit.toPlainText().strip())
+        due_ok = self.due_time_edit.dateTime().isValid()
+
+        # Clear highlights
+        for w in (self.agent_selector, self.prompt_edit, self.due_time_edit):
+            w.setStyleSheet("")
+
+        valid = agent_ok and prompt_ok and due_ok
+        self.ok_button.setEnabled(valid)
+        return valid
+
     def accept(self):
-        data = self.get_data()
-        if not data["prompt"]:
-            QMessageBox.warning(self, "Error", "Prompt cannot be empty.")
-            return
-        if not data["due_time"]:
-            QMessageBox.warning(self, "Error", "Due time cannot be empty.")
+        if not self.validate_fields():
+            if not self.agent_selector.currentText().strip():
+                self.agent_selector.setStyleSheet("border: 1px solid red")
+                self.agent_selector.setFocus()
+            elif not self.prompt_edit.toPlainText().strip():
+                self.prompt_edit.setStyleSheet("border: 1px solid red")
+                self.prompt_edit.setFocus()
+            elif not self.due_time_edit.dateTime().isValid():
+                self.due_time_edit.setStyleSheet("border: 1px solid red")
+                self.due_time_edit.setFocus()
             return
         super().accept()
 
