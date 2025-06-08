@@ -2,9 +2,24 @@
 
 import os
 import base64
+import tempfile
 from datetime import datetime
 from PyQt5.QtCore import QObject, QTimer
 from PyQt5.QtGui import QGuiApplication
+
+
+def capture_screenshot_to_tempfile() -> str:
+    """Capture the primary screen and save it to a temporary PNG file."""
+    screen = QGuiApplication.primaryScreen()
+    if screen is None:
+        raise RuntimeError("No primary screen available")
+    fd, path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    pixmap = screen.grabWindow(0)
+    if not pixmap.save(path, "png"):
+        os.unlink(path)
+        raise RuntimeError("Failed to save screenshot")
+    return path
 
 
 class ScreenshotManager(QObject):
