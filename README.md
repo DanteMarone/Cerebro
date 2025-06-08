@@ -13,6 +13,7 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 * **Tool Status Indicators:** The Tools tab now shows a status column with color-coded icons so you can easily see if a tool is enabled or disabled.
 *   **Thinking Mode:** Enable agents to iteratively generate a series of thoughts before producing a final answer. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
 *   **Automations:** Record and replay desktop actions (mouse and keyboard sequences). (Details: [Application Tabs - Automations](docs/app_tabs.md#automations-tab))
+*   **SetVariable Step:** Step-based automations can store custom variables using a dedicated step.
 * **Task Scheduling:** Schedule prompts for agents to run at specific times, with recurring options (daily/weekly/monthly or custom minutes), drag-and-drop reordering, duplication, undo after deletion, inline editing, bulk editing, and reusable templates. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
 * * **Task Progress Indicators:** View elapsed time and an ETA for scheduled tasks.
 *   **Failure Details:** When tasks fail or are put on hold the reason, a link to more information, and suggested actions appear in the task list.

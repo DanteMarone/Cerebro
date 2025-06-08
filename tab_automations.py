@@ -27,6 +27,7 @@ from automation_sequences import (
     STEP_TYPE_ELSE,
     STEP_TYPE_END_IF,
     STEP_TYPE_MOUSE_DRAG,
+    STEP_TYPE_SET_VARIABLE,
     load_step_automations,
     save_step_automations,
     run_step_automation,
@@ -189,6 +190,7 @@ class AutomationsTab(QWidget):
             STEP_TYPE_KEYBOARD_INPUT,
             STEP_TYPE_WAIT,
             STEP_TYPE_ASK_AGENT,
+            STEP_TYPE_SET_VARIABLE,
             STEP_TYPE_LOOP_START,
             STEP_TYPE_LOOP_END,
             STEP_TYPE_IF_CONDITION,
@@ -428,6 +430,8 @@ class AutomationsTab(QWidget):
             elif "condition" in params:
                 return f"{step_type} (condition:'{params.get('condition','').strip()}')" # Added strip
             return f"{step_type} (count:1)" # Default
+        elif step_type == STEP_TYPE_SET_VARIABLE:
+            return f"{step_type} ({params.get('name','')}: {params.get('value','')})"
         elif step_type == STEP_TYPE_IF_CONDITION:
             return f"{STEP_TYPE_IF_CONDITION} (condition:'{params.get('condition','true').strip()}')" # Default to true, added strip
         elif step_type == STEP_TYPE_ELSE:
@@ -469,6 +473,8 @@ class AutomationsTab(QWidget):
                 "prompt": "Please provide input.",
                 "send_screenshot": False
             }
+        elif step_type_name == STEP_TYPE_SET_VARIABLE:
+            default_params = {"name": "var", "value": ""}
         elif step_type_name == STEP_TYPE_LOOP_START:
             default_params = {"count": 1}
         elif step_type_name == STEP_TYPE_IF_CONDITION:
@@ -575,6 +581,12 @@ class AutomationsTab(QWidget):
             self.current_param_widgets["duration"].setValue(params.get("duration", 1.0))
             self.param_form_layout.addRow("Duration (s):", self.current_param_widgets["duration"])
 
+        elif step_type == STEP_TYPE_SET_VARIABLE:
+            self.current_param_widgets["name"] = QLineEdit(params.get("name", ""))
+            self.param_form_layout.addRow("Name:", self.current_param_widgets["name"])
+            self.current_param_widgets["value"] = QLineEdit(str(params.get("value", "")))
+            self.param_form_layout.addRow("Value:", self.current_param_widgets["value"])
+
         elif step_type == STEP_TYPE_ASK_AGENT:
             # Agent Selection
             self.current_param_widgets["agent_name"] = QComboBox()
@@ -675,6 +687,9 @@ class AutomationsTab(QWidget):
                 new_params["keys"] = self.current_param_widgets["keys"].text()
             elif step_type == STEP_TYPE_WAIT:
                 new_params["duration"] = self.current_param_widgets["duration"].value()
+            elif step_type == STEP_TYPE_SET_VARIABLE:
+                new_params["name"] = self.current_param_widgets["name"].text()
+                new_params["value"] = self.current_param_widgets["value"].text()
             elif step_type == STEP_TYPE_ASK_AGENT:
                 agent_name_selected = self.current_param_widgets["agent_name"].currentText()
                 # Handle "(No Agent)" placeholder if used
