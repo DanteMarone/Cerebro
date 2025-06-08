@@ -336,6 +336,7 @@ class TasksTab(QWidget):
         widget = QWidget()
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         due_time = task.get("due_time", "")
         agent_name = task.get("agent_name", "")
@@ -367,6 +368,7 @@ class TasksTab(QWidget):
         layout.addWidget(due_edit)
 
         summary_label = QLabel(f"{prompt[:30]}...{repeat_str} ({status})")
+        summary_label.setStyleSheet("font-weight: bold; font-size: 13px;")
         # Added tooltip from 'main' branch for more context on hover
         summary_label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
         layout.addWidget(summary_label)
@@ -580,7 +582,7 @@ class TasksTab(QWidget):
                 self.parent_app.refresh_metrics_display()
             self.refresh_tasks_list()
 
-def inline_set_agent(self, task_id, agent_name):
+    def inline_set_agent(self, task_id, agent_name):
         """Inline update of the task's agent."""
         update_task_agent(
             self.tasks, task_id, agent_name, debug_enabled=self.parent_app.debug_enabled

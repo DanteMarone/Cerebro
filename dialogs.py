@@ -18,6 +18,8 @@ from PyQt5.QtWidgets import (
     QSpinBox,
     QListWidget,
     QListWidgetItem,
+    QToolBox,
+    QWidget,
 )
 import subprocess
 from PyQt5.QtCore import Qt, QDateTime
@@ -166,23 +168,26 @@ class TaskDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-# Assignee (required)
-        layout.addWidget(QLabel("Assignee*:"))
+        self.tool_box = QToolBox()
+        layout.addWidget(self.tool_box)
+
+        details_widget = QWidget()
+        details_layout = QVBoxLayout(details_widget)
+
+        details_layout.addWidget(QLabel("Assignee*:"))
         self.agent_selector = QComboBox()
         self.agent_selector.addItems(self.agents_data.keys())
         self.agent_selector.setCurrentText(agent_name)
         self.agent_selector.setToolTip("Select the assignee for this task.")
-        layout.addWidget(self.agent_selector)
+        details_layout.addWidget(self.agent_selector)
 
-        # Task Description (required)
-        layout.addWidget(QLabel("Task Description*:"))
+        details_layout.addWidget(QLabel("Task Description*:"))
         self.prompt_edit = QTextEdit()
         self.prompt_edit.setPlainText(prompt)
         self.prompt_edit.setToolTip("Enter the task description or instructions.")
-        layout.addWidget(self.prompt_edit)
+        details_layout.addWidget(self.prompt_edit)
 
-        # Due Date (required)
-        layout.addWidget(QLabel("Due Date*:"))
+        details_layout.addWidget(QLabel("Due Date*:"))
         self.due_time_edit = QDateTimeEdit()
         if due_time:
             try:
@@ -211,16 +216,34 @@ class TaskDialog(QDialog):
 
         self.due_time_edit.setToolTip("Select the due date and time for the task.")
         self.due_time_edit.setCalendarPopup(True)  # Enable calendar popup
-        layout.addWidget(self.due_time_edit)
+        details_layout.addWidget(self.due_time_edit)
 
-        # Repeat Interval
-        layout.addWidget(QLabel("Repeat Interval (minutes):"))
+        details_layout.addWidget(QLabel("Repeat Interval (minutes):"))
         self.repeat_spin = QSpinBox()
         self.repeat_spin.setMinimum(0)
         self.repeat_spin.setMaximum(525600)  # up to a year
         self.repeat_spin.setValue(self.repeat_interval)
         self.repeat_spin.setToolTip("Minutes between repetitions. 0 for none.")
-        layout.addWidget(self.repeat_spin)
+        details_layout.addWidget(self.repeat_spin)
+
+        self.tool_box.addItem(details_widget, "Details")
+
+        subtasks = QWidget()
+        subtasks_layout = QVBoxLayout(subtasks)
+        subtasks_layout.addWidget(QLabel("Subtasks coming soon."))
+        self.tool_box.addItem(subtasks, "Subtasks")
+
+        comments = QWidget()
+        comments_layout = QVBoxLayout(comments)
+        self.comments_edit = QTextEdit()
+        comments_layout.addWidget(self.comments_edit)
+        self.tool_box.addItem(comments, "Comments")
+
+        activity = QWidget()
+        activity_layout = QVBoxLayout(activity)
+        self.activity_label = QLabel("No activity yet.")
+        activity_layout.addWidget(self.activity_label)
+        self.tool_box.addItem(activity, "Activity Log")
         
 
         # Buttons
