@@ -348,6 +348,13 @@ class AIChatApp(QMainWindow):
         
     def change_tab(self, index, button=None):
         """Change the active tab and update button styles."""
+        # Revert unsaved agent changes when leaving the edit screen
+        if (
+            self.content_stack.currentIndex() == 1
+            and self.agents_tab.stacked.currentWidget() == self.agents_tab.edit_page
+        ):
+            self.agents_tab.show_agent_list()
+
         self.content_stack.setCurrentIndex(index)
 
         if index == 1 and not self.agents_onboarding_complete:

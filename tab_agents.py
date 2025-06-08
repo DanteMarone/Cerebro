@@ -74,8 +74,8 @@ class AgentsTab(QWidget):
         edit_layout = QVBoxLayout(self.edit_page)
 
         nav_layout = QHBoxLayout()
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.show_agent_list)
+        self.back_button = QPushButton("Back")
+        self.back_button.clicked.connect(self.show_agent_list)
         self.save_button = QPushButton("Save")
         self.save_button.clicked.connect(self.on_save_agent_clicked)
         self.delete_button = QPushButton("Delete")
@@ -88,7 +88,7 @@ class AgentsTab(QWidget):
 
         nav_layout.addStretch()
         nav_layout.addWidget(help_btn_edit)
-        nav_layout.addWidget(self.cancel_button)
+        nav_layout.addWidget(self.back_button)
         nav_layout.addWidget(self.save_button)
         nav_layout.addWidget(self.delete_button)
 
