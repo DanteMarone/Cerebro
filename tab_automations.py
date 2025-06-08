@@ -445,12 +445,22 @@ class AutomationsTab(QWidget):
         """Clears the parameter editor and shows the placeholder."""
         # Remove all widgets from the form layout except the placeholder
         while self.param_form_layout.rowCount() > 0:
-            self.param_form_layout.removeRow(0)
+            row = self.param_form_layout.takeRow(0)
+            if row.labelItem:
+                widget = row.labelItem.widget()
+                if widget is not None:
+                    widget.setParent(None)
+            if row.fieldItem:
+                widget = row.fieldItem.widget()
+                if widget is not None:
+                    widget.setParent(None)
 
         # Add the placeholder back if it's not already there (it might be if it was the only thing)
         # A bit of a hacky way to ensure it's the only thing
-        if self.param_form_layout.rowCount() == 0 :
-             self.param_form_layout.addRow(self.placeholder_param_label)
+        if self.param_form_layout.rowCount() == 0:
+            if self.placeholder_param_label.parent() is None:
+                self.placeholder_param_label.setParent(self.step_parameter_editor_area)
+            self.param_form_layout.addRow(self.placeholder_param_label)
 
         self.placeholder_param_label.setVisible(True)
         self.apply_param_changes_btn.setVisible(False)
