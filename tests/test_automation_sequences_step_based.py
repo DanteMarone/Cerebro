@@ -13,7 +13,7 @@ from automation_sequences import (
     run_step_automation,
     STEP_TYPE_MOUSE_CLICK, STEP_TYPE_KEYBOARD_INPUT, STEP_TYPE_WAIT,
     STEP_TYPE_ASK_AGENT, STEP_TYPE_LOOP_START, STEP_TYPE_LOOP_END,
-    STEP_TYPE_IF_CONDITION, STEP_TYPE_ELSE, STEP_TYPE_END_IF,
+    STEP_TYPE_IF_CONDITION, STEP_TYPE_ELSE, STEP_TYPE_END_IF, STEP_TYPE_END_ELF,
     STEP_TYPE_SET_VARIABLE,
     STEP_AUTOMATIONS_FILE,
     DEFAULT_EXECUTION_CONTEXT,
@@ -74,6 +74,7 @@ class TestStepBasedHelperFunctions(unittest.TestCase):
         self.assertFalse(is_valid_step({"type": STEP_TYPE_IF_CONDITION, "params": {}})) # Missing condition
         self.assertTrue(is_valid_step({"type": STEP_TYPE_ELSE, "params": {}}))
         self.assertTrue(is_valid_step({"type": STEP_TYPE_END_IF, "params": {}}))
+        self.assertTrue(is_valid_step({"type": STEP_TYPE_END_ELF, "params": {}}))
 
     def test_is_valid_step_invalid_structure(self):
         self.assertFalse(is_valid_step(None))
@@ -348,6 +349,16 @@ class TestRunStepAutomation(unittest.TestCase):
         ]
         context = run_step_automation(steps)
         self.mock_pyautogui.click.assert_called_once_with(x=3,y=3,button="middle")
+        self.assertEqual(context['status'], 'completed')
+
+    def test_run_if_true_with_endelf(self):
+        steps = [
+            create_step(STEP_TYPE_IF_CONDITION, {"condition": "true"}),
+            create_step(STEP_TYPE_MOUSE_CLICK, {"x": 4, "y": 4, "button": "left"}),
+            create_step(STEP_TYPE_END_ELF, {})
+        ]
+        context = run_step_automation(steps)
+        self.mock_pyautogui.click.assert_called_once_with(x=4, y=4, button="left")
         self.assertEqual(context['status'], 'completed')
 
     def test_run_loop_with_if_and_ask_agent(self):

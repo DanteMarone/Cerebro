@@ -24,6 +24,7 @@ STEP_TYPE_LOOP_END = "LoopEnd"
 STEP_TYPE_IF_CONDITION = "IfCondition"
 STEP_TYPE_ELSE = "Else"
 STEP_TYPE_END_IF = "EndIf"
+STEP_TYPE_END_ELF = "EndElf"
 STEP_TYPE_MOUSE_DRAG = "MouseDrag"
 STEP_TYPE_SET_VARIABLE = "SetVariable"
 
@@ -38,6 +39,7 @@ SupportedStepType = Literal[
     "IfCondition",
     "Else",
     "EndIf",
+    "EndElf",
     "SetVariable",
 ]
 
@@ -72,7 +74,7 @@ class LoopStartParams(Dict):
     count: Union[int, None]  # Optional, for count-based loops
     condition: Union[str, None]  # Optional, for condition-based loops
 
-# LoopEnd, Else, EndIf typically don't have parameters, but can be empty dicts if needed.
+# LoopEnd, Else, EndIf, EndElf typically don't have parameters, but can be empty dicts if needed.
 
 StepParams = Union[
     MouseClickParams,
@@ -82,7 +84,7 @@ StepParams = Union[
     LoopStartParams,
     MouseDragParams,
     SetVariableParams,
-    Dict[str, Any],  # For steps with no specific params like LoopEnd, Else, EndIf
+    Dict[str, Any],  # For steps with no specific params like LoopEnd, Else, EndIf, EndElf
 ]
 
 class Step(Dict):
@@ -522,10 +524,10 @@ def run_step_automation(
                     if step_delay > 0: time.sleep(step_delay)
                     continue
 
-            elif step_type == STEP_TYPE_END_IF:
+            elif step_type in [STEP_TYPE_END_IF, STEP_TYPE_END_ELF]:
                 if not if_stack or if_stack[-1]['type'] != 'if':
                     context['status'] = 'error'
-                    context['error_message'] = f"[Automation Error] Step {i+1} (EndIf): No matching IfCondition found."
+                    context['error_message'] = f"[Automation Error] Step {i+1} ({step_type}): No matching IfCondition found."
                     context['current_step_index'] = i
                     logger.error(context['error_message'])
                     return context
@@ -637,7 +639,7 @@ def is_valid_step(step_dict: Dict[str, Any]) -> bool:
         has_count = "count" in params and isinstance(params["count"], int)
         has_condition = "condition" in params and isinstance(params["condition"], str)
         return (has_count and not has_condition) or (has_condition and not has_count) # Mutually exclusive
-    elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF]:
+    elif step_type in [STEP_TYPE_LOOP_END, STEP_TYPE_ELSE, STEP_TYPE_END_IF, STEP_TYPE_END_ELF]:
         return True # No specific params required, or params can be an empty dict
     elif step_type == STEP_TYPE_IF_CONDITION:
         return "condition" in params and isinstance(params["condition"], str)
