@@ -13,8 +13,13 @@ Bundled plugins:
 - **credential-manager** – securely store credentials in the system keyring.
 - **huggingface-auth** – log in or out of Hugging Face to access gated models.
 - **update-manager** – check for new versions of Cerebro and download updates on Windows 11.
-- **run-automation** – execute a recorded button sequence with a configurable
-  delay between actions (defaults to 0.5 seconds).
+- **automation-playback** – run a recorded button sequence with a configurable
+  delay between actions (defaults to 0.5 seconds). [Learn more](#automation-playback)
+
+## Automation Playback
+
+Use this tool to replay a recorded automation sequence. Provide the name of the
+automation and an optional delay between steps.
 
 ## Developing Custom Tools
 
@@ -31,6 +36,8 @@ A tool script must contain two main components:
     -   `name` (str): A unique identifier for your tool. This is the name agents will use to call it. (e.g., "get-weather").
     -   `description` (str): A clear and concise explanation of what the tool does, its purpose, and how it might be used. This helps users (and potentially agents) understand its capabilities.
     -   `args` (list of str): A list of argument names that your tool expects. For example: `["location", "date"]`. While just a list of names is supported, for more complex tools, you might internally structure these with expected types and individual descriptions for clarity.
+    -   `dependencies` (list of str, optional): Names of Python packages required for the tool to run. Missing dependencies show the tool as **Needs Configuration** in the UI.
+    -   `needs_config` (bool, optional): Set to `true` if the tool needs additional setup in the Settings dialog.
 
 2.  **`run_tool(args_dict)` (Function):**
     This function contains the core logic of your tool.

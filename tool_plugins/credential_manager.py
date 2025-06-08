@@ -1,7 +1,8 @@
 TOOL_METADATA = {
     "name": "credential-manager",
     "description": "Store, retrieve, and delete credentials using the system keyring.",
-    "args": ["action", "service", "username", "value"]
+    "args": ["action", "service", "username", "value"],
+    "dependencies": ["keyring"]
 }
 
 

@@ -2,6 +2,8 @@ TOOL_METADATA = {
     "name": "huggingface-auth",
     "description": "Login or logout of Hugging Face to access private models.",
     "args": ["action", "token"],
+    "dependencies": ["huggingface_hub"],
+    "needs_config": True,
 }
 
 try:

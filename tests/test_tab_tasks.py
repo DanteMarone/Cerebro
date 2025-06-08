@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QComboBox,
     QDateTimeEdit,
+    QToolButton,
 )
 import tab_tasks
 
@@ -58,10 +59,13 @@ def test_filters_and_row_actions():
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
-combos = item_widget.findChildren(QComboBox)
+    combos = item_widget.findChildren(QComboBox)
     edits = item_widget.findChildren(QDateTimeEdit)
     assert combos and edits
-    assert tab.tasks_list.selectionMode() == tab_tasks.QAbstractItemView.ExtendedSelection
+    assert (
+        tab.tasks_list.selectionMode()
+        == tab_tasks.QAbstractItemView.ExtendedSelection
+    )
     app.quit()
 
 
@@ -113,4 +117,79 @@ def test_context_menu(monkeypatch):
 
     assert "Edit" in captured and "Delete" in captured
     assert any(t in captured for t in ["Mark Completed", "Mark Pending"])
+    app.quit()
+
+
+def test_help_button_exists():
+    """
+    Tests that the help buttons with specific tooltips are present.
+    (from codex/add-help-icon-and-feature-specific-tooltips)
+    """
+    app = QApplication.instance() or QApplication([])
+    # DummyApp needs a parent to avoid errors when the dialog tries to find the main window
+    dummy_parent = QWidget()
+    dummy_parent.open_tasks_help = lambda: None # Mock the help method
+    tab = tab_tasks.TasksTab(dummy_parent)
+    
+    # Check for the main help button
+    main_help_button = tab.findChild(QToolButton, "main_help_button") # Assuming objectName is set
+    assert main_help_button is not None
+    assert "documentation" in main_help_button.toolTip()
+    
+    # Check for the help button in the task dialog
+    task_dialog = dialogs.TaskDialog(tab, {"agent1": {}})
+    dialog_help_button = task_dialog.findChild(QToolButton) # More robust search may be needed
+    assert dialog_help_button is not None
+    assert "documentation" in dialog_help_button.toolTip()
+
+
+def test_failed_reason_display():
+    """
+    Tests that the reason, hint, and link for a failed task are displayed.
+    (from codex/add-error-reason-and-suggestions-to-task-details)
+    """
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}}
+    dummy.tasks = [
+        {
+            "id": "1",
+            "agent_name": "a1",
+            "prompt": "p",
+            "due_time": "2024-01-01",
+            "status": "failed",
+            "status_reason": "Agent offline",
+            "action_hint": "Start the agent",
+            "error_link": "http://example.com",
+            "repeat_interval": 0,
+        }
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+    tab.refresh_tasks_list()
+    item_widget = tab.tasks_list.itemWidget(tab.tasks_list.item(0))
+    # Find all QLabel widgets and check their text content
+    texts = [w.text() for w in item_widget.findChildren(QLabel)]
+    assert "Agent offline" in texts
+    assert "Start the agent" in texts
+    # Check for the link label, which contains HTML
+    assert any('<a href="http://example.com">More Info</a>' in w.text() for w in item_widget.findChildren(QLabel))
+
+def test_board_view_basic():
+    """
+    Tests that the board view displays tasks in the correct status column.
+    (from main)
+    """
+    app = QApplication.instance() or QApplication([])
+    dummy = DummyApp()
+    dummy.agents_data = {"a1": {}}
+    dummy.tasks = [
+       {"id": "1", "agent_name": "a1", "prompt": "p1", "due_time": "2024-01-01", "status": "pending", "priority": 2, "repeat_interval": 0},
+    ]
+    tab = tab_tasks.TasksTab(dummy)
+    # Switch to the Board View tab
+    tab.view_tabs.setCurrentIndex(1)
+    tab.refresh_board_view()
+    # Check that the 'pending' column exists and has a task in it
+    assert "pending" in tab.board_columns
+    assert tab.board_columns["pending"].count() > 0
     app.quit()

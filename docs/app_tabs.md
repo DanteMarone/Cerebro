@@ -52,9 +52,10 @@ Manage scripts that agents can invoke.
 3. **Delete** – remove a tool.
 4. **Run** – execute a tool manually with JSON arguments.
    The editor supports syntax highlighting when QScintilla is installed.
-5. **Toggle** – enable or disable a tool using a clear on/off switch.
-6. **Configure** – open a settings dialog for tools that expose options.
-7. **Revert to Default** – discard changes to a tool's configuration if needed.
+5. **Status Column** – Enable or disable a tool using the toggle switch. This column displays a color-coded icon to indicate the tool's current status, and the entire row for a disabled tool will appear greyed out.
+6. **Setup** – View dependencies and open Settings when a tool requires initial configuration before it can be used. This button is only shown for tools that need it.
+7. **Configure** – Open a settings dialog for tools that have adjustable options.
+8. **Revert to Default** – Discard any custom changes to a tool's configuration.
 
 Bundled plugins include:
 - **file-summarizer** – summarize text files.
@@ -66,7 +67,9 @@ Bundled plugins include:
 - **desktop-automation** – launch programs or move files.
 - **credential-manager** – securely store credentials.
 - **update-manager** – download new Cerebro versions on Windows 11.
-- **run-automation** – execute a recorded button sequence.
+- **automation-playback** – run a recorded button sequence. [Learn more](plugins.md#automation-playback)
+
+Tools that require additional setup display a **Needs Configuration** label next to their name.
 
 Tools are triggered when an agent returns a JSON block in the format produced by `generate_tool_instructions_message()`.
 
@@ -91,6 +94,7 @@ Record and play back desktop actions.
 Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **New Task** – create a prompt for a specific agent. Defaults to one minute from now.
 - **Required Fields** – Task dialog marks required fields with * and the save button stays disabled until they are filled.
+- **Collapsible Sections** – Task details are organized in a QToolBox so advanced fields can be hidden.
 - **Edit** – change an existing task.
 - **Inline Edit** – adjust the assignee or due date directly in the task list.
 - **Delete** – remove a task after confirmation.
@@ -102,13 +106,16 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Row Actions** – each row includes Edit, Duplicate, Delete and Complete buttons.
 - **Bulk Edit** – select multiple tasks to change them at once.
 - **Drag and Drop** – reorder tasks by dragging them up or down.
+- **Templates** – save any task as a template and start new tasks from saved templates.
 - **Undo Toast** – after deleting a task a popup allows you to undo.
 - **Context Menu** – right-click a task in any view to Edit, Delete or change its status.
+- **Help** – question mark button opens the [Tasks Help](tasks_help.md) documentation.
+- **Failure Reasons** – if a task fails or is put on hold, the reason is displayed under the task summary with a link to more information and suggested actions when available.
 ## How It Was Resolved
 - **Progress Bar** – indicates how close the task is to its due time.
 - **Elapsed Time** – shows how long the task has existed.
 - **ETA** – estimated time until the due time is reached.
-- **Repeat Interval** – optional minutes after which the task repeats.
+- **Repeat Interval** – choose daily, weekly, monthly, or a custom number of minutes.
 - **Time Format** – ISO 8601 or `YYYY-MM-DD HH:MM:SS` local time.
 
 When a task becomes due the prompt is sent automatically. Tasks can also be registered with the operating system scheduler so they run even if Cerebro is not open.

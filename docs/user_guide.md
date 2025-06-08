@@ -19,6 +19,7 @@ Select a topic from the list below or from the Docs tab within the application t
     - Finetune Tab (see also [Fine-tuning a Model](#fine-tuning-a-model) below)
     - Documentation Tab
 - **[Agents Help](agents_help.md):** Quick reference for agent configuration options accessed via the "?" buttons.
+- **[Tasks Help](tasks_help.md):** How to schedule tasks and automate repetitive actions.
 - **[Configuration](configuration.md):** Explanation of the various JSON configuration files used by Cerebro (`agents.json`, `settings.json`, etc.).
 - **[Plugins and Tools](plugins.md):** Understanding how to use and develop tools and plugins for Cerebro.
 - **[System Tray](system_tray.md):** Using the system tray icon for quick actions.
@@ -30,7 +31,8 @@ Cerebro is a multi-agent AI application with a rich set of features:
 
 - **Agent Management:** Configure multiple AI agents with different models, roles (Coordinator, Assistant, Specialist), and capabilities.
 - **Tool Integration:** Extend agent capabilities with custom tools.
-- **Task Automation:** Record desktop automations and schedule tasks for agents with inline editing, bulk changes, drag-and-drop reordering, duplication, and undo for deleted tasks.
+- **Task Automation:** Record desktop automations and schedule tasks for agents with recurring options and templates, inline editing, bulk changes, drag-and-drop reordering, duplication, and undo for deleted tasks.
+- **Failure Details:** When a task cannot run, the task entry shows the reason along with a link to more information and any suggested actions.
 Reasoning for this resolution:
 - **Workflows:** Define complex, multi-agent workflows.
 - **Customization:** Personalize the UI with themes, colors, and more.

@@ -17,7 +17,7 @@
       "echo-plugin",
       "file-summarizer",
       "math-solver",
-      "schedule-task",
+      "schedule-reminder",
       "web-scraper",
       "windows-notifier"
     ],
