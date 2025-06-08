@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open, call
 import json # For load/save tests
 import os # For load/save tests
+import tempfile # For save/load tests
 
 # Assuming automation_sequences.py is in the parent directory or accessible via PYTHONPATH
 # For local testing, ensure PYTHONPATH is set up correctly or adjust path.
@@ -38,10 +39,24 @@ class TestStepBasedHelperFunctions(unittest.TestCase):
         self.assertTrue(is_valid_step({"type": STEP_TYPE_WAIT, "params": {"duration": 1.5}}))
         self.assertFalse(is_valid_step({"type": STEP_TYPE_WAIT, "params": {"duration": "bad"}}))
 
-    def test_is_valid_step_ask_agent(self):
+    def test_is_valid_step_ask_agent_old_params(self): # Renamed to keep old tests for basic prompt check
         self.assertTrue(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?"}}))
-        self.assertTrue(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "screenshot_path": "path.png"}}))
-        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {}}))
+        # This specific old case for screenshot_path is no longer valid with the new structure.
+        # self.assertTrue(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "screenshot_path": "path.png"}}))
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {}})) # Still valid: missing prompt
+
+    def test_is_valid_ask_agent_step_new_params(self):
+        # Valid with new params
+        self.assertTrue(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "agent_name": "AgentX", "send_screenshot": True}}))
+        self.assertTrue(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "agent_name": "AgentY", "send_screenshot": False}}))
+
+        # Invalid cases for new params
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "send_screenshot": True}}), "Missing agent_name")
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "agent_name": "AgentX"}}), "Missing send_screenshot")
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "agent_name": 123, "send_screenshot": True}}), "agent_name not a string")
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?", "agent_name": "AgentX", "send_screenshot": "true"}}), "send_screenshot not a boolean")
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": 123, "agent_name": "AgentX", "send_screenshot": True}}), "prompt not a string")
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"agent_name": "AgentX", "send_screenshot": True}}), "Missing prompt")
 
     def test_is_valid_step_loop(self):
         self.assertTrue(is_valid_step({"type": STEP_TYPE_LOOP_START, "params": {"count": 3}}))
@@ -97,6 +112,47 @@ class TestStepBasedSaveLoad(unittest.TestCase):
         self.assertEqual(result, [])
         mock_logger_error.assert_called_once()
 
+    def test_save_load_ask_agent_step_new_params(self):
+        """Test saving and loading an AskAgent step with new parameters using a temporary file."""
+        automation_name = "TestAutoWithNewAskAgent"
+        ask_agent_params = {
+            "prompt": "LoadTest Prompt",
+            "agent_name": "LoaderAgentName",
+            "send_screenshot": True
+        }
+        sample_automation = {
+            "name": automation_name,
+            "steps": [
+                create_step(STEP_TYPE_ASK_AGENT, ask_agent_params)
+            ]
+        }
+        original_automations_list = [sample_automation]
+
+        # Use tempfile for saving and loading
+        tmp_file_name = ""
+        try:
+            # Create a temporary file that is not deleted immediately for manual inspection if needed
+            with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json", encoding="utf-8") as tmp_f:
+                tmp_file_name = tmp_f.name
+
+            # Patch STEP_AUTOMATIONS_FILE to use our temporary file path
+            with patch('automation_sequences.STEP_AUTOMATIONS_FILE', tmp_file_name):
+                save_step_automations(original_automations_list, debug_enabled=False)
+                loaded_automations_list = load_step_automations(debug_enabled=False)
+
+            self.assertEqual(len(loaded_automations_list), 1)
+            loaded_auto = loaded_automations_list[0]
+            self.assertEqual(loaded_auto["name"], automation_name)
+            self.assertEqual(len(loaded_auto["steps"]), 1)
+
+            loaded_step = loaded_auto["steps"][0]
+            self.assertEqual(loaded_step["type"], STEP_TYPE_ASK_AGENT)
+            self.assertDictEqual(loaded_step["params"], ask_agent_params)
+
+        finally:
+            if tmp_file_name and os.path.exists(tmp_file_name):
+                os.remove(tmp_file_name)
+
 
 class TestRunStepAutomation(unittest.TestCase):
     def setUp(self):
@@ -109,9 +165,18 @@ class TestRunStepAutomation(unittest.TestCase):
         self.pyautogui_patcher.start()
         self.time_sleep_patcher.start()
 
+        # Mock for capture_screenshot_to_tempfile
+        # Patching 'automation_sequences.capture_screenshot_to_tempfile' as it's imported there
+        self.mock_capture_screenshot_patcher = patch('automation_sequences.capture_screenshot_to_tempfile')
+        self.mock_capture_screenshot = self.mock_capture_screenshot_patcher.start()
+        self.mock_capture_screenshot.return_value = "/tmp/fake_screenshot.png"
+
+
     def tearDown(self):
         self.pyautogui_patcher.stop()
         self.time_sleep_patcher.stop()
+        if hasattr(self, 'mock_capture_screenshot_patcher'): # Ensure it was started
+            self.mock_capture_screenshot_patcher.stop()
 
     def test_run_mouse_click(self):
         steps = [create_step(STEP_TYPE_MOUSE_CLICK, {"x": 100, "y": 200, "button": "right"})]
@@ -153,6 +218,66 @@ class TestRunStepAutomation(unittest.TestCase):
         self.assertEqual(context['ask_agent_screenshot_path'], "img.png")
         self.assertEqual(context['current_step_index'], 0) # Paused at the AskAgent step
         self.assertEqual(context['next_step_index_after_ask'], 1)
+
+    def test_run_ask_agent_step_with_screenshot(self):
+        self.mock_capture_screenshot.return_value = "/tmp/screenshot_test.png"
+        steps = [
+            create_step(STEP_TYPE_ASK_AGENT, {
+                "prompt": "Test prompt screenshot",
+                "agent_name": "TestAgentScreenshot",
+                "send_screenshot": True
+            })
+        ]
+        context = run_step_automation(steps)
+        self.mock_capture_screenshot.assert_called_once()
+        self.assertEqual(context['status'], 'paused_ask_agent')
+        self.assertEqual(context['ask_agent_prompt'], "Test prompt screenshot")
+        self.assertEqual(context['ask_agent_agent_name'], "TestAgentScreenshot")
+        self.assertTrue(context['ask_agent_send_screenshot'])
+        self.assertEqual(context['ask_agent_screenshot_path'], "/tmp/screenshot_test.png")
+        self.assertEqual(context['current_step_index'], 0)
+        self.assertEqual(context['next_step_index_after_ask'], 1)
+        self.mock_capture_screenshot.reset_mock() # Reset for other tests
+
+    def test_run_ask_agent_step_without_screenshot(self):
+        steps = [
+            create_step(STEP_TYPE_ASK_AGENT, {
+                "prompt": "Test prompt no screenshot",
+                "agent_name": "TestAgentNoScreenshot",
+                "send_screenshot": False
+            })
+        ]
+        context = run_step_automation(steps)
+        self.mock_capture_screenshot.assert_not_called()
+        self.assertEqual(context['status'], 'paused_ask_agent')
+        self.assertEqual(context['ask_agent_prompt'], "Test prompt no screenshot")
+        self.assertEqual(context['ask_agent_agent_name'], "TestAgentNoScreenshot")
+        self.assertFalse(context['ask_agent_send_screenshot'])
+        self.assertIsNone(context['ask_agent_screenshot_path'])
+        self.assertEqual(context['current_step_index'], 0)
+        self.assertEqual(context['next_step_index_after_ask'], 1)
+        self.mock_capture_screenshot.reset_mock()
+
+    @patch('automation_sequences.logger.error') # Mock logger to check error message
+    def test_run_ask_agent_step_screenshot_fails(self, mock_logger_error):
+        self.mock_capture_screenshot.side_effect = Exception("Capture failed")
+        steps = [
+            create_step(STEP_TYPE_ASK_AGENT, {
+                "prompt": "Test prompt screenshot fail",
+                "agent_name": "TestAgentScreenshotFail",
+                "send_screenshot": True
+            })
+        ]
+        context = run_step_automation(steps)
+        self.mock_capture_screenshot.assert_called_once()
+        mock_logger_error.assert_called_once() # Check that an error was logged
+        self.assertEqual(context['status'], 'paused_ask_agent') # Should still pause
+        self.assertEqual(context['ask_agent_agent_name'], "TestAgentScreenshotFail")
+        self.assertTrue(context['ask_agent_send_screenshot']) # Intent was to send
+        self.assertIsNone(context['ask_agent_screenshot_path']) # Path should be None due to failure
+        self.mock_capture_screenshot.reset_mock()
+        self.mock_capture_screenshot.side_effect = None # Reset side effect
+
 
     def test_run_simple_loop(self):
         steps = [
