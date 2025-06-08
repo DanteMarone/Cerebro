@@ -207,6 +207,22 @@ def delete_task(tasks, task_id, debug_enabled=False, os_schedule=False):
         _remove_os_task(task_id, debug_enabled)
     return None
 
+def duplicate_task(tasks, task_id, debug_enabled=False, os_schedule=False):
+    """Duplicate an existing task and return the new task id."""
+    original = next((t for t in tasks if t["id"] == task_id), None)
+    if not original:
+        return None
+    new_task = original.copy()
+    new_task["id"] = str(uuid.uuid4())
+    new_task["created_time"] = datetime.utcnow().isoformat()
+    tasks.append(new_task)
+    save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Duplicated task {task_id} -> {new_task['id']}")
+    if os_schedule:
+        _schedule_os_task(new_task["id"], new_task.get("due_time", ""), debug_enabled)
+    return new_task["id"]
+
 def set_task_status(tasks, task_id, status, debug_enabled=False):
     """Set the status of a task."""
     task = next((t for t in tasks if t["id"] == task_id), None)

@@ -105,6 +105,16 @@ def test_update_task_due_time_missing(monkeypatch):
     assert err == "[Task Error] Task 'missing' not found."
 
 
+def test_duplicate_task(monkeypatch):
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    tid = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00")
+    new_id = tasks.duplicate_task(task_list, tid)
+    assert len(task_list) == 2
+    assert new_id != tid
+    assert task_list[1]["agent_name"] == task_list[0]["agent_name"]
+
+
 def test_compute_task_progress():
     task = {
         "due_time": "2024-01-01 12:00:00",

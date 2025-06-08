@@ -24,14 +24,20 @@ from tasks import (
     add_task,
     edit_task,
     delete_task,
+    duplicate_task,
     set_task_status,
     update_task_due_time,
     compute_task_progress,
+    save_tasks,
 )
 
 
 class TaskListWidget(QListWidget):
-    """List widget that starts drags with the task ID."""
+    """List widget that supports reordering and external drags."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
 
     def startDrag(self, supported_actions):
         item = self.currentItem()
@@ -42,6 +48,12 @@ class TaskListWidget(QListWidget):
         drag = QDrag(self)
         drag.setMimeData(mime)
         drag.exec_(Qt.MoveAction)
+
+    def dropEvent(self, event):
+        super().dropEvent(event)
+        parent = self.parent()
+        if hasattr(parent, "update_task_order"):
+            parent.update_task_order()
 
 
 class DroppableCalendarWidget(QCalendarWidget):
@@ -99,6 +111,7 @@ class TasksTab(QWidget):
         super().__init__()
         self.parent_app = parent_app
         self.tasks = self.parent_app.tasks
+        self.last_deleted_task = None
 
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
@@ -138,9 +151,9 @@ class TasksTab(QWidget):
 
         # Buttons
         btn_layout = QHBoxLayout()
-        self.add_button = QPushButton("Add Task")
+        self.add_button = QPushButton("New Task")
         self.add_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileIcon')))
-        self.add_button.setToolTip("Add a new task.")
+        self.add_button.setToolTip("Create a new task.")
         btn_layout.addWidget(self.add_button)
         self.layout.addLayout(btn_layout)
 
@@ -157,6 +170,12 @@ class TasksTab(QWidget):
         self.delete_button.hide()
         btn_layout.addWidget(self.delete_button)
 
+        self.duplicate_button = QPushButton("Duplicate")
+        self.duplicate_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogNewFolder')))
+        self.duplicate_button.setToolTip("Duplicate the selected task.")
+        self.duplicate_button.hide()
+        btn_layout.addWidget(self.duplicate_button)
+
         self.status_button = QPushButton("Toggle Status")
         self.status_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_BrowserReload')))
         self.status_button.setToolTip("Toggle between pending and completed.")
@@ -167,6 +186,7 @@ class TasksTab(QWidget):
         self.add_button.clicked.connect(self.add_task_ui)
         self.edit_button.clicked.connect(self.edit_task_ui)
         self.delete_button.clicked.connect(self.delete_task_ui)
+        self.duplicate_button.clicked.connect(self.duplicate_task_ui)
         self.status_button.clicked.connect(self.toggle_status_ui)
 
         self.refresh_tasks_list()
@@ -180,10 +200,12 @@ class TasksTab(QWidget):
         if selected_items:
             self.edit_button.show()
             self.delete_button.show()
+            self.duplicate_button.show()
             self.status_button.show()
         else:
             self.edit_button.hide()
             self.delete_button.hide()
+            self.duplicate_button.hide()
             self.status_button.hide()
 
     def refresh_tasks_list(self):
@@ -244,6 +266,11 @@ class TasksTab(QWidget):
         edit_btn.setProperty("task_id", task["id"])
         edit_btn.clicked.connect(lambda _=False, tid=task["id"]: self.edit_task_ui(tid))
         layout.addWidget(edit_btn)
+
+        dup_btn = QPushButton("Duplicate")
+        dup_btn.setProperty("task_id", task["id"])
+        dup_btn.clicked.connect(lambda _=False, tid=task["id"]: self.duplicate_task_ui(tid))
+        layout.addWidget(dup_btn)
 
         del_btn = QPushButton("Delete")
         del_btn.setProperty("task_id", task["id"])
@@ -357,11 +384,42 @@ class TasksTab(QWidget):
             QMessageBox.No
         )
         if reply == QMessageBox.Yes:
+            idx = next((i for i, t in enumerate(self.tasks) if t["id"] == task_id), None)
+            task_obj = next((t for t in self.tasks if t["id"] == task_id), None)
             err = delete_task(self.tasks, task_id, debug_enabled=self.parent_app.debug_enabled)
             if err:
                 QMessageBox.warning(self, "Error Deleting Task", err)
             else:
+                self.last_deleted_task = (task_obj, idx)
                 self.refresh_tasks_list()
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Task Deleted")
+                msg.setText("Task moved to trash.")
+                undo_button = msg.addButton("Undo", QMessageBox.ActionRole)
+                msg.addButton(QMessageBox.Close)
+                msg.exec_()
+                if msg.clickedButton() == undo_button:
+                    self.undo_delete()
+
+    def undo_delete(self):
+        if not hasattr(self, "last_deleted_task"):
+            return
+        task, idx = self.last_deleted_task
+        if task:
+            self.tasks.insert(idx, task)
+            save_tasks(self.tasks, self.parent_app.debug_enabled)
+            self.refresh_tasks_list()
+        self.last_deleted_task = None
+
+    def duplicate_task_ui(self, task_id=None):
+        if task_id is None:
+            selected_items = self.tasks_list.selectedItems()
+            if not selected_items:
+                return
+            task_id = selected_items[0].data(Qt.UserRole)
+        new_id = duplicate_task(self.tasks, task_id, debug_enabled=self.parent_app.debug_enabled)
+        if new_id:
+            self.refresh_tasks_list()
 
     def toggle_status_ui(self, task_id=None):
         """Toggle the status of the selected task between pending and completed."""
@@ -438,3 +496,10 @@ class TasksTab(QWidget):
         if not dt.isValid():
             dt = QDateTime.fromString(due, "yyyy-MM-dd HH:mm:ss")
         return dt.date() if dt.isValid() else QDate()
+
+    def update_task_order(self):
+        """Persist the current visual order of tasks."""
+        ids = [self.tasks_list.item(i).data(Qt.UserRole) for i in range(self.tasks_list.count())]
+        ordered = [next(t for t in self.tasks if t["id"] == tid) for tid in ids]
+        self.tasks[:] = ordered
+        save_tasks(self.tasks, self.parent_app.debug_enabled)

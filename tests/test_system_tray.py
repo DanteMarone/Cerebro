@@ -11,7 +11,7 @@ def test_tray_actions_exist():
     actions = {a.text() for a in window.tray_icon.contextMenu().actions()}
     expected = {
         "Open Cerebro",
-        "Add Task",
+        "New Task",
         "Toggle Dark Mode",
         "Pause Notifications",
         "Start Screenshot Capture",
