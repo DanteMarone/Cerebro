@@ -8,6 +8,7 @@ from PyQt5.QtGui import QPixmap
 from PyQt5.QtCore import Qt, QSize, QTimer
 import os # For checking screenshot path
 import pyautogui
+import time
 
 from automation_sequences import (
     create_step, # Import create_step
