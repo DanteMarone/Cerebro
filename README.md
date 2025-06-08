@@ -24,6 +24,8 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 
 The most comprehensive and up-to-date documentation is available directly within the Cerebro application. Navigate to the **Docs** tab (or press `Ctrl+0`) to browse the full user guide, including detailed explanations of all features, configuration options, and development guides.
 
+Contextual help buttons (`?`) appear in the Agents tab next to complex settings. Clicking these opens the new **Agents Help** section of the documentation for quick reference.
+
 You can also view the documentation online here: **[Cerebro User Guide](docs/user_guide.md)**
 
 ## Requirements

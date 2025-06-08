@@ -19,6 +19,7 @@ class DocumentationTab(QWidget):
             "Application Tabs": "app_tabs.md",
             "Configuration": "configuration.md",
             "Plugins": "plugins.md",
+            "Agents Help": "agents_help.md",
         }
         self.selector.addItems(self.doc_map.keys())
         self.selector.currentTextChanged.connect(self.load_documentation)
