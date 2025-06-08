@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QSpinBox,
     QListWidget,
+    QListWidgetItem,
 )
 import subprocess
 from PyQt5.QtCore import Qt, QDateTime
@@ -400,6 +401,7 @@ class SearchDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Search Conversation")
         self.conversation_lines = conversation_text.splitlines()
+        self.chat_display = parent.chat_display
 
         layout = QVBoxLayout(self)
 
@@ -415,15 +417,91 @@ class SearchDialog(QDialog):
         layout.addWidget(button_box)
 
         self.search_input.textChanged.connect(self.update_results)
+        self.results_list.itemClicked.connect(self.highlight_message)
 
     def update_results(self):
-        query = self.search_input.text().strip().lower()
+        import re
+
+        query = self.search_input.text().strip()
         self.results_list.clear()
         if not query:
             return
+
+        pattern = re.compile(re.escape(query), re.I)
         for line in self.conversation_lines:
-            if query in line.lower():
-                self.results_list.addItem(line.strip())
+            if pattern.search(line):
+                highlighted = pattern.sub(
+                    lambda m: f"<span style='background-color:yellow'>{m.group(0)}</span>",
+                    line.strip(),
+                )
+                item = QListWidgetItem()
+                label = QLabel(highlighted)
+                label.setTextFormat(Qt.RichText)
+                self.results_list.addItem(item)
+                self.results_list.setItemWidget(item, label)
+                item.setData(Qt.UserRole, line.strip())
+
+    def highlight_message(self, item):
+        text = item.data(Qt.UserRole)
+        if not text:
+            return
+        doc = self.chat_display.document()
+        cursor = doc.find(text)
+        if cursor.isNull():
+            return
+        self.chat_display.setTextCursor(cursor)
+        self.chat_display.centerCursor()
+
+
+class HistorySearchDialog(QDialog):
+    """Dialog for searching saved chat history."""
+
+    def __init__(self, parent, history):
+        super().__init__(parent)
+        self.setWindowTitle("Search Saved History")
+        self.history = history
+
+        layout = QVBoxLayout(self)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search history...")
+        layout.addWidget(self.search_input)
+
+        self.results_list = QListWidget()
+        layout.addWidget(self.results_list)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.search_input.textChanged.connect(self.update_results)
+
+    def update_results(self):
+        import re
+
+        query = self.search_input.text().strip()
+        self.results_list.clear()
+        if not query:
+            return
+
+        pattern = re.compile(re.escape(query), re.I)
+        for msg in self.history:
+            content = msg.get("content", "")
+            if not pattern.search(content):
+                continue
+            ts = msg.get("timestamp", "")[:19].replace("T", " ")
+            speaker = "You" if msg.get("role") == "user" else msg.get("agent", "assistant")
+            line = f"{ts} {speaker}: {content}"
+            highlighted = pattern.sub(
+                lambda m: f"<span style='background-color:yellow'>{m.group(0)}</span>",
+                line,
+            )
+            item = QListWidgetItem()
+            label = QLabel(highlighted)
+            label.setTextFormat(Qt.RichText)
+            self.results_list.addItem(item)
+            self.results_list.setItemWidget(item, label)
+            item.setData(Qt.UserRole, line)
 
 
 def filter_messages(conversation_text, query):
