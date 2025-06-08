@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
     QSpinBox,
+    QToolButton,
     QListWidget,
     QListWidgetItem,
 )
@@ -214,7 +215,17 @@ class TaskDialog(QDialog):
         layout.addWidget(self.due_time_edit)
 
         # Repeat Interval
-        layout.addWidget(QLabel("Repeat Interval (minutes):"))
+        repeat_row = QHBoxLayout()
+        repeat_label = QLabel("Repeat Interval (minutes):")
+        repeat_row.addWidget(repeat_label)
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setToolTip("Open Tasks help")
+        if hasattr(parent, "open_tasks_help"):
+            help_btn.clicked.connect(parent.open_tasks_help)
+        repeat_row.addWidget(help_btn)
+        layout.addLayout(repeat_row)
+
         self.repeat_spin = QSpinBox()
         self.repeat_spin.setMinimum(0)
         self.repeat_spin.setMaximum(525600)  # up to a year

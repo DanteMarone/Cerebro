@@ -101,6 +101,7 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Drag and Drop** – reorder tasks by dragging them up or down.
 - **Undo Toast** – after deleting a task a popup allows you to undo.
 - **Context Menu** – right-click a task in any view to Edit, Delete or change its status.
+- **Help** – question mark button opens the [Tasks Help](tasks_help.md) documentation.
 ## How It Was Resolved
 - **Progress Bar** – indicates how close the task is to its due time.
 - **Elapsed Time** – shows how long the task has existed.

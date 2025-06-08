@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QDialog,
     QMenu,
     QStyle,
+    QToolButton,
     QAbstractItemView,
     QCalendarWidget,
     QInputDialog,
@@ -235,6 +236,13 @@ class TasksTab(QWidget):
         self.add_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileIcon')))
         self.add_button.setToolTip("Create a new task.")
         btn_layout.addWidget(self.add_button)
+
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setToolTip("Open Tasks help")
+        help_btn.clicked.connect(self.open_tasks_help)
+        btn_layout.addWidget(help_btn)
+
         self.layout.addLayout(btn_layout)
 
         # Edit and Delete Buttons (initially hidden)
@@ -578,9 +586,8 @@ class TasksTab(QWidget):
                 from metrics import record_task_completion
                 record_task_completion(self.parent_app.metrics, task.get("agent_name", "unknown"), self.parent_app.debug_enabled)
                 self.parent_app.refresh_metrics_display()
-            self.refresh_tasks_list()
 
-def inline_set_agent(self, task_id, agent_name):
+    def inline_set_agent(self, task_id, agent_name):
         """Inline update of the task's agent."""
         update_task_agent(
             self.tasks, task_id, agent_name, debug_enabled=self.parent_app.debug_enabled
@@ -694,3 +701,10 @@ def inline_set_agent(self, task_id, agent_name):
         ordered = [next(t for t in self.tasks if t["id"] == tid) for tid in ids]
         self.tasks[:] = ordered
         save_tasks(self.tasks, self.parent_app.debug_enabled)
+
+    def open_tasks_help(self):
+        """Open the documentation tab to the Tasks Help section."""
+        app = self.parent_app
+        app.change_tab(9, app.nav_buttons.get("docs"))
+        if "Tasks Help" in app.docs_tab.doc_map:
+            app.docs_tab.selector.setCurrentText("Tasks Help")

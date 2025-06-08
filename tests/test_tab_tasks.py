@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QComboBox,
     QDateTimeEdit,
+    QToolButton,
 )
 import tab_tasks
 
@@ -58,7 +59,7 @@ def test_filters_and_row_actions():
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
-combos = item_widget.findChildren(QComboBox)
+    combos = item_widget.findChildren(QComboBox)
     edits = item_widget.findChildren(QDateTimeEdit)
     assert combos and edits
     assert tab.tasks_list.selectionMode() == tab_tasks.QAbstractItemView.ExtendedSelection
@@ -113,4 +114,12 @@ def test_context_menu(monkeypatch):
 
     assert "Edit" in captured and "Delete" in captured
     assert any(t in captured for t in ["Mark Completed", "Mark Pending"])
+    app.quit()
+
+
+def test_help_button_exists():
+    app = QApplication.instance() or QApplication([])
+    tab = tab_tasks.TasksTab(DummyApp())
+    help_buttons = [b for b in tab.findChildren(QToolButton) if b.toolTip() == "Open Tasks help"]
+    assert help_buttons
     app.quit()

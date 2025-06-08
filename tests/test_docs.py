@@ -9,6 +9,7 @@ def test_documentation_files_exist():
         'app_tabs.md',
         'configuration.md',
         'plugins.md',
+        'tasks_help.md',
     ]
     for name in required:
         path = os.path.join(docs_dir, name)
