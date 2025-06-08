@@ -14,7 +14,7 @@ class AIWorker(QObject):
     finished = pyqtSignal()
 
     def __init__(self, model_name, chat_history, temperature, max_tokens,
-                 debug_enabled, agent_name, agents_data):
+                 debug_enabled, agent_name, agents_data, api_url=OLLAMA_API_URL):
         super().__init__()
         self.model_name = model_name
         self.chat_history = chat_history
@@ -23,6 +23,7 @@ class AIWorker(QObject):
         self.debug_enabled = debug_enabled
         self.agent_name = agent_name
         self.agents_data = agents_data  # Store a reference to agents_data
+        self.api_url = api_url
         settings = self.agents_data.get(self.agent_name, {})
         self.thinking_enabled = settings.get("thinking_enabled", False)
         self.thinking_steps = int(settings.get("thinking_steps", 0))
@@ -55,7 +56,7 @@ class AIWorker(QObject):
                         "max_tokens": self.max_tokens,
                         "stream": False,
                     }
-                    resp = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+                    resp = requests.post(self.api_url, json=payload, timeout=60)
                     resp.raise_for_status()
                     data = resp.json()
                     return data.get("message", {}).get("content", "")
@@ -110,7 +111,7 @@ class AIWorker(QObject):
                         message['images'] = ['[Image data omitted in debug output]']
                 print("[Debug] Sending request to Ollama API:", json.dumps(payload_copy, indent=2))
 
-            response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
+            response = requests.post(self.api_url, json=payload, stream=True)
             response.raise_for_status()  # Raise an exception for bad status codes
 
             for line in response.iter_lines(decode_unicode=True):

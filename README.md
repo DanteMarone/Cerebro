@@ -17,6 +17,7 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 * **Chat Management:** Save, export, clear, and search chat history. Messages include avatars, colored names and timestamps grouped by date. Use the chat menu to search saved history. Long conversations are automatically summarized. (Details: [Application Tabs - Chat](docs/app_tabs.md#chat-tab))
 *   **Desktop History:** Allow agents to receive periodic screenshots of your desktop for visual context. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
 *   **Customizable UI:** Includes light/dark modes, configurable colors, and a system tray icon for quick actions. (Details: [System Tray](docs/system_tray.md), [Configuration - settings.json](docs/configuration.md#settingsjson))
+*   **Configurable Ollama Port:** Change the port used to contact the Ollama server in the Settings dialog.
 *   **Metrics & Fine-tuning:** Monitor application metrics and fine-tune language models with your own datasets. (Details: [Application Tabs - Metrics](docs/app_tabs.md#metrics-tab), [Application Tabs - Finetune](docs/app_tabs.md#finetune-tab), [User Guide - Fine-tuning](docs/user_guide.md#fine-tuning-a-model))
 
 ## In-App Documentation

@@ -103,10 +103,36 @@ def run_tool(args):
         layout.addWidget(self.script_edit)
 
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.ok_button = self.button_box.button(QDialogButtonBox.Ok)
+        self.ok_button.setEnabled(False)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        # Connect inputs to validation
+        self.user_name_edit.textChanged.connect(self.validate_fields)
+        self.interval_spin.valueChanged.connect(self.validate_fields)
+        self.threshold_spin.valueChanged.connect(self.validate_fields)
+        self.port_spin.valueChanged.connect(self.validate_fields)
+
+        self.validate_fields()
+
+    def validate_fields(self):
+        """Validate settings inputs and update the dialog state."""
+        errors = []
+        if not self.user_name_edit.text().strip():
+            errors.append("User Name is required.")
+        if not (1 <= self.interval_spin.value() <= 60):
+            errors.append("Screenshot Interval must be 1-60.")
+        if not (0 <= self.threshold_spin.value() <= 200):
+            errors.append("Summarization Threshold must be 0-200.")
+        if not (1 <= self.port_spin.value() <= 65535):
+            errors.append("Ollama Port must be 1-65535.")
+
+        self.ok_button.setEnabled(not errors)
+        self.error_label.setText("\n".join(errors))
+        self.error_label.setVisible(bool(errors))
 
     def get_data(self):
         return (
@@ -199,10 +225,20 @@ class TaskDialog(QDialog):
         
 
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.ok_button = self.button_box.button(QDialogButtonBox.Ok)
+        self.ok_button.setEnabled(False)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        # Connect inputs to validation
+        self.user_name_edit.textChanged.connect(self.validate_fields)
+        self.interval_spin.valueChanged.connect(self.validate_fields)
+        self.threshold_spin.valueChanged.connect(self.validate_fields)
+        self.port_spin.valueChanged.connect(self.validate_fields)
+
+        self.validate_fields()
 
     def get_data(self):
         return {
@@ -288,6 +324,19 @@ class SettingsDialog(QDialog):
         )
         layout.addWidget(self.threshold_spin)
 
+        # Ollama Port
+        layout.addWidget(QLabel("Ollama Port:"))
+        self.port_spin = QSpinBox()
+        self.port_spin.setRange(1, 65535)
+        self.port_spin.setValue(getattr(self.parent, "ollama_port", 11434))
+        self.port_spin.setToolTip("Port used to connect to the Ollama server.")
+        layout.addWidget(self.port_spin)
+
+        # Error summary label
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: red")
+        layout.addWidget(self.error_label)
+
         # --- Ollama Updates ---
         update_label = QLabel("Update Ollama and Models:")
         layout.addWidget(update_label)
@@ -316,10 +365,20 @@ class SettingsDialog(QDialog):
         layout.addLayout(update_layout)
 
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.ok_button = self.button_box.button(QDialogButtonBox.Ok)
+        self.ok_button.setEnabled(False)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        # Connect inputs to validation
+        self.user_name_edit.textChanged.connect(self.validate_fields)
+        self.interval_spin.valueChanged.connect(self.validate_fields)
+        self.threshold_spin.valueChanged.connect(self.validate_fields)
+        self.port_spin.valueChanged.connect(self.validate_fields)
+
+        self.validate_fields()
 
     def select_user_color(self):
         color = QColorDialog.getColor()
@@ -342,7 +401,30 @@ class SettingsDialog(QDialog):
             "debug_enabled": self.debug_enabled_checkbox.isChecked(),
             "screenshot_interval": self.interval_spin.value(),
             "summarization_threshold": self.threshold_spin.value(),
+            "ollama_port": self.port_spin.value(),
         }
+
+    def accept(self):
+        self.validate_fields()
+        if self.error_label.isVisible():
+            return
+        super().accept()
+
+    def validate_fields(self):
+        """Validate settings inputs and update UI state."""
+        errors = []
+        if not self.user_name_edit.text().strip():
+            errors.append("User Name is required.")
+        if not (1 <= self.interval_spin.value() <= 60):
+            errors.append("Screenshot Interval must be 1-60.")
+        if not (0 <= self.threshold_spin.value() <= 200):
+            errors.append("Summarization Threshold must be 0-200.")
+        if not (1 <= self.port_spin.value() <= 65535):
+            errors.append("Ollama Port must be 1-65535.")
+
+        self.ok_button.setEnabled(not errors)
+        self.error_label.setText("\n".join(errors))
+        self.error_label.setVisible(bool(errors))
 
     def update_ollama(self):
         """Run 'ollama update' and show the result."""
