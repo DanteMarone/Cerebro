@@ -9,6 +9,7 @@ import subprocess
 from datetime import datetime
 
 TASKS_FILE = "tasks.json"
+TEMPLATES_FILE = "task_templates.json"
 
 # Supported task statuses. Additional states like ``in_progress`` and
 # ``failed`` can be assigned by the UI or other components.
@@ -135,6 +136,82 @@ def save_tasks(tasks, debug_enabled=False):
             print("[Debug] Tasks saved.")
     except Exception as e:
         print(f"[Error] Failed to save tasks: {e}")
+
+
+def load_task_templates(debug_enabled=False):
+    """Return a list of saved task templates."""
+    if not os.path.exists(TEMPLATES_FILE):
+        return []
+    try:
+        with open(TEMPLATES_FILE, "r", encoding="utf-8") as f:
+            templates = json.load(f)
+        if debug_enabled:
+            print("[Debug] Task templates loaded:", templates)
+        return templates
+    except Exception as e:
+        print(f"[Error] Failed to load task templates: {e}")
+        return []
+
+
+def save_task_templates(templates, debug_enabled=False):
+    """Persist task templates to disk."""
+    try:
+        with open(TEMPLATES_FILE, "w", encoding="utf-8") as f:
+            json.dump(templates, f, indent=2)
+        if debug_enabled:
+            print("[Debug] Task templates saved.")
+    except Exception as e:
+        print(f"[Error] Failed to save task templates: {e}")
+
+
+def add_task_template(
+    templates,
+    name,
+    agent_name,
+    prompt,
+    repeat_interval=0,
+    debug_enabled=False,
+):
+    """Add or update a task template."""
+    template = {
+        "name": name,
+        "agent_name": agent_name,
+        "prompt": prompt,
+        "repeat_interval": repeat_interval,
+    }
+    existing = next((t for t in templates if t.get("name") == name), None)
+    if existing:
+        templates[templates.index(existing)] = template
+    else:
+        templates.append(template)
+    save_task_templates(templates, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Saved template '{name}'")
+
+
+def create_task_from_template(
+    tasks,
+    templates,
+    name,
+    due_time,
+    creator="user",
+    debug_enabled=False,
+    os_schedule=False,
+):
+    """Create a new task based on a named template."""
+    tmpl = next((t for t in templates if t.get("name") == name), None)
+    if not tmpl:
+        return None
+    return add_task(
+        tasks,
+        tmpl.get("agent_name", ""),
+        tmpl.get("prompt", ""),
+        due_time,
+        creator=creator,
+        repeat_interval=tmpl.get("repeat_interval", 0),
+        debug_enabled=debug_enabled,
+        os_schedule=os_schedule,
+    )
 
 def add_task(
     tasks,

@@ -221,6 +221,17 @@ class TaskDialog(QDialog):
         self.repeat_spin.setValue(self.repeat_interval)
         self.repeat_spin.setToolTip("Minutes between repetitions. 0 for none.")
         layout.addWidget(self.repeat_spin)
+
+        # Template options
+        self.save_template_cb = QCheckBox("Save as Template")
+        layout.addWidget(self.save_template_cb)
+        self.template_name_edit = QLineEdit()
+        self.template_name_edit.setPlaceholderText("Template Name")
+        self.template_name_edit.setEnabled(False)
+        layout.addWidget(self.template_name_edit)
+        self.save_template_cb.stateChanged.connect(
+            lambda: self.template_name_edit.setEnabled(self.save_template_cb.isChecked())
+        )
         
 
         # Buttons
@@ -244,6 +255,8 @@ class TaskDialog(QDialog):
             "prompt": self.prompt_edit.toPlainText().strip(),
             "due_time": self.due_time_edit.dateTime().toString(Qt.ISODate),
             "repeat_interval": self.repeat_spin.value(),
+            "save_as_template": self.save_template_cb.isChecked(),
+            "template_name": self.template_name_edit.text().strip(),
         }
 
     def validate_fields(self):

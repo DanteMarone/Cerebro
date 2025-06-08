@@ -58,10 +58,13 @@ def test_filters_and_row_actions():
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
-combos = item_widget.findChildren(QComboBox)
+    combos = item_widget.findChildren(QComboBox)
     edits = item_widget.findChildren(QDateTimeEdit)
     assert combos and edits
-    assert tab.tasks_list.selectionMode() == tab_tasks.QAbstractItemView.ExtendedSelection
+    assert (
+        tab.tasks_list.selectionMode()
+        == tab_tasks.QAbstractItemView.ExtendedSelection
+    )
     app.quit()
 
 
