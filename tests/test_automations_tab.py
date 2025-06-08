@@ -34,3 +34,20 @@ def test_populate_parameter_editor_ask_agent_qcheckbox():
     assert isinstance(widget, tab_automations.QCheckBox)
     assert widget.isChecked()
     app.quit()
+
+
+def test_double_click_adds_step_to_sequence():
+    app = QApplication.instance() or QApplication([])
+    tab = tab_automations.AutomationsTab(DummyApp())
+    first_item = tab.available_steps_list.item(0)
+    tab.available_steps_list.itemDoubleClicked.emit(first_item)
+    assert tab.step_sequence_list.count() == 1
+    assert tab.step_sequence_list.item(0).text().startswith(first_item.text())
+    app.quit()
+
+
+def test_step_sequence_is_reorderable():
+    app = QApplication.instance() or QApplication([])
+    tab = tab_automations.AutomationsTab(DummyApp())
+    assert tab.step_sequence_list.dragDropMode() == tab_automations.QAbstractItemView.InternalMove
+    app.quit()

@@ -200,6 +200,7 @@ class AutomationsTab(QWidget):
         for step_type_name in self.step_types:
             self.available_steps_list.addItem(QListWidgetItem(step_type_name))
         left_layout.addWidget(self.available_steps_list)
+        self.available_steps_list.itemDoubleClicked.connect(lambda _: self.add_step_to_sequence())
 
         self.add_step_btn = QPushButton("Add Step to Sequence")
         self.add_step_btn.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_ArrowRight')))
@@ -214,6 +215,8 @@ class AutomationsTab(QWidget):
 
         self.step_sequence_list = QListWidget()
         # Enable Drag and Drop
+        self.step_sequence_list.setDragEnabled(True)
+        self.step_sequence_list.setAcceptDrops(True)
         self.step_sequence_list.setDragDropMode(QAbstractItemView.InternalMove)
         self.step_sequence_list.setSelectionMode(QAbstractItemView.SingleSelection) # Ensure single selection
         self.step_sequence_list.setDefaultDropAction(Qt.MoveAction)
