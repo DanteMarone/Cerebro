@@ -1,3 +1,4 @@
+import os
 import builtins
 from tempfile import TemporaryDirectory
 import screenshot
@@ -23,4 +24,16 @@ def test_capture_base64(monkeypatch):
         assert len(mgr.get_images()) == 2
         mgr.capture()
         assert len(mgr.get_images()) == 2  # respect max_images
+
+
+def test_capture_screenshot_to_tempfile(monkeypatch):
+    """capture_screenshot_to_tempfile should save image to a temporary file."""
+    monkeypatch.setattr(screenshot.QGuiApplication, 'primaryScreen', lambda: FakeScreen())
+    path = screenshot.capture_screenshot_to_tempfile()
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+        assert data == b'fake'
+    finally:
+        os.remove(path)
 
