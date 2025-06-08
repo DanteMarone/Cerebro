@@ -1,15 +1,31 @@
 TOOL_METADATA = {
     "name": "huggingface-auth",
     "description": "Login or logout of Hugging Face to access private models.",
-    "args": ["action", "token"],
+"args": ["action", "token"],
 }
+
+try:
+    from huggingface_hub import login as hf_login, logout as hf_logout
+except Exception:  # pragma: no cover - optional dependency
+    hf_login = None
+    hf_logout = None
+
+
+def login(token=None, add_to_git_credential=True):
+    if hf_login is None:
+        raise RuntimeError("huggingface_hub not installed.")
+    return hf_login(token=token, add_to_git_credential=add_to_git_credential)
+
+
+def logout():
+    if hf_logout is None:
+        raise RuntimeError("huggingface_hub not installed.")
+    return hf_logout()
 
 
 def run_tool(args):
     """Authenticate with Hugging Face using huggingface_hub."""
-    try:
-        from huggingface_hub import login, logout
-    except Exception:
+    if hf_login is None or hf_logout is None:
         return "[huggingface-auth Error] huggingface_hub not installed."
 
     action = args.get("action", "login")
