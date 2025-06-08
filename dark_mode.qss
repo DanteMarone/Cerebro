@@ -102,6 +102,10 @@ QMainWindow {
     padding: 10px;
 }
 
+#chatDisplay div[style*="font-size:10px"] {
+    color: #bbbbbb !important; /* Lighter gray for dark mode, !important to override inline gray */
+}
+
 #typingIndicator {
     color: #aaaaaa;
     font-style: italic;

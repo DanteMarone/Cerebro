@@ -1,4 +1,5 @@
 #tab_chat.py
+from datetime import datetime, date, timedelta # Add to imports
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
@@ -23,6 +24,7 @@ class ChatTab(QWidget):
         self.message_counter = 0
         self.last_user_message_id = None
         self.typing_name = "Assistant"
+        self.last_message_date = None
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -250,6 +252,29 @@ class ChatTab(QWidget):
         If ``from_user`` is True a status span will be added and the message id
         returned so the status can be updated later.
         """
+        if not self.chat_display.toPlainText().strip(): # Check if chat is empty
+            self.last_message_date = None
+
+        # We need the actual date of the message. The timestamp variable currently only has HH:MM:SS.
+        # This is a major blocker. The timestamp provided to append_message_html is insufficient.
+        # For this subtask, we will assume the message date is the CURRENT date.
+        # This will correctly handle "Today" for new messages, but not historical dates or "Yesterday".
+        message_date = date.today() # THIS IS THE WORKAROUND
+
+        if self.last_message_date != message_date:
+            date_separator_text = ""
+            if message_date == date.today():
+                date_separator_text = "--- Today ---"
+            elif message_date == (date.today() - timedelta(days=1)):
+                date_separator_text = "--- Yesterday ---"
+            else:
+                date_separator_text = message_date.strftime("--- %B %d, %Y ---")
+
+            if date_separator_text:
+                separator_html = f'<div style="text-align:center; color:gray; margin:10px 0;">{date_separator_text}</div>'
+                self.chat_display.append(separator_html)
+            self.last_message_date = message_date
+
         import re
         pattern1 = r'<span style="color:(#[0-9A-Fa-f]{6});">\[([0-9:]+)\]\s*(.+?):</span>\s*(.*)'
         pattern2 = r'\[([0-9:]+)\]\s*<span style=\'color:(#[0-9A-Fa-f]{6});\'>(.+?):</span>\s*(.*)'
@@ -261,6 +286,36 @@ class ChatTab(QWidget):
             if m:
                 timestamp, color, name, message = m.groups()
         if m:
+            # timestamp is HH:MM:SS string
+            try:
+                # Combine with today's date to create a datetime object
+                message_datetime_today = datetime.strptime(f"{date.today()} {timestamp}", "%Y-%m-%d %H:%M:%S")
+                full_timestamp_for_hover = message_datetime_today.strftime("%I:%M:%S %p on %Y-%m-%d") # e.g., 10:35:00 AM on 2023-10-26
+
+                now = datetime.now()
+                diff = now - message_datetime_today
+
+                display_timestamp_str = ""
+
+                if diff.total_seconds() < 0: # Time is in the future (e.g., system time changed, or midnight rollover)
+                    display_timestamp_str = message_datetime_today.strftime("%I:%M %p") # 10:35 AM
+                elif diff.total_seconds() < 60:
+                    display_timestamp_str = "just now"
+                elif diff.total_seconds() < 3600: # Less than 1 hour
+                    minutes_ago = int(diff.total_seconds() / 60)
+                    display_timestamp_str = f"{minutes_ago}m ago"
+                elif diff.total_seconds() < 3 * 3600: # Less than 3 hours
+                    hours_ago = int(diff.total_seconds() / 3600)
+                    display_timestamp_str = f"{hours_ago}h ago"
+                else: # Older than 3 hours on the same day
+                    display_timestamp_str = message_datetime_today.strftime("%I:%M %p") # 10:35 AM
+            except ValueError:
+                # Fallback if timestamp parsing fails for any reason
+                display_timestamp_str = timestamp # Original HH:MM:SS
+                full_timestamp_for_hover = timestamp
+
+            timestamp_html_element = f"<span title='{full_timestamp_for_hover}'>{display_timestamp_str}</span>"
+
             avatar = self.get_avatar(name)
             is_user = name.startswith(self.parent_app.user_name)
             align = "flex-end" if is_user else "flex-start"
@@ -271,7 +326,7 @@ class ChatTab(QWidget):
             )
             bubble_html = (
                 f"<div style='background-color:{bubble_bg};color:{text_color};padding:6px;border-radius:10px;max-width:80%;'>"
-                f"<div style='font-size:10px;color:gray'>[{timestamp}] {name}</div>{message}</div>"
+                f"<div style='font-size:10px;'><b>{name}</b> - {timestamp_html_element}</div>{message}</div>" # Removed color:gray
             )
             if is_user:
                 html_text = f"<div style='display:flex;justify-content:{align};margin:4px;'>{bubble_html}{avatar_html}</div>"
