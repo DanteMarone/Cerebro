@@ -474,14 +474,31 @@ class AgentsTab(QWidget):
         self.save_agent_settings()
     
     def on_delete_agent_clicked(self):
+        """Prompt before deleting the current agent."""
         agent_name = self.current_agent
         if not agent_name:
             return
-            
-        # Confirm deletion
-        if QMessageBox.question(self, "Confirm Deletion", 
-                               f"Are you sure you want to delete the agent '{agent_name}'?",
-                               QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
+
+        task_count = sum(
+            1 for t in self.parent_app.tasks if t.get("agent_name") == agent_name
+        )
+        message = (
+            f"Are you sure you want to delete Agent '{agent_name}'? "
+            "This will stop its current operations and remove its configuration."
+        )
+        if task_count:
+            message += (
+                f"\n\nAgent '{agent_name}' is currently assigned to {task_count} "
+                f"task{'s' if task_count != 1 else ''}. Deleting this agent may affect these tasks."
+            )
+        reply = QMessageBox.question(
+            self,
+            "Confirm Delete",
+            message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
             self.parent_app.delete_agent(agent_name)
             self.show_agent_list()
 
