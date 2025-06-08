@@ -57,6 +57,7 @@ For detailed installation and setup instructions, please see the **[Getting Star
 1.  **Start the Ollama server.** (e.g., `ollama serve` or `python local_llm_helper.py serve`)
 2.  **Run the Cerebro application:** `python main.py`
     *   Debug mode is enabled by default. To disable, set `DEBUG_MODE=0` (see [Configuration - Debug Mode](docs/configuration.md#understanding-debug-mode)).
+    *   Errors are saved to `cerebro.log` in the application directory.
 
 ## Configuration
 
