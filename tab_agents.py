@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton,
     QHBoxLayout, QComboBox, QFrame, QLineEdit, QTextEdit, QCheckBox,
     QColorDialog, QFormLayout, QGroupBox, QDoubleSpinBox, QSpinBox,
-    QListWidget, QListWidgetItem, QMessageBox, QStackedWidget, QTabWidget
+    QListWidget, QListWidgetItem, QMessageBox, QStackedWidget, QTabWidget, QToolButton
 )
 from PyQt5.QtCore import Qt
 
@@ -53,7 +53,17 @@ class AgentsTab(QWidget):
 
         self.add_agent_btn = QPushButton("Add New Agent")
         self.add_agent_btn.clicked.connect(self.parent_app.add_agent)
-        list_layout.addWidget(self.add_agent_btn, alignment=Qt.AlignLeft)
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(self.add_agent_btn)
+
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setToolTip("Open Agents help")
+        help_btn.clicked.connect(self.open_agents_help)
+        btn_row.addWidget(help_btn)
+
+        btn_row.addStretch()
+        list_layout.addLayout(btn_row)
 
         self.stacked.addWidget(self.list_page)
 
@@ -70,7 +80,14 @@ class AgentsTab(QWidget):
         self.save_button.clicked.connect(self.on_save_agent_clicked)
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.on_delete_agent_clicked)
+
+        help_btn_edit = QToolButton()
+        help_btn_edit.setText("?")
+        help_btn_edit.setToolTip("Open Agents help")
+        help_btn_edit.clicked.connect(self.open_agents_help)
+
         nav_layout.addStretch()
+        nav_layout.addWidget(help_btn_edit)
         nav_layout.addWidget(self.cancel_button)
         nav_layout.addWidget(self.save_button)
         nav_layout.addWidget(self.delete_button)
@@ -588,3 +605,10 @@ class AgentsTab(QWidget):
         models = self.global_agent_preferences.get("available_models", [])
         self.model_combo.addItems(models)
         self.model_combo.blockSignals(False)
+
+    def open_agents_help(self):
+        """Open the documentation tab to the Agents Help section."""
+        app = self.parent_app
+        app.change_tab(9, app.nav_buttons.get("docs"))
+        if "Agents Help" in app.docs_tab.doc_map:
+            app.docs_tab.selector.setCurrentText("Agents Help")
