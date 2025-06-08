@@ -30,7 +30,8 @@ Cerebro is a multi-agent AI application with a rich set of features:
 
 - **Agent Management:** Configure multiple AI agents with different models, roles (Coordinator, Assistant, Specialist), and capabilities.
 - **Tool Integration:** Extend agent capabilities with custom tools.
-- **Task Automation:** Record desktop automations and schedule tasks for agents with drag-and-drop reordering, duplication and undo for deleted tasks.
+- **Task Automation:** Record desktop automations and schedule tasks for agents with inline editing, bulk changes, drag-and-drop reordering, duplication, and undo for deleted tasks.
+Reasoning for this resolution:
 - **Workflows:** Define complex, multi-agent workflows.
 - **Customization:** Personalize the UI with themes, colors, and more.
 - **Model Fine-tuning:** Adapt existing language models with your own data directly within the application.

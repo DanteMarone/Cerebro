@@ -12,8 +12,8 @@ Cerebro offers a rich set of features to enhance your interaction with AI models
 *   **Tool Integration:** Grant agents the ability to use tools (Python scripts) to perform actions and retrieve information. Tools can be bundled, custom-developed, or installed as plugins. (Details: [Plugins and Tools](docs/plugins.md), [Application Tabs - Tools](docs/app_tabs.md#tools-tab))
 *   **Thinking Mode:** Enable agents to iteratively generate a series of thoughts before producing a final answer. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
 *   **Automations:** Record and replay desktop actions (mouse and keyboard sequences). (Details: [Application Tabs - Automations](docs/app_tabs.md#automations-tab))
-*   **Task Scheduling:** Schedule prompts for agents to run at specific times with optional repetition, drag-and-drop reordering, duplication and undo after deletion. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
-*   *   **Task Progress Indicators:** View elapsed time and an ETA for scheduled tasks.
+* **Task Scheduling:** Schedule prompts for agents to run at specific times, with optional repetition, drag-and-drop reordering, duplication, undo after deletion, inline editing, and bulk editing. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
+* * **Task Progress Indicators:** View elapsed time and an ETA for scheduled tasks.
 *   **Workflow Builder:** Design and execute reusable, multi-agent workflows. (Details: [Application Tabs - Workflows](docs/app_tabs.md#workflows-tab))
 * **Chat Management:** Save, export, clear, and search chat history. Messages include avatars, colored names and timestamps grouped by date. Use the chat menu to search saved history. Long conversations are automatically summarized. (Details: [Application Tabs - Chat](docs/app_tabs.md#chat-tab))
 *   **Desktop History:** Allow agents to receive periodic screenshots of your desktop for visual context. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))

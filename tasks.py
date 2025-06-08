@@ -244,6 +244,17 @@ def set_task_status(tasks, task_id, status, debug_enabled=False):
         print(f"[Debug] Set task {task_id} status to '{status}'")
     return None
 
+def update_task_agent(tasks, task_id, agent_name, debug_enabled=False):
+    """Update the agent assigned to a task."""
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if not task:
+        return f"[Task Error] Task '{task_id}' not found."
+    task["agent_name"] = agent_name
+    save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Updated task {task_id} agent to {agent_name}")
+    return None
+
 def update_task_due_time(tasks, task_id, due_time, debug_enabled=False, os_schedule=False):
     """Update the due time for a task."""
     task = next((t for t in tasks if t["id"] == task_id), None)

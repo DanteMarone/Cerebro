@@ -88,6 +88,7 @@ Record and play back desktop actions.
 Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **New Task** – create a prompt for a specific agent. Defaults to one minute from now.
 - **Edit** – change an existing task.
+- **Inline Edit** – adjust the assignee or due date directly in the task list.
 - **Delete** – remove a task after confirmation.
 - **Duplicate** – create a copy of an existing task.
 - **Toggle Status** – mark a task as completed or pending.
@@ -95,6 +96,7 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
   (blue Pending, orange In Progress, green Completed, red Failed, grey On Hold).
 - **Filters** – filter by agent or status.
 - **Row Actions** – each row includes Edit, Duplicate, Delete and Complete buttons.
+- **Bulk Edit** – select multiple tasks to change them at once.
 - **Drag and Drop** – reorder tasks by dragging them up or down.
 - **Undo Toast** – after deleting a task a popup allows you to undo.
 - **Progress Bar** – indicates how close the task is to its due time.
