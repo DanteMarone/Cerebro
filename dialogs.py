@@ -114,27 +114,21 @@ def run_tool(args):
         layout.addWidget(self.button_box)
 
         # Connect inputs to validation
-        self.prompt_edit.textChanged.connect(self.validate_fields)
-        self.due_time_edit.dateTimeChanged.connect(self.validate_fields)
-        self.agent_selector.currentIndexChanged.connect(self.validate_fields)
+        self.name_edit.textChanged.connect(self.validate_fields)
+        self.description_edit.textChanged.connect(self.validate_fields)
+        if hasattr(self.script_edit, "textChanged"):
+            self.script_edit.textChanged.connect(self.validate_fields)
+        elif hasattr(self.script_edit, "modificationChanged"):
+            self.script_edit.modificationChanged.connect(self.validate_fields)
 
         self.validate_fields()
 
     def validate_fields(self):
-        """Validate settings inputs and update the dialog state."""
-        errors = []
-        if not self.user_name_edit.text().strip():
-            errors.append("User Name is required.")
-        if not (1 <= self.interval_spin.value() <= 60):
-            errors.append("Screenshot Interval must be 1-60.")
-        if not (0 <= self.threshold_spin.value() <= 200):
-            errors.append("Summarization Threshold must be 0-200.")
-        if not (1 <= self.port_spin.value() <= 65535):
-            errors.append("Ollama Port must be 1-65535.")
-
-        self.ok_button.setEnabled(not errors)
-        self.error_label.setText("\n".join(errors))
-        self.error_label.setVisible(bool(errors))
+        """Enable or disable the OK button based on required fields."""
+        name_ok = bool(self.name_edit.text().strip())
+        desc_ok = bool(self.description_edit.text().strip())
+        script_ok = bool(self.script_edit.text().strip())
+        self.ok_button.setEnabled(name_ok and desc_ok and script_ok)
 
     def get_data(self):
         return (
