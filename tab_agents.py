@@ -60,17 +60,16 @@ class AgentsTab(QWidget):
         edit_layout = QVBoxLayout(self.edit_page)
 
         nav_layout = QHBoxLayout()
-        self.back_button = QPushButton("Back")
-        self.back_button.clicked.connect(self.show_agent_list)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.show_agent_list)
         self.save_button = QPushButton("Save")
         self.save_button.clicked.connect(self.on_save_agent_clicked)
-        self.delete_button = QPushButton("Delete Agent")
+        self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.on_delete_agent_clicked)
-        nav_layout.addWidget(self.back_button)
         nav_layout.addStretch()
+        nav_layout.addWidget(self.cancel_button)
         nav_layout.addWidget(self.save_button)
         nav_layout.addWidget(self.delete_button)
-        edit_layout.addLayout(nav_layout)
 
         # Add a separator below navigation
         separator = QFrame()
@@ -188,7 +187,7 @@ class AgentsTab(QWidget):
         self.thinking_steps_input.setToolTip("Number of thinking iterations before responding.")
         self.agent_settings_layout.addRow(self.thinking_steps_label, self.thinking_steps_input)
 
-        self.tts_checkbox = QCheckBox("Enable Text-to-Speech")
+        self.tts_checkbox = QCheckBox("Text-to-Speech Enabled")
         self.tts_checkbox.setToolTip("Speak this agent's replies aloud.")
         self.agent_settings_layout.addRow("", self.tts_checkbox)
 
@@ -198,8 +197,11 @@ class AgentsTab(QWidget):
             self.voice_combo.addItem(name)
         self.voice_combo.setToolTip("Select the voice used for Text-to-Speech.")
         self.agent_settings_layout.addRow("Voice", self.voice_combo)
-        
+
         edit_layout.addLayout(self.agent_settings_layout)
+
+        # Navigation buttons at the bottom
+        edit_layout.addLayout(nav_layout)
 
         self.stacked.addWidget(self.edit_page)
         
