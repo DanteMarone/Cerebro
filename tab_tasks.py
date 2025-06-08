@@ -580,12 +580,14 @@ class TasksTab(QWidget):
                 self.parent_app.refresh_metrics_display()
             self.refresh_tasks_list()
 
-def inline_set_agent(self, task_id, agent_name):
+
+    def inline_set_agent(self, task_id, agent_name):
         """Inline update of the task's agent."""
         update_task_agent(
             self.tasks, task_id, agent_name, debug_enabled=self.parent_app.debug_enabled
         )
         self.refresh_tasks_list()
+
 
     def inline_set_due(self, task_id, qdatetime):
         """Inline update of the task's due time."""
@@ -594,6 +596,7 @@ def inline_set_agent(self, task_id, agent_name):
             self.tasks, task_id, due_str, debug_enabled=self.parent_app.debug_enabled
         )
         self.refresh_tasks_list()
+
 
     def bulk_edit_ui(self):
         """Edit multiple selected tasks at once."""

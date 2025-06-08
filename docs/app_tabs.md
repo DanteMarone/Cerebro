@@ -52,6 +52,7 @@ Manage scripts that agents can invoke.
 3. **Delete** – remove a tool.
 4. **Run** – execute a tool manually with JSON arguments.
    The editor supports syntax highlighting when QScintilla is installed.
+5. **Status Column** – displays whether each tool is enabled or disabled with a color-coded icon. Disabled tools appear greyed out.
 
 Bundled plugins include:
 - **file-summarizer** – summarize text files.
