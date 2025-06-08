@@ -67,7 +67,7 @@ Bundled plugins include:
 - **desktop-automation** – launch programs or move files.
 - **credential-manager** – securely store credentials.
 - **update-manager** – download new Cerebro versions on Windows 11.
-- **run-automation** – execute a recorded button sequence.
+- **automation-playback** – run a recorded button sequence. [Learn more](plugins.md#automation-playback)
 
 Tools that require additional setup display a **Needs Configuration** label next to their name.
 
