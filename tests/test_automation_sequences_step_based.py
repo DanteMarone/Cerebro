@@ -14,6 +14,7 @@ from automation_sequences import (
     STEP_TYPE_MOUSE_CLICK, STEP_TYPE_KEYBOARD_INPUT, STEP_TYPE_WAIT,
     STEP_TYPE_ASK_AGENT, STEP_TYPE_LOOP_START, STEP_TYPE_LOOP_END,
     STEP_TYPE_IF_CONDITION, STEP_TYPE_ELSE, STEP_TYPE_END_IF,
+    STEP_TYPE_SET_VARIABLE,
     STEP_AUTOMATIONS_FILE,
     DEFAULT_EXECUTION_CONTEXT,
     PYAUTOGUI_SPECIAL_KEYS # For testing keyboard input
@@ -38,6 +39,10 @@ class TestStepBasedHelperFunctions(unittest.TestCase):
     def test_is_valid_step_wait(self):
         self.assertTrue(is_valid_step({"type": STEP_TYPE_WAIT, "params": {"duration": 1.5}}))
         self.assertFalse(is_valid_step({"type": STEP_TYPE_WAIT, "params": {"duration": "bad"}}))
+
+    def test_is_valid_step_set_variable(self):
+        self.assertTrue(is_valid_step({"type": STEP_TYPE_SET_VARIABLE, "params": {"name": "x", "value": "1"}}))
+        self.assertFalse(is_valid_step({"type": STEP_TYPE_SET_VARIABLE, "params": {"value": "1"}}))
 
     def test_is_valid_step_ask_agent_old_params(self): # Renamed to keep old tests for basic prompt check
         self.assertTrue(is_valid_step({"type": STEP_TYPE_ASK_AGENT, "params": {"prompt": "Test?"}}))
@@ -209,6 +214,12 @@ class TestRunStepAutomation(unittest.TestCase):
         context = run_step_automation(steps)
         self.mock_time_sleep.assert_called_once_with(2.5)
         self.assertEqual(context['status'], 'completed')
+
+    def test_run_set_variable(self):
+        steps = [create_step(STEP_TYPE_SET_VARIABLE, {"name": "foo", "value": "bar"})]
+        context = run_step_automation(steps)
+        self.assertEqual(context['status'], 'completed')
+        self.assertEqual(context['variables'].get('foo'), 'bar')
 
     def test_run_ask_agent(self):
         steps = [create_step(STEP_TYPE_ASK_AGENT, {"prompt": "User, do this.", "screenshot_path": "img.png"})]
