@@ -31,8 +31,16 @@ Create, edit and delete agents.
 - **Thinking Steps** – number of thinking iterations.
 - **Text-to-Speech Enabled** – speak replies aloud.
 - **Voice** – choose which system voice to use when speaking.
+    - *Prerequisites: TTS functionality relies on the text-to-speech engines available on your operating system. Ensure you have voices installed and configured at the OS level if you encounter issues.*
 - **Desktop History Enabled** – capture screenshots for the model.
 - **Screenshot Interval** – seconds between captures.
+
+### Agent Roles in Detail
+
+- **Coordinator/Specialist Interaction Example:**
+    - A Coordinator agent, upon receiving a complex query, might identify that a 'MathSpecialist' agent is best suited.
+    - The Coordinator's response (which is logged in the chat) could include: `I need help with a calculation. Next Response By: MathSpecialist`
+    - The 'MathSpecialist' then receives the original user query (plus any context from the coordinator) and its response is directed back through the coordinator or directly to the chat, depending on the system's flow. The key is the explicit delegation.
 
 Press **Save** after editing or **Add New Agent** to create one.
 
