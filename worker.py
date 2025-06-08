@@ -4,6 +4,7 @@ import json
 import requests
 from PyQt5.QtCore import QObject, pyqtSignal
 from transcripts import append_message
+from debugger_events import LLMRequestEvent, AgentThoughtEvent, ErrorEvent # Assuming debugger_service is passed
 
 # API Configuration
 OLLAMA_API_URL = "http://localhost:11434/api/chat"
@@ -14,7 +15,7 @@ class AIWorker(QObject):
     finished = pyqtSignal()
 
     def __init__(self, model_name, chat_history, temperature, max_tokens,
-                 debug_enabled, agent_name, agents_data):
+                 debug_enabled, agent_name, agents_data, debugger_service=None): # Modified
         super().__init__()
         self.model_name = model_name
         self.chat_history = chat_history
@@ -23,6 +24,7 @@ class AIWorker(QObject):
         self.debug_enabled = debug_enabled
         self.agent_name = agent_name
         self.agents_data = agents_data  # Store a reference to agents_data
+        self.debugger_service = debugger_service # Added
         settings = self.agents_data.get(self.agent_name, {})
         self.thinking_enabled = settings.get("thinking_enabled", False)
         self.thinking_steps = int(settings.get("thinking_steps", 0))
@@ -72,6 +74,14 @@ class AIWorker(QObject):
                     ]
                     thought = single_request(step_history).strip()
                     thoughts.append(thought)
+                    if self.debugger_service:
+                        self.debugger_service.record_event(
+                            AgentThoughtEvent(
+                                agent_name=self.agent_name,
+                                thought_step=step,
+                                thought_text=thought
+                            )
+                        )
                     append_message(
                         self.chat_history,
                         "assistant",
@@ -110,6 +120,18 @@ class AIWorker(QObject):
                         message['images'] = ['[Image data omitted in debug output]']
                 print("[Debug] Sending request to Ollama API:", json.dumps(payload_copy, indent=2))
 
+            if self.debugger_service:
+                self.debugger_service.record_event(
+                    LLMRequestEvent(
+                        agent_name=self.agent_name,
+                        model_name=self.model_name,
+                        messages=self.chat_history, # This is the prepared history for the LLM
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens,
+                        other_params={"stream": True, "options": payload.get("options")} # Capture relevant other params
+                    )
+                )
+
             response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
             response.raise_for_status()  # Raise an exception for bad status codes
 
@@ -140,14 +162,34 @@ class AIWorker(QObject):
             self.finished.emit()
 
         except requests.exceptions.RequestException as e:
-            error_msg = f"[Error] Request error: {e}"
+            error_msg_str = f"Request error: {e}"
+            if self.debugger_service:
+                self.debugger_service.record_event(
+                    ErrorEvent(
+                        source="AIWorker.run.RequestException",
+                        agent_name=self.agent_name,
+                        error_message=error_msg_str,
+                        details=str(e) # More detailed exception string
+                    )
+                )
+            error_msg = f"[Error] Request error: {e}" # Keep existing error message format for signal
             if self.debug_enabled:
                 print(error_msg)
             self.error_occurred.emit(error_msg)
             self.finished.emit()
 
         except Exception as e:
-            error_msg = f"[Error] Exception in worker run: {e}"
+            error_msg_str = f"Exception in worker run: {e}"
+            if self.debugger_service:
+                self.debugger_service.record_event(
+                    ErrorEvent(
+                        source="AIWorker.run.Exception",
+                        agent_name=self.agent_name,
+                        error_message=error_msg_str,
+                        details=str(e)
+                    )
+                )
+            error_msg = f"[Error] Exception in worker run: {e}" # Keep existing error message format for signal
             if self.debug_enabled:
                 print(error_msg)
             self.error_occurred.emit(error_msg)
