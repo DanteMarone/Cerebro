@@ -74,6 +74,9 @@ class AutomationsTab(QWidget):
         super().__init__()
         self.parent_app = parent_app
         self.automations = self.parent_app.automations # For recorded automations
+
+        # Helper to reference the main window
+        self._main_window = getattr(self.parent_app, "main_window", self.parent_app)
         # self.step_automations = [] # Will be loaded separately
 
         # Main layout for the AutomationsTab
@@ -95,6 +98,19 @@ class AutomationsTab(QWidget):
         self._setup_step_based_automations_ui()
 
         self.refresh_automations_list() # Initial refresh for recorded automations
+
+    def _minimize_main_window(self):
+        """Minimize the application's main window if possible."""
+        if hasattr(self._main_window, "showMinimized"):
+            self._main_window.showMinimized()
+            QApplication.processEvents()
+
+    def _restore_main_window(self):
+        """Restore and focus the application's main window."""
+        if hasattr(self._main_window, "showNormal"):
+            self._main_window.showNormal()
+            self._main_window.activateWindow()
+            QApplication.processEvents()
 
     def _setup_recorded_automations_ui(self):
         """Sets up the UI for the Recorded Automations sub-tab."""
@@ -269,8 +285,7 @@ class AutomationsTab(QWidget):
         # Optionally, add a small delay before starting to allow user to switch focus
         # time.sleep(1) # Consider if this is needed or should be a specific "Wait" step by user
 
-        self.parent_app.main_window.showMinimized() # Minimize main window before running
-        QApplication.processEvents() # Ensure minimization is processed
+        self._minimize_main_window()  # Ensure minimization is processed
         # A small delay to ensure window is minimized, though pyautogui usually handles focus well.
         # This might need adjustment based on system performance.
         # For very fast systems, time.sleep(0.5) or even less might be enough.
@@ -291,10 +306,9 @@ class AutomationsTab(QWidget):
             # This check is a bit tricky because we don't know if the *next* step is AskAgent
             # For simplicity, we minimize, and if AskAgent is returned, we re-show.
             if not (execution_context and execution_context.get('status') == 'paused_ask_agent'):
-                 if not self.parent_app.main_window.isMinimized():
-                    self.parent_app.main_window.showMinimized()
-                    QApplication.processEvents()
-                    time.sleep(0.2) # Allow time to minimize
+                 if hasattr(self._main_window, "isMinimized") and not self._main_window.isMinimized():
+                    self._minimize_main_window()
+                    time.sleep(0.2)  # Allow time to minimize
 
             execution_context = run_step_automation(
                 steps_data,
@@ -305,9 +319,7 @@ class AutomationsTab(QWidget):
             status = execution_context.get('status')
 
             if status == 'paused_ask_agent':
-                self.parent_app.main_window.showNormal()
-                self.parent_app.main_window.activateWindow()
-                QApplication.processEvents()
+                self._restore_main_window()
 
                 prompt = execution_context.get("ask_agent_prompt", "Agent action required.")
                 screenshot_path = execution_context.get("ask_agent_screenshot_path")
@@ -336,9 +348,8 @@ class AutomationsTab(QWidget):
                 break
 
         # Final restoration if window was minimized
-        if self.parent_app.main_window.isMinimized():
-            self.parent_app.main_window.showNormal()
-            self.parent_app.main_window.activateWindow()
+        if hasattr(self._main_window, "isMinimized") and self._main_window.isMinimized():
+            self._restore_main_window()
 
     def _update_step_based_buttons_enabled_state(self):
         has_steps = self.step_sequence_list.count() > 0
@@ -756,16 +767,14 @@ class AutomationsTab(QWidget):
             return
 
         # Minimize window before running recorded automation as well
-        self.parent_app.main_window.showMinimized()
-        QApplication.processEvents()
-        import time # Ensure time is imported
+        self._minimize_main_window()
+        import time  # Ensure time is imported
         time.sleep(0.2)
 
 
         result = run_automation(self.parent_app.automations, name, delay)
 
-        self.parent_app.main_window.showNormal()
-        self.parent_app.main_window.activateWindow()
+        self._restore_main_window()
 
         if "Error" in result: # Simple check for error in result string
             QMessageBox.warning(self, "Automation Error", result)
