@@ -21,21 +21,38 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox,
 )
 from PyQt5.QtCore import Qt, QDate, QDateTime, QMimeData, QRect
+from datetime import timedelta
 from PyQt5.QtGui import QDrag, QTextCharFormat, QBrush, QColor
 from dialogs import TaskDialog
 from tasks import (
     add_task,
     edit_task,
     delete_task,
+    duplicate_task,
     set_task_status,
     update_task_agent,
     update_task_due_time,
     compute_task_progress,
+    save_tasks,
+    compute_task_times,
 )
+
+# Mapping of task status to display color and icon.
+STATUS_STYLES = {
+    "pending": {"color": "#3daee9", "icon": QStyle.SP_FileDialogNewFolder},
+    "in_progress": {"color": "#ff9800", "icon": QStyle.SP_MediaPlay},
+    "completed": {"color": "#4caf50", "icon": QStyle.SP_DialogApplyButton},
+    "failed": {"color": "#f44336", "icon": QStyle.SP_MessageBoxWarning},
+    "on_hold": {"color": "#9e9e9e", "icon": QStyle.SP_MediaPause},
+}
 
 
 class TaskListWidget(QListWidget):
-    """List widget that starts drags with the task ID."""
+    """List widget that supports reordering and external drags."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
 
     def startDrag(self, supported_actions):
         item = self.currentItem()
@@ -46,6 +63,12 @@ class TaskListWidget(QListWidget):
         drag = QDrag(self)
         drag.setMimeData(mime)
         drag.exec_(Qt.MoveAction)
+
+    def dropEvent(self, event):
+        super().dropEvent(event)
+        parent = self.parent()
+        if hasattr(parent, "update_task_order"):
+            parent.update_task_order()
 
 
 class DroppableCalendarWidget(QCalendarWidget):
@@ -154,6 +177,7 @@ class TasksTab(QWidget):
         super().__init__()
         self.parent_app = parent_app
         self.tasks = self.parent_app.tasks
+        self.last_deleted_task = None
 
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
@@ -161,14 +185,25 @@ class TasksTab(QWidget):
         # Filter controls
         filter_layout = QHBoxLayout()
         self.agent_filter = QComboBox()
-        self.agent_filter.addItem("All Agents")
+        self.agent_filter.setToolTip("Filter tasks by assignee")
+        self.agent_filter.addItem("All Assignees")
         for name in getattr(self.parent_app, "agents_data", {}).keys():
             self.agent_filter.addItem(name)
         self.agent_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.agent_filter)
 
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["All Statuses", "pending", "completed"])
+        self.status_filter = QComboBox()
+        self.status_filter.setToolTip("Filter tasks by status")
+        self.status_filter.addItems([
+            "All Statuses",
+            "pending",
+            "in_progress",
+            "completed",
+            "failed",
+            "on_hold",
+        ])
+        self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.status_filter)
         self.layout.addLayout(filter_layout)
@@ -193,9 +228,9 @@ class TasksTab(QWidget):
 
         # Buttons
         btn_layout = QHBoxLayout()
-        self.add_button = QPushButton("Add Task")
+        self.add_button = QPushButton("New Task")
         self.add_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileIcon')))
-        self.add_button.setToolTip("Add a new task.")
+        self.add_button.setToolTip("Create a new task.")
         btn_layout.addWidget(self.add_button)
         self.layout.addLayout(btn_layout)
 
@@ -218,6 +253,12 @@ class TasksTab(QWidget):
         self.delete_button.hide()
         btn_layout.addWidget(self.delete_button)
 
+        self.duplicate_button = QPushButton("Duplicate")
+        self.duplicate_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogNewFolder')))
+        self.duplicate_button.setToolTip("Duplicate the selected task.")
+        self.duplicate_button.hide()
+        btn_layout.addWidget(self.duplicate_button)
+
         self.status_button = QPushButton("Toggle Status")
         self.status_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_BrowserReload')))
         self.status_button.setToolTip("Toggle between pending and completed.")
@@ -229,6 +270,7 @@ class TasksTab(QWidget):
         self.edit_button.clicked.connect(self.edit_task_ui)
         self.bulk_edit_button.clicked.connect(self.bulk_edit_ui)
         self.delete_button.clicked.connect(self.delete_task_ui)
+        self.duplicate_button.clicked.connect(self.duplicate_task_ui)
         self.status_button.clicked.connect(self.toggle_status_ui)
 
         self.refresh_tasks_list()
@@ -242,6 +284,7 @@ class TasksTab(QWidget):
         if selected_items:
             self.edit_button.show()
             self.delete_button.show()
+            self.duplicate_button.show()
             self.status_button.show()
             if len(selected_items) > 1:
                 self.bulk_edit_button.show()
@@ -250,6 +293,7 @@ class TasksTab(QWidget):
         else:
             self.edit_button.hide()
             self.delete_button.hide()
+            self.duplicate_button.hide()
             self.status_button.hide()
             self.bulk_edit_button.hide()
 
@@ -262,7 +306,7 @@ class TasksTab(QWidget):
         status_filter = self.status_filter.currentText()
         filtered = []
         for task in self.tasks:
-            if agent_filter != "All Agents" and task.get("agent_name") != agent_filter:
+            if agent_filter != "All Assignees" and task.get("agent_name") != agent_filter:
                 continue
             if status_filter != "All Statuses" and task.get("status", "pending") != status_filter:
                 continue
@@ -296,7 +340,6 @@ class TasksTab(QWidget):
         status = task.get("status", "pending")
         repeat = task.get("repeat_interval", 0)
         repeat_str = f" every {repeat}m" if repeat else ""
-
         agent_combo = QComboBox()
         agent_combo.addItems(self.parent_app.agents_data.keys())
         agent_combo.setCurrentText(agent_name)
@@ -321,7 +364,23 @@ class TasksTab(QWidget):
         layout.addWidget(due_edit)
 
         summary_label = QLabel(f"{prompt[:30]}...{repeat_str} ({status})")
+        # Added tooltip from 'main' branch for more context on hover
+        summary_label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
         layout.addWidget(summary_label)
+
+        style = STATUS_STYLES.get(status, {"color": "black", "icon": QStyle.SP_FileIcon})
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        icon_label = QLabel()
+        icon = self.style().standardIcon(style["icon"])
+        icon_label.setPixmap(icon.pixmap(16, 16))
+        status_layout.addWidget(icon_label)
+        text_label = QLabel(status.replace("_", " ").title())
+        text_label.setStyleSheet(f"color: {style['color']}; font-weight: bold;")
+        status_layout.addWidget(text_label)
+        status_widget = QWidget()
+        status_widget.setLayout(status_layout)
+        layout.addWidget(status_widget)
 
         progress = compute_task_progress(task)
         bar = QProgressBar()
@@ -330,10 +389,21 @@ class TasksTab(QWidget):
         bar.setFixedWidth(100)
         layout.addWidget(bar)
 
+        elapsed, remaining = compute_task_times(task)
+        elapsed_label = QLabel(f"Elapsed: {timedelta(seconds=elapsed)}")
+        remaining_label = QLabel(f"ETA: {timedelta(seconds=remaining)}")
+        layout.addWidget(elapsed_label)
+        layout.addWidget(remaining_label)
+
         edit_btn = QPushButton("Edit")
         edit_btn.setProperty("task_id", task["id"])
         edit_btn.clicked.connect(lambda _=False, tid=task["id"]: self.edit_task_ui(tid))
         layout.addWidget(edit_btn)
+
+        dup_btn = QPushButton("Duplicate")
+        dup_btn.setProperty("task_id", task["id"])
+        dup_btn.clicked.connect(lambda _=False, tid=task["id"]: self.duplicate_task_ui(tid))
+        layout.addWidget(dup_btn)
 
         del_btn = QPushButton("Delete")
         del_btn.setProperty("task_id", task["id"])
@@ -447,11 +517,42 @@ class TasksTab(QWidget):
             QMessageBox.No
         )
         if reply == QMessageBox.Yes:
+            idx = next((i for i, t in enumerate(self.tasks) if t["id"] == task_id), None)
+            task_obj = next((t for t in self.tasks if t["id"] == task_id), None)
             err = delete_task(self.tasks, task_id, debug_enabled=self.parent_app.debug_enabled)
             if err:
                 QMessageBox.warning(self, "Error Deleting Task", err)
             else:
+                self.last_deleted_task = (task_obj, idx)
                 self.refresh_tasks_list()
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Task Deleted")
+                msg.setText("Task moved to trash.")
+                undo_button = msg.addButton("Undo", QMessageBox.ActionRole)
+                msg.addButton(QMessageBox.Close)
+                msg.exec_()
+                if msg.clickedButton() == undo_button:
+                    self.undo_delete()
+
+    def undo_delete(self):
+        if not hasattr(self, "last_deleted_task"):
+            return
+        task, idx = self.last_deleted_task
+        if task:
+            self.tasks.insert(idx, task)
+            save_tasks(self.tasks, self.parent_app.debug_enabled)
+            self.refresh_tasks_list()
+        self.last_deleted_task = None
+
+    def duplicate_task_ui(self, task_id=None):
+        if task_id is None:
+            selected_items = self.tasks_list.selectedItems()
+            if not selected_items:
+                return
+            task_id = selected_items[0].data(Qt.UserRole)
+        new_id = duplicate_task(self.tasks, task_id, debug_enabled=self.parent_app.debug_enabled)
+        if new_id:
+            self.refresh_tasks_list()
 
     def toggle_status_ui(self, task_id=None):
         """Toggle the status of the selected task between pending and completed."""
@@ -567,3 +668,10 @@ class TasksTab(QWidget):
         if not dt.isValid():
             dt = QDateTime.fromString(due, "yyyy-MM-dd HH:mm:ss")
         return dt.date() if dt.isValid() else QDate()
+
+    def update_task_order(self):
+        """Persist the current visual order of tasks."""
+        ids = [self.tasks_list.item(i).data(Qt.UserRole) for i in range(self.tasks_list.count())]
+        ordered = [next(t for t in self.tasks if t["id"] == tid) for tid in ids]
+        self.tasks[:] = ordered
+        save_tasks(self.tasks, self.parent_app.debug_enabled)

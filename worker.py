@@ -2,6 +2,7 @@
 
 import json
 import requests
+import logging
 from PyQt5.QtCore import QObject, pyqtSignal
 from transcripts import append_message
 
@@ -125,6 +126,7 @@ class AIWorker(QObject):
                             self.response_received.emit(chunk, self.agent_name)
                         elif "error" in line_data:
                             error_msg = line_data["error"]
+                            logging.error(error_msg)
                             self.error_occurred.emit(f"[Error] {error_msg}")
                             if self.debug_enabled:
                                 print(f"[Debug] Error in response: {error_msg}")
@@ -135,6 +137,7 @@ class AIWorker(QObject):
                             break
                     except ValueError as e:
                         error_msg = f"[Error] Failed to parse line as JSON: {e}"
+                        logging.error(error_msg)
                         if self.debug_enabled:
                             print(error_msg)
                         self.error_occurred.emit(error_msg)
@@ -142,6 +145,7 @@ class AIWorker(QObject):
 
         except requests.exceptions.RequestException as e:
             error_msg = f"[Error] Request error: {e}"
+            logging.error(error_msg)
             if self.debug_enabled:
                 print(error_msg)
             self.error_occurred.emit(error_msg)
@@ -149,6 +153,7 @@ class AIWorker(QObject):
 
         except Exception as e:
             error_msg = f"[Error] Exception in worker run: {e}"
+            logging.error(error_msg)
             if self.debug_enabled:
                 print(error_msg)
             self.error_occurred.emit(error_msg)

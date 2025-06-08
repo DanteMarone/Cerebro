@@ -47,17 +47,17 @@ def test_filters_and_row_actions():
     assert tab.tasks_list.count() == 1
 
     tab.status_filter.setCurrentText("completed")
-    tab.agent_filter.setCurrentText("All Agents")
+    tab.agent_filter.setCurrentText("All Assignees")
     tab.refresh_tasks_list()
     assert tab.tasks_list.count() == 1
 
     item_widget = tab.tasks_list.itemWidget(tab.tasks_list.item(0))
     buttons = item_widget.findChildren(QPushButton)
-    assert len(buttons) == 3
+    assert len(buttons) == 4
     bars = item_widget.findChildren(QProgressBar)
     assert len(bars) == 1
     assert 0 <= bars[0].value() <= 100
-    combos = item_widget.findChildren(QComboBox)
+combos = item_widget.findChildren(QComboBox)
     edits = item_widget.findChildren(QDateTimeEdit)
     assert combos and edits
     assert tab.tasks_list.selectionMode() == tab_tasks.QAbstractItemView.ExtendedSelection
