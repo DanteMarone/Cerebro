@@ -106,6 +106,7 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Templates** – save any task as a template and start new tasks from saved templates.
 - **Undo Toast** – after deleting a task a popup allows you to undo.
 - **Context Menu** – right-click a task in any view to Edit, Delete or change its status.
+- **Help** – question mark button opens the [Tasks Help](tasks_help.md) documentation.
 - **Failure Reasons** – if a task fails or is put on hold, the reason is displayed under the task summary with a link to more information and suggested actions when available.
 ## How It Was Resolved
 - **Progress Bar** – indicates how close the task is to its due time.

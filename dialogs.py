@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox,
     QMessageBox,
     QSpinBox,
+    QToolButton,
     QListWidget,
     QListWidgetItem,
     QToolBox,
@@ -219,7 +220,22 @@ class TaskDialog(QDialog):
         self.due_time_edit.setCalendarPopup(True)  # Enable calendar popup
         details_layout.addWidget(self.due_time_edit)
 
-        details_layout.addWidget(QLabel("Repeat Interval (minutes):"))
+# Repeat Interval with Help Icon
+        repeat_row = QHBoxLayout()
+        repeat_label = QLabel("Repeat Interval (minutes):")
+        repeat_label.setToolTip("Set to 0 for a one-time task. Otherwise, the task will repeat at this interval.")
+        repeat_row.addWidget(repeat_label)
+        
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setStyleSheet("font-weight: bold;")
+        help_btn.setToolTip("Open documentation for Tasks")
+        # Assuming parent has this method from previous merges
+        if hasattr(self.parent(), "open_tasks_help"):
+            help_btn.clicked.connect(self.parent().open_tasks_help)
+        repeat_row.addWidget(help_btn)
+        
+        details_layout.addLayout(repeat_row)
         self.repeat_spin = QSpinBox()
         self.repeat_spin.setMinimum(0)
         self.repeat_spin.setMaximum(525600)  # up to a year

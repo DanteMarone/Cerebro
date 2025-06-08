@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QComboBox,
     QDateTimeEdit,
+    QToolButton,
 )
 import tab_tasks
 
@@ -117,6 +118,29 @@ def test_context_menu(monkeypatch):
     assert "Edit" in captured and "Delete" in captured
     assert any(t in captured for t in ["Mark Completed", "Mark Pending"])
     app.quit()
+
+
+def test_help_button_exists():
+    """
+    Tests that the help buttons with specific tooltips are present.
+    (from codex/add-help-icon-and-feature-specific-tooltips)
+    """
+    app = QApplication.instance() or QApplication([])
+    # DummyApp needs a parent to avoid errors when the dialog tries to find the main window
+    dummy_parent = QWidget()
+    dummy_parent.open_tasks_help = lambda: None # Mock the help method
+    tab = tab_tasks.TasksTab(dummy_parent)
+    
+    # Check for the main help button
+    main_help_button = tab.findChild(QToolButton, "main_help_button") # Assuming objectName is set
+    assert main_help_button is not None
+    assert "documentation" in main_help_button.toolTip()
+    
+    # Check for the help button in the task dialog
+    task_dialog = dialogs.TaskDialog(tab, {"agent1": {}})
+    dialog_help_button = task_dialog.findChild(QToolButton) # More robust search may be needed
+    assert dialog_help_button is not None
+    assert "documentation" in dialog_help_button.toolTip()
 
 
 def test_failed_reason_display():

@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QDialog,
     QMenu,
     QStyle,
+    QToolButton,
     QAbstractItemView,
     QCalendarWidget,
     QInputDialog,
@@ -306,8 +307,15 @@ class TasksTab(QWidget):
         btn_layout.addWidget(self.add_button)
         self.template_button = QPushButton("From Template")
         self.template_button.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DirIcon')))
-        self.template_button.setToolTip("Create a task from a saved template.")
+        self.template_button.setToolTip("Create a new task from a saved template.")
         btn_layout.addWidget(self.template_button)
+
+        help_btn = QToolButton()
+        help_btn.setText("?")
+        help_btn.setStyleSheet("font-weight: bold;")
+        help_btn.setToolTip("Open documentation for the Tasks feature.")
+        help_btn.clicked.connect(self.open_tasks_help)
+        btn_layout.addWidget(help_btn)
         self.layout.addLayout(btn_layout)
 
         # Edit and Delete Buttons (initially hidden)
@@ -759,7 +767,6 @@ class TasksTab(QWidget):
                 from metrics import record_task_completion
                 record_task_completion(self.parent_app.metrics, task.get("agent_name", "unknown"), self.parent_app.debug_enabled)
                 self.parent_app.refresh_metrics_display()
-            self.refresh_tasks_list()
 
     def inline_set_agent(self, task_id, agent_name):
         """Inline update of the task's agent."""
@@ -880,6 +887,14 @@ class TasksTab(QWidget):
         self.tasks[:] = ordered
         save_tasks(self.tasks, self.parent_app.debug_enabled)
 
+     def open_tasks_help(self):
+        """Open the documentation tab to the Tasks Help section."""
+        app = self.parent_app
+        # Assuming tab index 9 is 'Docs'
+        app.change_tab(9, app.nav_buttons.get("docs"))
+        if hasattr(app, "docs_tab") and "Tasks Help" in app.docs_tab.doc_map:
+            app.docs_tab.selector.setCurrentText("Tasks Help")
+
     def configure_columns(self):
         """Open dialog to toggle visible columns."""
         dlg = ColumnSelectDialog(self, self.visible_columns)
@@ -889,42 +904,67 @@ class TasksTab(QWidget):
 
     def refresh_board_view(self):
         """Populate the board view with cards grouped by status."""
+        # Clear existing board layout
         for i in reversed(range(self.board_layout.count())):
             item = self.board_layout.itemAt(i)
-            if item.widget():
+            if item and item.widget():
                 item.widget().deleteLater()
-            self.board_layout.removeItem(item)
-
+        
+        # Define statuses and create columns
         statuses = ["pending", "in_progress", "completed", "failed", "on_hold"]
         self.board_columns = {}
         for status in statuses:
-            column = QVBoxLayout()
-            header = QLabel(status.replace("_", " ").title())
-            header.setAlignment(Qt.AlignCenter)
-            column.addWidget(header)
-            self.board_columns[status] = column
             col_widget = QWidget()
-            col_widget.setLayout(column)
+            col_layout = QVBoxLayout(col_widget)
+            col_layout.setContentsMargins(2, 2, 2, 2)
+            
+            header = QLabel(status.replace("_", " ").title())
+            header.setStyleSheet("font-weight: bold; padding: 4px; background-color: #f0f0f0;")
+            header.setAlignment(Qt.AlignCenter)
+            col_layout.addWidget(header)
+
+            list_widget = QListWidget() # Use QListWidget for scrolling and item management
+            list_widget.setDragDropMode(QAbstractItemView.DragDrop)
+            self.board_columns[status] = list_widget
+            col_layout.addWidget(list_widget)
+            
             self.board_layout.addWidget(col_widget)
 
+        # Add task cards to the appropriate columns
         for task in self.tasks:
             status = task.get("status", "pending")
-            column = self.board_columns.get(status)
-            if column:
-                column.addWidget(self._create_task_card(task))
+            list_widget = self.board_columns.get(status)
+            if list_widget:
+                card_widget = self._create_task_card(task)
+                item = QListWidgetItem(list_widget)
+                item.setSizeHint(card_widget.sizeHint())
+                list_widget.addItem(item)
+                list_widget.setItemWidget(item, card_widget)
 
     def _create_task_card(self, task):
         """Create a card widget for the board view."""
         widget = QWidget()
+        widget.setStyleSheet("background-color: white; border-radius: 4px; border: 1px solid #e0e0e0; padding: 5px;")
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(3)
+        
         prompt = task.get("prompt", "")
-        fm = QFontMetrics(widget.font())
-        text = fm.elidedText(prompt, Qt.ElideRight, 150)
-        label = QLabel(text)
+        fm = QFontMetrics(self.font())
+        elided_text = fm.elidedText(prompt, Qt.ElideRight, 150)
+        
+        label = QLabel(elided_text)
         label.setToolTip(prompt)
+        label.setStyleSheet("font-weight: bold;")
         layout.addWidget(label)
-        layout.addWidget(QLabel(task.get("agent_name", "")))
-        layout.addWidget(QLabel(task.get("due_time", "")))
-        layout.addWidget(QLabel(f"P{task.get('priority', 1)}"))
+        
+        # Add other details like assignee and priority
+        details_layout = QHBoxLayout()
+        assignee_label = QLabel(task.get("agent_name", ""))
+        priority_label = QLabel(f"P{task.get('priority', 1)}")
+        details_layout.addWidget(assignee_label)
+        details_layout.addStretch()
+        details_layout.addWidget(priority_label)
+        layout.addLayout(details_layout)
+        
         return widget
