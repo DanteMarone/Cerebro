@@ -6,7 +6,7 @@ Use `Ctrl+1` through `Ctrl+7` to switch between tabs.
 
 - The Chat tab is the main interface for sending prompts to your agents.
 - Enter a prompt and press **Send** or use the 🎤 button to dictate a prompt.
-- Messages show in speech bubbles with small avatars and appear in a scrollable pane. A typing indicator shows when an agent is responding.
+- Messages show in speech bubbles with avatars or initials next to the sender name. Each message includes a timestamp and conversations are grouped by date so you can quickly see when a discussion happened.
 - Use the menu to copy, save, export or clear the conversation.
 - Click the 🔍 button to search the current conversation.
 - From the same menu choose **Search saved history** to look across chats.

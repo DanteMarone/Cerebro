@@ -1,6 +1,19 @@
 #tab_chat.py
 from PyQt5 import QtCore
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5 import QtCore
+from PyQt5.QtCore import (
+    Qt,
+    QTimer,
+    QPoint,
+    QPropertyAnimation,
+    QAbstractAnimation,
+)
+from datetime import datetime, timedelta
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
+    QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
+    QFileDialog, QToolTip
+)
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout, QStyle,
     QLabel, QSplitter, QFrame, QScrollArea, QToolButton, QMenu, QAction,
@@ -24,6 +37,7 @@ class ChatTab(QWidget):
         self.message_counter = 0
         self.last_user_message_id = None
         self.typing_name = "Assistant"
+        self.last_date = None
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -208,11 +222,19 @@ class ChatTab(QWidget):
         if obj == self.user_input and event.type() == QtCore.QEvent.KeyPress:
             if event.key() == QtCore.Qt.Key_Return and not event.modifiers() & QtCore.Qt.ShiftModifier:
                 if not self.user_input.toPlainText().strip():
-                    # Show a tooltip
-                    tooltip_duration = 2000 # milliseconds
-                    tooltip_position = self.user_input.mapToGlobal(self.user_input.rect().bottomLeft())
-                    QToolTip.showText(tooltip_position, "Cannot send an empty message", self.user_input, self.user_input.rect(), tooltip_duration)
-                    return True # Event handled, don't proceed to send
+                    tooltip_duration = 2000  # milliseconds
+                    tooltip_position = self.user_input.mapToGlobal(
+                        self.user_input.rect().bottomLeft()
+                    )
+                    QToolTip.showText(
+                        tooltip_position,
+                        "Cannot send an empty message",
+                        self.user_input,
+                        self.user_input.rect(),
+                        tooltip_duration,
+                    )
+                    self.shake_widget(self.user_input)
+                    return True  # Event handled, don't proceed to send
                 self.on_send_clicked()
                 return True
         return super().eventFilter(obj, event)
@@ -224,6 +246,19 @@ class ChatTab(QWidget):
             self.send_button.setEnabled(False)
         else:
             self.send_button.setEnabled(True)
+
+    def shake_widget(self, widget):
+        """Perform a subtle shake animation on the given widget."""
+        animation = QPropertyAnimation(widget, b"pos", self)
+        start_pos = widget.pos()
+        offset = 5
+        animation.setDuration(200)
+        animation.setKeyValueAt(0, start_pos)
+        animation.setKeyValueAt(0.25, start_pos + QPoint(-offset, 0))
+        animation.setKeyValueAt(0.5, start_pos + QPoint(offset, 0))
+        animation.setKeyValueAt(0.75, start_pos + QPoint(-offset, 0))
+        animation.setKeyValueAt(1, start_pos)
+        animation.start(QAbstractAnimation.DeleteWhenStopped)
 
     def adjust_input_height(self):
         doc_height = self.user_input.document().size().height()
@@ -291,9 +326,17 @@ class ChatTab(QWidget):
             avatar_html = (
                 f"<div style='font-size:20px;margin-{'left' if is_user else 'right'}:6px;'>{avatar}</div>"
             )
+            msg_time = datetime.now()
+            if self.last_date != msg_time.date():
+                label = self.format_date_label(msg_time.date())
+                self.chat_display.append(
+                    f"<div style='text-align:center;color:gray;margin:4px 0;'>--- {label} ---</div>"
+                )
+                self.last_date = msg_time.date()
+            ts_label, ts_title = self.format_timestamp(msg_time)
             bubble_html = (
                 f"<div style='background-color:{bubble_bg};color:{text_color};padding:6px;border-radius:10px;max-width:80%;'>"
-                f"<div style='font-size:10px;color:gray'>[{timestamp}] {name}</div>{message}</div>"
+                f"<div style='font-size:10px;color:gray' title='{ts_title}'>{ts_label} {name}</div>{message}</div>"
             )
             if is_user:
                 html_text = f"<div style='display:flex;justify-content:{align};margin:4px;'>{bubble_html}{avatar_html}</div>"
@@ -411,6 +454,26 @@ class ChatTab(QWidget):
         self.typing_indicator.setText(
             f"<span style='font-size:20px'>🤔</span> {self.typing_name} is typing{dots}"
         )
+
+    def format_date_label(self, date):
+        today = datetime.now().date()
+        if date == today:
+            return "Today"
+        if date == today - timedelta(days=1):
+            return "Yesterday"
+        return date.strftime("%B %d, %Y")
+
+    def format_timestamp(self, ts):
+        now = datetime.now()
+        delta = now - ts
+        if delta < timedelta(minutes=1):
+            label = f"{int(delta.total_seconds())}s ago"
+        elif delta < timedelta(hours=1):
+            label = f"{int(delta.total_seconds() // 60)}m ago"
+        else:
+            label = ts.strftime("%I:%M %p").lstrip("0")
+        title = ts.strftime("%Y-%m-%d %H:%M")
+        return label, title
 
     def get_avatar(self, name):
         if name.startswith(self.parent_app.user_name):
