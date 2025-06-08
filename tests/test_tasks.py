@@ -27,6 +27,14 @@ def test_add_task(monkeypatch):
     assert "created_time" in task
     assert task["status"] == "pending"
     assert task["repeat_interval"] == 30
+    assert task["priority"] == 1
+
+
+def test_add_task_with_priority(monkeypatch):
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    tid = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00", priority=3)
+    assert task_list[0]["priority"] == 3
 
 
 def test_edit_task(monkeypatch):

@@ -120,6 +120,7 @@ def load_tasks(debug_enabled=False):
                 t.setdefault("status", "pending")
                 t.setdefault("repeat_interval", 0)
                 t.setdefault("created_time", t.get("due_time", datetime.utcnow().isoformat()))
+                t.setdefault("priority", 1)
             if debug_enabled:
                 print("[Debug] Tasks loaded:", tasks)
             return tasks
@@ -143,6 +144,7 @@ def add_task(
     due_time,
     creator="user",
     repeat_interval=0,
+    priority=1,
     debug_enabled=False,
     os_schedule=False,
 ):
@@ -165,6 +167,7 @@ def add_task(
         "created_time": datetime.utcnow().isoformat(),
         "status": "pending",
         "repeat_interval": repeat_interval,
+        "priority": priority,
     }
     tasks.append(new_task)
     save_tasks(tasks, debug_enabled)
@@ -184,6 +187,7 @@ def edit_task(
     prompt,
     due_time,
     repeat_interval=0,
+    priority=1,
     debug_enabled=False,
     os_schedule=False,
 ):
@@ -195,6 +199,7 @@ def edit_task(
     task["prompt"] = prompt
     task["due_time"] = due_time
     task["repeat_interval"] = repeat_interval
+    task["priority"] = priority
     save_tasks(tasks, debug_enabled)
     if debug_enabled:
         print(
@@ -267,6 +272,18 @@ def update_task_due_time(tasks, task_id, due_time, debug_enabled=False, os_sched
     if os_schedule:
         _remove_os_task(task_id, debug_enabled)
         _schedule_os_task(task_id, due_time, debug_enabled)
+    return None
+
+
+def update_task_priority(tasks, task_id, priority, debug_enabled=False):
+    """Update the priority for a task."""
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if not task:
+        return f"[Task Error] Task '{task_id}' not found."
+    task["priority"] = priority
+    save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Updated task {task_id} priority to {priority}")
     return None
 
 
