@@ -10,6 +10,16 @@ from datetime import datetime
 
 TASKS_FILE = "tasks.json"
 
+# Supported task statuses. Additional states like ``in_progress`` and
+# ``failed`` can be assigned by the UI or other components.
+STATUS_CHOICES = [
+    "pending",
+    "in_progress",
+    "completed",
+    "failed",
+    "on_hold",
+]
+
 
 def _schedule_os_task(task_id, due_time, debug_enabled=False):
     """Register a task with the OS scheduler."""

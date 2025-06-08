@@ -90,6 +90,8 @@ Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
 - **Edit** – change an existing task.
 - **Delete** – remove a task after confirmation.
 - **Toggle Status** – mark a task as completed or pending.
+- **Status Styles** – task statuses are color coded with icons
+  (blue Pending, orange In Progress, green Completed, red Failed, grey On Hold).
 - **Filters** – filter by agent or status.
 - **Row Actions** – each row includes Edit, Delete and Complete buttons.
 - **Progress Bar** – indicates how close the task is to its due time.
