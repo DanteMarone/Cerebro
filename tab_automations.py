@@ -30,10 +30,13 @@ from automation_sequences import (
 )
 
 
+from typing import Union # Added for type hinting
+
 class AskAgentDialog(QDialog):
-    def __init__(self, prompt: str, screenshot_path: str = None, parent=None):
+    def __init__(self, agent_name: str, prompt: str, screenshot_path: Union[str, None] = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Agent Action Required")
+        self.agent_name = agent_name
+        self.setWindowTitle(f"Action for {self.agent_name}")
 
         layout = QVBoxLayout(self)
 
@@ -324,9 +327,10 @@ class AutomationsTab(QWidget):
                 self._restore_main_window()
 
                 prompt = execution_context.get("ask_agent_prompt", "Agent action required.")
-                screenshot_path = execution_context.get("ask_agent_screenshot_path")
+                screenshot_path_from_context = execution_context.get("ask_agent_screenshot_path")
+                agent_name = execution_context.get("ask_agent_agent_name", "Unknown Agent")
 
-                dialog = AskAgentDialog(prompt, screenshot_path, self)
+                dialog = AskAgentDialog(agent_name, prompt, screenshot_path_from_context, self)
                 dialog_result = dialog.exec_()
 
                 if dialog_result == QDialog.Accepted:
@@ -391,8 +395,10 @@ class AutomationsTab(QWidget):
         elif step_type == STEP_TYPE_WAIT:
             return f"{step_type} (duration:{params.get('duration',1.0)}s)"
         elif step_type == STEP_TYPE_ASK_AGENT:
-            prompt = params.get('prompt','')
-            return f"{step_type} (prompt:'{prompt[:20]}{'...' if len(prompt) > 20 else ''}')"
+            agent_name = params.get('agent_name', 'N/A')
+            send_screenshot = "Yes" if params.get('send_screenshot') else "No"
+            prompt_summary = params.get('prompt', '')[:20]
+            return f"{step_type} (Agent: {agent_name}, Prompt: '{prompt_summary}...', Screenshot: {send_screenshot})"
         elif step_type == STEP_TYPE_LOOP_START:
             if "count" in params:
                 return f"{step_type} (count:{params.get('count',1)})"
@@ -431,7 +437,15 @@ class AutomationsTab(QWidget):
         elif step_type_name == STEP_TYPE_WAIT:
             default_params = {"duration": 1.0}
         elif step_type_name == STEP_TYPE_ASK_AGENT:
-            default_params = {"prompt": "", "screenshot_path": None}
+            # TODO: Get first agent name as default if possible, or a placeholder
+            # For now, using empty string.
+            # agent_names = list(self.parent_app.agents.keys()) if hasattr(self.parent_app, 'agents') and self.parent_app.agents else []
+            # default_agent_name = agent_names[0] if agent_names else ""
+            default_params = {
+                "agent_name": "",  # Or a default like "Default Agent"
+                "prompt": "Please provide input.",
+                "send_screenshot": False
+            }
         elif step_type_name == STEP_TYPE_LOOP_START:
             default_params = {"count": 1}
         elif step_type_name == STEP_TYPE_IF_CONDITION:
@@ -539,14 +553,36 @@ class AutomationsTab(QWidget):
             self.param_form_layout.addRow("Duration (s):", self.current_param_widgets["duration"])
 
         elif step_type == STEP_TYPE_ASK_AGENT:
-            self.current_param_widgets["prompt"] = QTextEdit(params.get("prompt", ""))
-            self.current_param_widgets["prompt"].setFixedHeight(100) # Example height
-            self.param_form_layout.addRow("Prompt:", self.current_param_widgets["prompt"])
-            # screenshot_path browse button can be added here later
-            # For now, store it if it exists, but don't make it editable directly
-            if "screenshot_path" in params:
-                 self.current_param_widgets["screenshot_path"] = params.get("screenshot_path")
+            # Agent Selection
+            self.current_param_widgets["agent_name"] = QComboBox()
+            agent_names = ["(No Agent)"] # Default/placeholder
+            if hasattr(self.parent_app, 'agents') and self.parent_app.agents:
+                agent_names.extend(list(self.parent_app.agents.keys()))
+            elif hasattr(self.parent_app, 'main_window') and hasattr(self.parent_app.main_window, 'agents_tab') and \
+                 hasattr(self.parent_app.main_window.agents_tab, 'get_agent_names'):
+                try:
+                    agent_names.extend(self.parent_app.main_window.agents_tab.get_agent_names())
+                except Exception as e:
+                    print(f"Error getting agent names for AskAgent step: {e}") # Use logger in real app
 
+            self.current_param_widgets["agent_name"].addItems(agent_names)
+            current_agent = params.get("agent_name", "")
+            if current_agent in agent_names:
+                self.current_param_widgets["agent_name"].setCurrentText(current_agent)
+            elif agent_names: # Default to first item if current_agent is not found (e.g. "(No Agent)")
+                 self.current_param_widgets["agent_name"].setCurrentIndex(0)
+
+            self.param_form_layout.addRow("Agent:", self.current_param_widgets["agent_name"])
+
+            # Prompt
+            self.current_param_widgets["prompt"] = QTextEdit(params.get("prompt", ""))
+            self.current_param_widgets["prompt"].setFixedHeight(100)
+            self.param_form_layout.addRow("Prompt:", self.current_param_widgets["prompt"])
+
+            # Send Screenshot
+            self.current_param_widgets["send_screenshot"] = QCheckBox()
+            self.current_param_widgets["send_screenshot"].setChecked(params.get("send_screenshot", False))
+            self.param_form_layout.addRow("Send Screenshot:", self.current_param_widgets["send_screenshot"])
 
         elif step_type == STEP_TYPE_LOOP_START:
             # For now, only 'count'. 'condition' would need different UI (e.g. QLineEdit)
@@ -617,16 +653,11 @@ class AutomationsTab(QWidget):
             elif step_type == STEP_TYPE_WAIT:
                 new_params["duration"] = self.current_param_widgets["duration"].value()
             elif step_type == STEP_TYPE_ASK_AGENT:
+                agent_name_selected = self.current_param_widgets["agent_name"].currentText()
+                # Handle "(No Agent)" placeholder if used
+                new_params["agent_name"] = "" if agent_name_selected == "(No Agent)" else agent_name_selected
                 new_params["prompt"] = self.current_param_widgets["prompt"].toPlainText()
-                # Preserve screenshot_path if it was there and not editable
-                if "screenshot_path" in self.current_param_widgets and \
-                   self.current_param_widgets["screenshot_path"] is not None:
-                    new_params["screenshot_path"] = self.current_param_widgets["screenshot_path"]
-                elif "screenshot_path" in step_data["params"]: # carry over if exists
-                     new_params["screenshot_path"] = step_data["params"]["screenshot_path"]
-                else:
-                    new_params["screenshot_path"] = None
-
+                new_params["send_screenshot"] = self.current_param_widgets["send_screenshot"].isChecked()
             elif step_type == STEP_TYPE_LOOP_START:
                 if "count" in self.current_param_widgets: # Check if count widget exists
                     new_params["count"] = self.current_param_widgets["count"].value()

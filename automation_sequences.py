@@ -3,6 +3,7 @@ import os
 import time
 from typing import List, Dict, Any, Literal, Union
 from log_utils import logger  # Import logger
+from screenshot import capture_screenshot_to_tempfile # Import for screenshot functionality
 
 # Attempt to import pyautogui globally so tests can patch it easily.
 try:
@@ -52,7 +53,8 @@ class WaitParams(Dict):
 
 class AskAgentParams(Dict):
     prompt: str
-    screenshot_path: Union[str, None] # Optional
+    agent_name: str
+    send_screenshot: bool
 
 class LoopStartParams(Dict):
     count: Union[int, None] # Optional, for count-based loops
@@ -218,6 +220,8 @@ DEFAULT_EXECUTION_CONTEXT = {
     'error_message': None,
     # For AskAgent specific returns
     'ask_agent_prompt': None,
+    'ask_agent_agent_name': None, # New field
+    'ask_agent_send_screenshot': False, # New field
     'ask_agent_screenshot_path': None,
     'next_step_index_after_ask': None
 }
@@ -241,6 +245,8 @@ def run_step_automation(
         logger.info(f"Resuming execution of step-based automation from step {context.get('current_step_index', 0) + 1}.")
         # Reset transient fields if resuming
         context['ask_agent_prompt'] = None
+        context['ask_agent_agent_name'] = None
+        context['ask_agent_send_screenshot'] = False
         context['ask_agent_screenshot_path'] = None
         context['next_step_index_after_ask'] = None
         # Keep current_step_index, loop_stack, if_stack
@@ -289,11 +295,30 @@ def run_step_automation(
         try:
             if step_type == STEP_TYPE_ASK_AGENT:
                 context['status'] = 'paused_ask_agent'
-                context['ask_agent_prompt'] = params.get("prompt", "Agent action required.")
-                context['ask_agent_screenshot_path'] = params.get("screenshot_path")
+                prompt = params.get("prompt", "Agent action required.")
+                agent_name = params.get("agent_name", "") # Get agent_name
+                send_screenshot = params.get("send_screenshot", False) # Get send_screenshot
+
+                context['ask_agent_prompt'] = prompt
+                context['ask_agent_agent_name'] = agent_name
+                context['ask_agent_send_screenshot'] = send_screenshot
                 context['current_step_index'] = i
                 context['next_step_index_after_ask'] = i + 1
-                logger.info(f"Pausing for AskAgent at step {i+1}: {context['ask_agent_prompt']}")
+
+                if send_screenshot:
+                    try:
+                        screenshot_path = capture_screenshot_to_tempfile()
+                        context['ask_agent_screenshot_path'] = screenshot_path
+                        logger.info(f"Screenshot captured for AskAgent: {screenshot_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to capture screenshot for AskAgent: {e}", exc_info=True)
+                        # Decide if this is a fatal error or if we can proceed without screenshot
+                        # For now, let's proceed without it but log the error.
+                        context['ask_agent_screenshot_path'] = None
+                else:
+                    context['ask_agent_screenshot_path'] = None
+
+                logger.info(f"Pausing for AskAgent at step {i+1}: Prompt='{prompt}', Agent='{agent_name}', SendScreenshot='{send_screenshot}'")
                 return context
 
             elif step_type == STEP_TYPE_LOOP_START:
@@ -585,7 +610,8 @@ def is_valid_step(step_dict: Dict[str, Any]) -> bool:
         return "duration" in params and isinstance(params["duration"], (int, float))
     elif step_type == STEP_TYPE_ASK_AGENT:
         return "prompt" in params and isinstance(params["prompt"], str) and \
-               ("screenshot_path" not in params or isinstance(params["screenshot_path"], (str, type(None))))
+               "agent_name" in params and isinstance(params["agent_name"], str) and \
+               "send_screenshot" in params and isinstance(params["send_screenshot"], bool)
     elif step_type == STEP_TYPE_LOOP_START:
         has_count = "count" in params and isinstance(params["count"], int)
         has_condition = "condition" in params and isinstance(params["condition"], str)
