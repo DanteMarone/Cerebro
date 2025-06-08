@@ -52,9 +52,9 @@ Manage scripts that agents can invoke.
 3. **Delete** – remove a tool.
 4. **Run** – execute a tool manually with JSON arguments.
    The editor supports syntax highlighting when QScintilla is installed.
-5. **Toggle** – enable or disable a tool using a clear on/off switch.
-6. **Configure** – open a settings dialog for tools that expose options.
-7. **Revert to Default** – discard changes to a tool's configuration if needed.
+5. **Status Column** – Enable or disable a tool using the toggle switch. This column displays a color-coded icon to indicate the tool's current status, and the entire row for a disabled tool will appear greyed out.
+6. **Configure** – Open a settings dialog for tools that expose options.
+7. **Revert to Default** – Discard changes to a tool's configuration if needed.
 
 Bundled plugins include:
 - **file-summarizer** – summarize text files.

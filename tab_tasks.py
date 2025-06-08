@@ -775,6 +775,7 @@ class TasksTab(QWidget):
         )
         self.refresh_tasks_list()
 
+
     def inline_set_due(self, task_id, qdatetime):
         """Inline update of the task's due time."""
         due_str = qdatetime.toString(Qt.ISODate)
@@ -782,6 +783,7 @@ class TasksTab(QWidget):
             self.tasks, task_id, due_str, debug_enabled=self.parent_app.debug_enabled
         )
         self.refresh_tasks_list()
+
 
     def bulk_edit_ui(self):
         """Edit multiple selected tasks at once."""

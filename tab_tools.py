@@ -1,13 +1,32 @@
 #tab_tools.py
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QPushButton, QListWidgetItem,
-    QLabel, QMessageBox, QDialog, QStyle, QAbstractItemView, QInputDialog,
-    QLineEdit
+    QWidget,
+    QVBoxLayout,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QMessageBox,
+    QDialog,
+    QStyle,
+    QAbstractItemView,
+    QInputDialog,
+    QLineEdit,
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from dialogs import ToolDialog
-from tools import add_tool, edit_tool, delete_tool, run_tool
+from tools import add_tool, edit_tool, delete_tool, run_tool, get_available_plugins
 import json
+
+# Mapping of status text to display color and icon
+TOOL_STATUS_STYLES = {
+    "Enabled": {"color": "#4caf50", "icon": QStyle.SP_DialogApplyButton},
+    "Disabled": {"color": "#9e9e9e", "icon": QStyle.SP_DialogCancelButton},
+    "Error": {"color": "#f44336", "icon": QStyle.SP_MessageBoxCritical},
+    "Needs Configuration": {"color": "#ff9800", "icon": QStyle.SP_MessageBoxWarning},
+}
 
 
 class ToolsTab(QWidget):
@@ -23,9 +42,10 @@ class ToolsTab(QWidget):
         self.setLayout(self.layout)
 
         # Tools List
-        self.tools_list = QListWidget()
-        self.tools_list.setSelectionMode(QAbstractItemView.SingleSelection)  # Enforce single selection
-        self.tools_list.itemSelectionChanged.connect(self.on_item_selection_changed) # Connect selection change
+        self.tools_list = QTreeWidget()
+        self.tools_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tools_list.setHeaderLabels(["Name", "Description", "Status"])
+        self.tools_list.itemSelectionChanged.connect(self.on_item_selection_changed)
         self.layout.addWidget(self.tools_list)
 
         # Label shown when no tools are present
@@ -91,17 +111,35 @@ class ToolsTab(QWidget):
         self.delete_button.setEnabled(False)
         self.run_button.setEnabled(False)
 
-        if not self.tools:
+        builtins = [t for t in self.tools if 'plugin_module' not in t]
+        plugins = get_available_plugins(self.parent_app.debug_enabled)
+
+        if not builtins and not plugins:
             self.no_tools_label.show()
             return
 
-        for tool in self.tools:
-            item = QListWidgetItem(f"{tool['name']}: {tool['description']}")
-            item.setData(Qt.UserRole, tool['name'])
-            item.setData(Qt.UserRole + 1, 'plugin_module' in tool)
-            if 'plugin_module' in tool:
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            self.tools_list.addItem(item)
+        for tool in builtins:
+            item = QTreeWidgetItem([tool['name'], tool['description'], 'Enabled'])
+            item.setData(0, Qt.UserRole, tool['name'])
+            item.setData(0, Qt.UserRole + 1, False)
+            style = TOOL_STATUS_STYLES['Enabled']
+            icon = self.style().standardIcon(style['icon'])
+            item.setIcon(2, icon)
+            self.tools_list.addTopLevelItem(item)
+
+        for plug in plugins:
+            status_text = 'Enabled' if plug.get('enabled') else 'Disabled'
+            item = QTreeWidgetItem([plug['name'], plug['description'], status_text])
+            item.setData(0, Qt.UserRole, plug['name'])
+            item.setData(0, Qt.UserRole + 1, True)
+            style = TOOL_STATUS_STYLES[status_text]
+            icon = self.style().standardIcon(style['icon'])
+            item.setIcon(2, icon)
+            if not plug.get('enabled'):
+                for i in range(3):
+                    item.setForeground(i, QColor('gray'))
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled & ~Qt.ItemIsSelectable)
+            self.tools_list.addTopLevelItem(item)
 
     def add_tool_ui(self):
         dialog = ToolDialog(title="Add Tool")

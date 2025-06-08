@@ -9,7 +9,8 @@ Cerebro is a desktop chat application built with PyQt5 that allows you to intera
 Cerebro offers a rich set of features to enhance your interaction with AI models:
 
 *   **Multiple AI Agents:** Create and manage multiple AI agents, each with its own model, system prompt, role (Coordinator, Assistant, Specialist), and appearance. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab), [Configuration - agents.json](docs/configuration.md#agentsjson))
-*   **Tool Integration:** Grant agents the ability to use tools (Python scripts) to perform actions and retrieve information. Tools can be bundled, custom-developed, or installed as plugins. (Details: [Plugins and Tools](docs/plugins.md), [Application Tabs - Tools](docs/app_tabs.md#tools-tab), [Tools Issue #4 Response](docs/tools_issue_4_response.md))
+Tool Integration: Grant agents the ability to use tools (Python scripts) to perform actions and retrieve information. Tools can be bundled, custom-developed, or installed as plugins. (Details: Plugins and Tools, Application Tabs - Tools, Tools Issue #4 Response)
+Tool Status Indicators: The Tools tab now shows a status column with color-coded icons so you can easily see if a tool is enabled or disabled.
 *   **Thinking Mode:** Enable agents to iteratively generate a series of thoughts before producing a final answer. (Details: [Application Tabs - Agents](docs/app_tabs.md#agents-tab))
 *   **Automations:** Record and replay desktop actions (mouse and keyboard sequences). (Details: [Application Tabs - Automations](docs/app_tabs.md#automations-tab))
 * **Task Scheduling:** Schedule prompts for agents to run at specific times, with recurring options (daily/weekly/monthly or custom minutes), drag-and-drop reordering, duplication, undo after deletion, inline editing, bulk editing, and reusable templates. (Details: [Application Tabs - Tasks](docs/app_tabs.md#tasks-tab))
