@@ -10,6 +10,16 @@ from datetime import datetime
 
 TASKS_FILE = "tasks.json"
 
+# Supported task statuses. Additional states like ``in_progress`` and
+# ``failed`` can be assigned by the UI or other components.
+STATUS_CHOICES = [
+    "pending",
+    "in_progress",
+    "completed",
+    "failed",
+    "on_hold",
+]
+
 
 def _schedule_os_task(task_id, due_time, debug_enabled=False):
     """Register a task with the OS scheduler."""
@@ -207,6 +217,22 @@ def delete_task(tasks, task_id, debug_enabled=False, os_schedule=False):
         _remove_os_task(task_id, debug_enabled)
     return None
 
+def duplicate_task(tasks, task_id, debug_enabled=False, os_schedule=False):
+    """Duplicate an existing task and return the new task id."""
+    original = next((t for t in tasks if t["id"] == task_id), None)
+    if not original:
+        return None
+    new_task = original.copy()
+    new_task["id"] = str(uuid.uuid4())
+    new_task["created_time"] = datetime.utcnow().isoformat()
+    tasks.append(new_task)
+    save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Duplicated task {task_id} -> {new_task['id']}")
+    if os_schedule:
+        _schedule_os_task(new_task["id"], new_task.get("due_time", ""), debug_enabled)
+    return new_task["id"]
+
 def set_task_status(tasks, task_id, status, debug_enabled=False):
     """Set the status of a task."""
     task = next((t for t in tasks if t["id"] == task_id), None)
@@ -216,6 +242,17 @@ def set_task_status(tasks, task_id, status, debug_enabled=False):
     save_tasks(tasks, debug_enabled)
     if debug_enabled:
         print(f"[Debug] Set task {task_id} status to '{status}'")
+    return None
+
+def update_task_agent(tasks, task_id, agent_name, debug_enabled=False):
+    """Update the agent assigned to a task."""
+    task = next((t for t in tasks if t["id"] == task_id), None)
+    if not task:
+        return f"[Task Error] Task '{task_id}' not found."
+    task["agent_name"] = agent_name
+    save_tasks(tasks, debug_enabled)
+    if debug_enabled:
+        print(f"[Debug] Updated task {task_id} agent to {agent_name}")
     return None
 
 def update_task_due_time(tasks, task_id, due_time, debug_enabled=False, os_schedule=False):
@@ -256,3 +293,30 @@ def compute_task_progress(task, now=None):
     elapsed = (now - created_dt).total_seconds()
     percent = int(max(0, min(100, (elapsed / total) * 100)))
     return percent
+
+
+def compute_task_times(task, now=None):
+    """Return elapsed and remaining seconds for a task."""
+    now = now or datetime.utcnow()
+    due_str = task.get("due_time", "")
+    created_str = task.get("created_time", "")
+    try:
+        due_dt = (
+            datetime.fromisoformat(due_str)
+            if "T" in due_str
+            else datetime.strptime(due_str, "%Y-%m-%d %H:%M:%S")
+        )
+    except Exception:
+        return 0, 0
+    try:
+        created_dt = (
+            datetime.fromisoformat(created_str)
+            if "T" in created_str
+            else datetime.strptime(created_str, "%Y-%m-%d %H:%M:%S")
+        )
+    except Exception:
+        created_dt = now
+
+    elapsed = max(0, int((now - created_dt).total_seconds()))
+    remaining = max(0, int((due_dt - now).total_seconds()))
+    return elapsed, remaining

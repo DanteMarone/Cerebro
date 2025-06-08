@@ -16,26 +16,23 @@ Use `Ctrl+1` through `Ctrl+7` to switch between tabs.
 
 ## Agents Tab
 
-Create, edit and delete agents.
-Agents are automated workers that perform tasks for you.
-- **Model** – select an installed Ollama model such as `llava` or `llama3.2-vision`.
-- **Temperature** – controls randomness of responses.
-- **Max Tokens** – maximum reply length (up to 100000 tokens).
-- **Custom System Prompt** – instructions sent before each conversation.
-- **Enabled** – toggle the agent on or off.
-- **Role** – Assistant, Coordinator or Specialist.
-- **Description** – short summary used by Coordinators.
-- **Agent Color** – color used for chat messages.
-- **Managed Agents** – Coordinators can delegate to selected agents.
-- **Tool Use** – allow the agent to call tools.
-- **Enabled Tools** – choose which tools are available.
-- **Enable Thinking** – generate intermediate thoughts before answering.
-- **Thinking Steps** – number of thinking iterations.
-- **Text-to-Speech Enabled** – speak replies aloud.
-- **Voice** – choose which system voice to use when speaking.
-    - *Prerequisites: TTS functionality relies on the text-to-speech engines available on your operating system. Ensure you have voices installed and configured at the OS level if you encounter issues.*
-- **Desktop History Enabled** – capture screenshots for the model.
-- **Screenshot Interval** – seconds between captures.
+Create, edit and delete agents. Agents are automated workers that perform tasks for you.
+
+Agent settings are organized into three tabs for clarity:
+
+**General**
+- Name, model, role, description and color
+- Enable or disable the agent
+
+**Triggers**
+- Managed agents for coordinators
+- Tool use options and tool/automation selection
+
+**Advanced**
+- Prompt settings: temperature, max tokens and custom system prompt
+- Thinking mode and steps
+- Text-to-speech settings (voice selection)
+- Desktop history settings
 
 ### Agent Roles in Detail
 
@@ -89,14 +86,25 @@ Record and play back desktop actions.
 ## Tasks Tab
 
 Schedule prompts to run later. Dates with tasks show a red dot in the calendar.
-- **Add Task** – create a prompt for a specific agent. Defaults to one minute from now.
+- **New Task** – create a prompt for a specific agent. Defaults to one minute from now.
 - **Required Fields** – Task dialog marks required fields with * and the save button stays disabled until they are filled.
 - **Edit** – change an existing task.
+- **Inline Edit** – adjust the assignee or due date directly in the task list.
 - **Delete** – remove a task after confirmation.
+- **Duplicate** – create a copy of an existing task.
 - **Toggle Status** – mark a task as completed or pending.
+- **Status Styles** – task statuses are color coded with icons
+  (blue Pending, orange In Progress, green Completed, red Failed, grey On Hold).
 - **Filters** – filter by agent or status.
-- **Row Actions** – each row includes Edit, Delete and Complete buttons.
+- **Row Actions** – each row includes Edit, Duplicate, Delete and Complete buttons.
+- **Bulk Edit** – select multiple tasks to change them at once.
+- **Drag and Drop** – reorder tasks by dragging them up or down.
+- **Undo Toast** – after deleting a task a popup allows you to undo.
+- **Context Menu** – right-click a task in any view to Edit, Delete or change its status.
+## How It Was Resolved
 - **Progress Bar** – indicates how close the task is to its due time.
+- **Elapsed Time** – shows how long the task has existed.
+- **ETA** – estimated time until the due time is reached.
 - **Repeat Interval** – optional minutes after which the task repeats.
 - **Time Format** – ISO 8601 or `YYYY-MM-DD HH:MM:SS` local time.
 

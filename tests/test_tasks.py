@@ -105,6 +105,32 @@ def test_update_task_due_time_missing(monkeypatch):
     assert err == "[Task Error] Task 'missing' not found."
 
 
+def test_update_task_agent(monkeypatch):
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    task_id = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00")
+    err = tasks.update_task_agent(task_list, task_id, "agent2")
+    assert err is None
+    assert task_list[0]["agent_name"] == "agent2"
+
+
+def test_update_task_agent_missing(monkeypatch):
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    err = tasks.update_task_agent(task_list, "missing", "agent2")
+    assert err == "[Task Error] Task 'missing' not found."
+
+
+def test_duplicate_task(monkeypatch):
+    task_list = []
+    monkeypatch.setattr(tasks, "save_tasks", noop_save)
+    tid = tasks.add_task(task_list, "agent1", "do work", "2024-01-01 10:00")
+    new_id = tasks.duplicate_task(task_list, tid)
+    assert len(task_list) == 2
+    assert new_id != tid
+    assert task_list[1]["agent_name"] == task_list[0]["agent_name"]
+
+
 def test_compute_task_progress():
     task = {
         "due_time": "2024-01-01 12:00:00",
@@ -113,3 +139,14 @@ def test_compute_task_progress():
     now = datetime.strptime("2024-01-01 11:00:00", "%Y-%m-%d %H:%M:%S")
     pct = tasks.compute_task_progress(task, now)
     assert pct == 50
+
+
+def test_compute_task_times():
+    task = {
+        "due_time": "2024-01-01 12:00:00",
+        "created_time": "2024-01-01 10:00:00",
+    }
+    now = datetime.strptime("2024-01-01 11:00:00", "%Y-%m-%d %H:%M:%S")
+    elapsed, remaining = tasks.compute_task_times(task, now)
+    assert elapsed == 3600
+    assert remaining == 3600

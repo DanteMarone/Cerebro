@@ -166,23 +166,23 @@ class TaskDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Agent (required)
-        layout.addWidget(QLabel("Agent*:"))
+# Assignee (required)
+        layout.addWidget(QLabel("Assignee*:"))
         self.agent_selector = QComboBox()
         self.agent_selector.addItems(self.agents_data.keys())
         self.agent_selector.setCurrentText(agent_name)
-        self.agent_selector.setToolTip("Select the agent for this task.")
+        self.agent_selector.setToolTip("Select the assignee for this task.")
         layout.addWidget(self.agent_selector)
 
-        # Prompt (required)
-        layout.addWidget(QLabel("Prompt*:"))
+        # Task Description (required)
+        layout.addWidget(QLabel("Task Description*:"))
         self.prompt_edit = QTextEdit()
         self.prompt_edit.setPlainText(prompt)
-        self.prompt_edit.setToolTip("Enter the prompt for the task.")
+        self.prompt_edit.setToolTip("Enter the task description or instructions.")
         layout.addWidget(self.prompt_edit)
 
-        # Due Time (required)
-        layout.addWidget(QLabel("Due Time*:"))
+        # Due Date (required)
+        layout.addWidget(QLabel("Due Date*:"))
         self.due_time_edit = QDateTimeEdit()
         if due_time:
             try:
@@ -209,12 +209,12 @@ class TaskDialog(QDialog):
         else:
             self.due_time_edit.setDateTime(QDateTime.currentDateTime().addSecs(60))
 
-        self.due_time_edit.setToolTip("Select the due time for the task.")
+        self.due_time_edit.setToolTip("Select the due date and time for the task.")
         self.due_time_edit.setCalendarPopup(True)  # Enable calendar popup
         layout.addWidget(self.due_time_edit)
 
         # Repeat Interval
-        layout.addWidget(QLabel("Repeat Interval (min):"))
+        layout.addWidget(QLabel("Repeat Interval (minutes):"))
         self.repeat_spin = QSpinBox()
         self.repeat_spin.setMinimum(0)
         self.repeat_spin.setMaximum(525600)  # up to a year
