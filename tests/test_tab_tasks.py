@@ -40,7 +40,7 @@ def test_filters_and_row_actions():
     assert tab.tasks_list.count() == 1
 
     tab.status_filter.setCurrentText("completed")
-    tab.agent_filter.setCurrentText("All Agents")
+    tab.agent_filter.setCurrentText("All Assignees")
     tab.refresh_tasks_list()
     assert tab.tasks_list.count() == 1
 

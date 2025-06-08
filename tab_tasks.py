@@ -117,13 +117,16 @@ class TasksTab(QWidget):
         # Filter controls
         filter_layout = QHBoxLayout()
         self.agent_filter = QComboBox()
-        self.agent_filter.addItem("All Agents")
+        self.agent_filter.setToolTip("Filter tasks by assignee")
+        self.agent_filter.addItem("All Assignees")
         for name in getattr(self.parent_app, "agents_data", {}).keys():
             self.agent_filter.addItem(name)
         self.agent_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.agent_filter)
 
         self.status_filter = QComboBox()
+        self.status_filter = QComboBox()
+        self.status_filter.setToolTip("Filter tasks by status")
         self.status_filter.addItems([
             "All Statuses",
             "pending",
@@ -132,6 +135,7 @@ class TasksTab(QWidget):
             "failed",
             "on_hold",
         ])
+        self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         self.status_filter.currentIndexChanged.connect(self.refresh_tasks_list)
         filter_layout.addWidget(self.status_filter)
         self.layout.addLayout(filter_layout)
@@ -213,7 +217,7 @@ class TasksTab(QWidget):
         status_filter = self.status_filter.currentText()
         filtered = []
         for task in self.tasks:
-            if agent_filter != "All Agents" and task.get("agent_name") != agent_filter:
+            if agent_filter != "All Assignees" and task.get("agent_name") != agent_filter:
                 continue
             if status_filter != "All Statuses" and task.get("status", "pending") != status_filter:
                 continue
@@ -249,6 +253,7 @@ class TasksTab(QWidget):
         repeat_str = f" every {repeat}m" if repeat else ""
         summary = f"[{due_time}] {agent_name}{repeat_str} - {prompt[:30]}..."
         label = QLabel(summary)
+        label.setToolTip(f"Assignee: {agent_name}\nStatus: {status}\nDue: {due_time}")
         layout.addWidget(label)
 
         style = STATUS_STYLES.get(status, {"color": "black", "icon": QStyle.SP_FileIcon})
