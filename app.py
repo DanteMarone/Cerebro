@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QInputDialog, QScrollArea, QShortcut
 )
 from PyQt5.QtGui import QKeySequence
+import html
 
 from worker import AIWorker
 from tools import load_tools, run_tool
@@ -18,6 +19,7 @@ from tab_chat import ChatTab
 from tab_agents import AgentsTab
 from tab_tools import ToolsTab
 from tab_tasks import TasksTab
+from tab_knowledge import KnowledgeTab
 
 AGENTS_SAVE_FILE = "agents.json"
 SETTINGS_FILE = "settings.json"
@@ -113,6 +115,10 @@ class AIChatApp(QMainWindow):
         # Tasks button
         self.nav_buttons["tasks"] = self.create_nav_button("Tasks", 3)
         sidebar_layout.addWidget(self.nav_buttons["tasks"])
+
+        # Knowledge button
+        self.nav_buttons["knowledge"] = self.create_nav_button("Knowledge", 4)
+        sidebar_layout.addWidget(self.nav_buttons["knowledge"])
         
         # Add stretcher to push settings button to bottom
         sidebar_layout.addStretch(1)
@@ -142,12 +148,14 @@ class AIChatApp(QMainWindow):
         self.agents_tab = AgentsTab(self)
         self.tools_tab = ToolsTab(self)
         self.tasks_tab = TasksTab(self)
+        self.knowledge_tab = KnowledgeTab(self)
         
         # Add pages to stacked widget
         self.content_stack.addWidget(self.chat_tab)
         self.content_stack.addWidget(self.agents_tab)
         self.content_stack.addWidget(self.tools_tab)
         self.content_stack.addWidget(self.tasks_tab)
+        self.content_stack.addWidget(self.knowledge_tab)
         
         main_layout.addWidget(self.content_stack)
         
@@ -219,6 +227,19 @@ class AIChatApp(QMainWindow):
         self.nav_buttons["chat"].setProperty("selected", True)
         self.setup_keyboard_shortcuts()
 
+    # -------------------------------------------------------------------------
+    # Rendering helpers (preserve whitespace and escape HTML)
+    # -------------------------------------------------------------------------
+    def escape_html(self, text):
+        try:
+            return html.escape(text if text is not None else "")
+        except Exception:
+            return text or ""
+
+    def format_for_display(self, text):
+        escaped = self.escape_html(text)
+        return f"<div class='msg-content' style='white-space: pre-wrap;'>{escaped}</div>"
+
     def create_nav_button(self, text, index):
         """Create a navigation button for the sidebar."""
         button = QPushButton(text)
@@ -249,7 +270,7 @@ class AIChatApp(QMainWindow):
     def setup_keyboard_shortcuts(self):
         """Set up keyboard shortcuts for navigation and actions."""
         # Tab navigation shortcuts
-        for i, key in enumerate(['1', '2', '3', '4']):
+        for i, key in enumerate(['1', '2', '3', '4', '5']):
             shortcut = QShortcut(f"Ctrl+{key}", self)
             shortcut.activated.connect(lambda idx=i: self.change_tab(idx, self.nav_buttons[list(self.nav_buttons.keys())[idx]]))
         
@@ -402,7 +423,7 @@ class AIChatApp(QMainWindow):
         self.chat_tab.show_typing_indicator()
         
         timestamp = datetime.now().strftime("%H:%M:%S")
-        user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {user_text}'
+        user_message_html = f'<span style="color:{self.user_color};">[{timestamp}] {self.user_name}:</span> {self.format_for_display(user_text)}'
         self.chat_tab.append_message_html(user_message_html)
 
         user_message = {"role": "user", "content": user_text}
@@ -541,6 +562,22 @@ class AIChatApp(QMainWindow):
             if "task_request" in parsed:
                 task_request = parsed["task_request"]
                 content = parsed.get("content", "").strip()
+            # Support OpenAI-style tool_calls as a fallback
+            if not tool_request and isinstance(parsed.get("tool_calls"), list) and parsed["tool_calls"]:
+                call = parsed["tool_calls"][0] or {}
+                fn = call.get("function", {}) if isinstance(call, dict) else {}
+                raw_name = fn.get("name") or call.get("name") or ""
+                # Normalize names like 'browser.run' -> 'browser'
+                normalized_name = raw_name.split(".")[0] if isinstance(raw_name, str) else ""
+                raw_args = fn.get("arguments") or call.get("arguments") or {}
+                # Some models wrap args under 'args'
+                if isinstance(raw_args, dict) and "args" in raw_args and isinstance(raw_args["args"], dict):
+                    raw_args = raw_args["args"]
+                # Coerce non-dict args into dict
+                tool_args_obj = raw_args if isinstance(raw_args, dict) else {"input": raw_args}
+                if normalized_name:
+                    tool_request = {"name": normalized_name, "args": tool_args_obj}
+                    content = parsed.get("content", "").strip()
 
         timestamp = datetime.now().strftime("%H:%M:%S")
         agent_color = self.agents_data.get(agent_name, {}).get("color", "#000000")
@@ -587,9 +624,14 @@ class AIChatApp(QMainWindow):
                 # Create displayed content with collapsible thought if present
                 if thought:
                     thought_content = thought.replace("<thought>", "").replace("</thought>", "").strip()
-                    display_content = f"{clean_content}<br><details><summary><i>Agent thoughts...</i></summary><pre style='background-color:#f5f5f5;padding:8px;border-radius:5px;color:#333;'>{thought_content}</pre></details>"
+                    display_content = (
+                        f"{self.format_for_display(clean_content)}"
+                        f"<details><summary><i>Agent thoughts...</i></summary>"
+                        f"<pre style='background-color:#f5f5f5;padding:8px;border-radius:5px;color:#333;'>{self.escape_html(thought_content)}</pre>"
+                        f"</details>"
+                    )
                 else:
-                    display_content = clean_content
+                    display_content = self.format_for_display(clean_content)
                 
                 self.chat_tab.append_message_html(
                     f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
@@ -615,9 +657,14 @@ class AIChatApp(QMainWindow):
             # Create displayed content with collapsible thought if present
             if thought:
                 thought_content = thought.replace("<thought>", "").replace("</thought>", "").strip()
-                display_content = f"{clean_content}<br><details><summary><i>Agent thoughts...</i></summary><pre style='background-color:#f5f5f5;padding:8px;border-radius:5px;color:#333;'>{thought_content}</pre></details>"
+                display_content = (
+                    f"{self.format_for_display(clean_content)}"
+                    f"<details><summary><i>Agent thoughts...</i></summary>"
+                    f"<pre style='background-color:#f5f5f5;padding:8px;border-radius:5px;color:#333;'>{self.escape_html(thought_content)}</pre>"
+                    f"</details>"
+                )
             else:
-                display_content = clean_content
+                display_content = self.format_for_display(clean_content)
             
             self.chat_tab.append_message_html(
                 f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {display_content}"
@@ -669,7 +716,9 @@ class AIChatApp(QMainWindow):
                     self.show_notification(f"Tool Error: {tool_result}", "error")
                 else:
                     display_message = f"{agent_name} used {tool_name} with args {tool_args}\nTool Result: {tool_result}"
-                    self.chat_tab.append_message_html(f"\n[{timestamp}] <span style='color:{agent_color};'>{display_message}</span>")
+                    self.chat_tab.append_message_html(
+                        f"\n[{timestamp}] <span style='color:{agent_color};'>{agent_name}:</span> {self.format_for_display(display_message)}"
+                    )
                     self.chat_history.append({"role": "assistant", "content": display_message, "agent": agent_name})
                     self.show_notification(f"Tool executed successfully: {tool_name}", "info")
 
@@ -771,6 +820,11 @@ class AIChatApp(QMainWindow):
                     self.agents_data = json.load(f)
                 if self.debug_enabled:
                     print("[Debug] Agents loaded.")
+                # If an agent has tool_use enabled but no tools, enable 'browser' if available
+                available_tools = {t.get('name') for t in self.tools}
+                for name, cfg in self.agents_data.items():
+                    if cfg.get('tool_use') and not cfg.get('tools_enabled') and 'browser' in available_tools:
+                        cfg['tools_enabled'] = ['browser']
             except Exception as e:
                 print(f"[Debug] Failed to load agents: {e}")
         else:
