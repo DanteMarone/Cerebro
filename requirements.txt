@@ -9,3 +9,6 @@ QScintilla
 pyautogui
 pynput
 SpeechRecognition
+
+# The `browsermcp` tool requires Node.js and the `browsermcp` package.
+# Install it with: npm install -g @browsermcp/mcp
