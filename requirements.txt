@@ -9,3 +9,5 @@ QScintilla
 pyautogui
 pynput
 SpeechRecognition
+chromadb
+sentence-transformers

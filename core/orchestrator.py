@@ -7,6 +7,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 # Imports from root
 from worker import AIWorker
 from .agents import RouterAgent
+from .memory import VectorStore
 from tools import run_tool
 from tasks import add_task
 from transcripts import load_history, append_message, summarize_history
@@ -40,6 +41,9 @@ class Orchestrator(QObject):
         self.api_url = api_url
         self.summarization_threshold = 20  # Default, can be updated
 
+        # Initialize Vector Memory
+        self.memory = VectorStore()
+
         self.active_worker_threads = []
         self.response_start_times = {}
         self.current_responses = {}
@@ -70,6 +74,9 @@ class Orchestrator(QObject):
         Main entry point for handling a user message.
         """
         self.typing_started.emit()
+
+        # Save user message to memory
+        self.memory.save_memory(user_text, {"role": "user", "timestamp": datetime.now().isoformat()})
 
         # Start Router
         self.router = RouterAgent(user_text, self.agents_data, self.api_url)
@@ -467,6 +474,19 @@ class Orchestrator(QObject):
                 system_prompt += "You can choose from the following agents:\n" + "\n".join(managed_agents_info) + "\n"
 
         system_prompt += agent_settings.get("system_prompt", "")
+
+        # Inject RAG Context
+        # We try to get the last user message from the history to use as a query
+        last_user_msg = None
+        for msg in reversed(chat_history):
+            if msg['role'] == 'user':
+                last_user_msg = msg['content']
+                break
+
+        if last_user_msg:
+            rag_context = self.memory.retrieve_context(last_user_msg)
+            if rag_context:
+                system_prompt += f"\n\n{rag_context}"
 
         if agent_settings.get("tool_use", False):
             # We need a dummy object to pass to generate_tool_instructions_message because it expects 'self.tools'
