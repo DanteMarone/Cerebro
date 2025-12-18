@@ -15,7 +15,7 @@ class AIWorker(QObject):
     finished = pyqtSignal()
 
     def __init__(self, model_name, chat_history, temperature, max_tokens,
-                 debug_enabled, agent_name, agents_data, api_url=OLLAMA_API_URL):
+                 debug_enabled, agent_name, agents_data, api_url=OLLAMA_API_URL, json_format=None):
         super().__init__()
         self.model_name = model_name
         self.chat_history = chat_history
@@ -25,6 +25,7 @@ class AIWorker(QObject):
         self.agent_name = agent_name
         self.agents_data = agents_data  # Store a reference to agents_data
         self.api_url = api_url
+        self.json_format = json_format
         settings = self.agents_data.get(self.agent_name, {})
         self.thinking_enabled = settings.get("thinking_enabled", False)
         self.thinking_steps = int(settings.get("thinking_steps", 0))
@@ -104,6 +105,9 @@ class AIWorker(QObject):
                     ]
                 }
             }
+
+            if self.json_format:
+                payload["format"] = self.json_format
 
             if self.debug_enabled:
                 payload_copy = json.loads(json.dumps(payload))

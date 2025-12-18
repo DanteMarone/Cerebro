@@ -6,6 +6,8 @@ import sys
 import tempfile
 import importlib.util
 from importlib import metadata
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, ValidationError
 
 TOOLS_FILE = "tools.json"
 PLUGIN_DIR = "tool_plugins"
@@ -164,6 +166,10 @@ def discover_plugin_tools(debug_enabled=False):
                     continue
                 with open(path, "r", encoding="utf-8") as f:
                     script_text = f.read()
+
+                # MODIFIED: Load ARGS_MODEL if present
+                args_model = getattr(module, "ARGS_MODEL", None)
+
                 tools.append({
                     "name": name,
                     "description": meta.get("description", ""),
@@ -173,6 +179,7 @@ def discover_plugin_tools(debug_enabled=False):
                     "args": meta.get("args", []),
                     "dependencies": meta.get("dependencies", []),
                     "needs_config": meta.get("needs_config", False),
+                    "args_model": args_model,
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from {path}")
@@ -202,6 +209,10 @@ def discover_plugin_tools(debug_enabled=False):
                             script_text = f.read()
                     except Exception:
                         pass
+
+                # MODIFIED: Load ARGS_MODEL
+                args_model = getattr(module, "ARGS_MODEL", None)
+
                 tools.append({
                     "name": name,
                     "description": meta.get("description", ""),
@@ -211,6 +222,7 @@ def discover_plugin_tools(debug_enabled=False):
                     "args": meta.get("args", []),
                     "dependencies": meta.get("dependencies", []),
                     "needs_config": meta.get("needs_config", False),
+                    "args_model": args_model,
                 })
                 if debug_enabled:
                     print(f"[Debug] Loaded plugin tool '{meta['name']}' from entry point")
@@ -240,13 +252,28 @@ def load_tools(debug_enabled=False):
     return tools
 
 def save_tools(tools, debug_enabled=False):
+    # MODIFIED: Remove non-serializable fields before saving
+    serializable_tools = []
+    for tool in tools:
+        t_copy = tool.copy()
+        t_copy.pop("plugin_module", None)
+        t_copy.pop("args_model", None)
+        serializable_tools.append(t_copy)
+
     try:
         with open(TOOLS_FILE, "w", encoding="utf-8") as f:
-            json.dump(tools, f, indent=2)
+            json.dump(serializable_tools, f, indent=2)
         if debug_enabled:
             print("[Debug] Tools saved.")
     except Exception as e:
         print(f"[Error] Failed to save tools: {e}")
+
+def get_tool_schema(tool: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return the JSON schema for the tool's arguments."""
+    args_model = tool.get("args_model")
+    if args_model and issubclass(args_model, BaseModel):
+        return args_model.model_json_schema()
+    return None
 
 def run_tool(tools, tool_name, args, debug_enabled=False):
     """Execute the specified tool with the provided arguments."""
@@ -263,7 +290,17 @@ def run_tool(tools, tool_name, args, debug_enabled=False):
 
     if plugin_module and hasattr(plugin_module, "run_tool"):
         try:
-            result = plugin_module.run_tool(args)
+            # MODIFIED: Validate args if ARGS_MODEL is present
+            args_model = tool.get("args_model")
+            if args_model and issubclass(args_model, BaseModel):
+                try:
+                    validated_args = args_model(**args)
+                    result = plugin_module.run_tool(validated_args)
+                except ValidationError as ve:
+                    return f"[Tool Error] Validation failed for tool '{tool_name}': {ve}"
+            else:
+                result = plugin_module.run_tool(args)
+
             if debug_enabled:
                 print(f"[Debug] Tool '{tool_name}' output: {result}")
             return result
