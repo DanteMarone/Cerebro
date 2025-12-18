@@ -2,7 +2,7 @@
 import json
 from datetime import datetime
 from PyQt5.QtCore import QThread
-from worker import AIWorker
+from core.worker import AIWorker
 from tools import run_tool
 from tool_utils import (
     generate_tool_instructions_message,

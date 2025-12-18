@@ -1,4 +1,4 @@
-import worker
+from core import worker
 import types
 
 class DummyResp:
