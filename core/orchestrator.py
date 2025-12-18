@@ -6,6 +6,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 
 # Imports from root
 from worker import AIWorker
+from .agents import RouterAgent
 from tools import run_tool
 from tasks import add_task
 from transcripts import load_history, append_message, summarize_history
@@ -68,17 +69,58 @@ class Orchestrator(QObject):
         """
         Main entry point for handling a user message.
         """
+        self.typing_started.emit()
+
+        # Start Router
+        self.router = RouterAgent(user_text, self.agents_data, self.api_url)
+        self.router_thread = QThread()
+        self.router.moveToThread(self.router_thread)
+
+        self.router.finished.connect(self._handle_router_completion)
+        self.router.error.connect(self._handle_router_error)
+
+        self.router_thread.started.connect(self.router.run)
+        self.router_thread.start()
+
+    def _handle_router_completion(self, target_agent, reasoning):
+        if self.debug_enabled:
+            print(f"[Router] Selected: {target_agent}. Reasoning: {reasoning}")
+
+        if target_agent not in self.agents_data:
+            self._handle_router_error(f"Router returned unknown agent: {target_agent}")
+            return
+
+        # Prepare to run the selected agent
+        agent_settings = self.agents_data[target_agent]
+        enabled_agents = [(target_agent, agent_settings)]
+
+        # Clean up router thread
+        self.router_thread.quit()
+        self.router_thread.wait()
+
+        # Start execution
+        self._process_next_agent(0, enabled_agents, routed_by_router=True)
+
+    def _handle_router_error(self, error_message):
+        if self.debug_enabled:
+            print(f"[Router Error] {error_message}")
+
+        # Clean up router thread
+        if hasattr(self, 'router_thread'):
+            self.router_thread.quit()
+            self.router_thread.wait()
+
+        # Fallback to Original Logic
         # 1. Determine enabled agents
-        # If a Coordinator agent is enabled, send the message to the Coordinator agents only.
         enabled_coordinator_agents = [
             (agent_name, agent_settings)
             for agent_name, agent_settings in self.agents_data.items()
             if agent_settings.get('enabled', False) and agent_settings.get('role') == 'Coordinator'
         ]
 
-        if enabled_coordinator_agents:  # If there are coordinators, use them
+        if enabled_coordinator_agents:
             enabled_agents = enabled_coordinator_agents
-        else:  # Otherwise, fall back to other enabled agents (excluding Specialists)
+        else:
             enabled_agents = [
                 (agent_name, agent_settings)
                 for agent_name, agent_settings in self.agents_data.items()
@@ -89,14 +131,13 @@ class Orchestrator(QObject):
 
         if not enabled_agents:
             self.error_occurred.emit("Please enable at least one Assistant agent or a Coordinator agent.")
+            self.typing_stopped.emit()
             return
-
-        self.typing_started.emit()
 
         # 3. Start execution chain
         self._process_next_agent(0, enabled_agents)
 
-    def _process_next_agent(self, index, enabled_agents):
+    def _process_next_agent(self, index, enabled_agents, routed_by_router=False):
         """
         Recursive function to process a list of agents sequentially.
         """
@@ -111,7 +152,7 @@ class Orchestrator(QObject):
         model_name = agent_settings.get("model", "llama3.2-vision").strip()
         if not model_name:
             self.notification.emit(f"Agent '{agent_name}' has no valid model name.", "error")
-            self._process_next_agent(index + 1, enabled_agents)
+            self._process_next_agent(index + 1, enabled_agents, routed_by_router=routed_by_router)
             return
 
         temperature = agent_settings.get("temperature", 0.7)
@@ -120,6 +161,14 @@ class Orchestrator(QObject):
         # Build chat history
         chat_history = self._build_agent_chat_history(agent_name, agent_settings)
 
+        # Specialist Injection if routed by Router
+        if routed_by_router and agent_settings.get('role') == 'Specialist':
+            # Append the trigger to the last user message
+            for msg in reversed(chat_history):
+                if msg['role'] == 'user':
+                    msg['content'] += f"\nNext Response By: {agent_name}"
+                    break
+
         thread = QThread()
         # Pass the agents_data to the AIWorker
         worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url)
@@ -127,7 +176,7 @@ class Orchestrator(QObject):
         self.active_worker_threads.append((worker, thread))
 
         def on_finished():
-            self._worker_finished_sequential(worker, thread, agent_name, index, enabled_agents)
+            self._worker_finished_sequential(worker, thread, agent_name, index, enabled_agents, routed_by_router=routed_by_router)
 
         worker.response_received.connect(self._handle_ai_response_chunk)
         worker.error_occurred.connect(self._handle_worker_error)
@@ -147,7 +196,7 @@ class Orchestrator(QObject):
         self.error_occurred.emit(error_message)
         self.typing_stopped.emit()
 
-    def _worker_finished_sequential(self, sender_worker, thread, agent_name, index, enabled_agents):
+    def _worker_finished_sequential(self, sender_worker, thread, agent_name, index, enabled_agents, routed_by_router=False):
         assistant_content = self.current_responses.get(agent_name, "")
         if agent_name in self.current_responses:
             del self.current_responses[agent_name]
@@ -171,11 +220,11 @@ class Orchestrator(QObject):
                 else:
                     # Specialist is not supposed to respond unless called by the Coordinator
                     if enabled_agents is not None:
-                        self._process_next_agent(index + 1, enabled_agents)
+                        self._process_next_agent(index + 1, enabled_agents, routed_by_router=routed_by_router)
                     return
             else:
                 if enabled_agents is not None:
-                    self._process_next_agent(index + 1, enabled_agents)
+                    self._process_next_agent(index + 1, enabled_agents, routed_by_router=routed_by_router)
                 return
 
         # Parse JSON content for any agent
@@ -270,7 +319,7 @@ class Orchestrator(QObject):
                 self.notification.emit(f"Error: Agent '{next_agent}' is not managed by Coordinator", "error")
 
         elif enabled_agents is not None:
-            self._process_next_agent(index + 1, enabled_agents)
+            self._process_next_agent(index + 1, enabled_agents, routed_by_router=routed_by_router)
         else:
             self.typing_stopped.emit()
 
