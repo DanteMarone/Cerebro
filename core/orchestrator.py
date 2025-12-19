@@ -7,7 +7,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 # Imports from root
 from worker import AIWorker
 from .agents import RouterAgent
-from tools import run_tool
+from tools import run_tool, SchemaGenerator
 from tasks import add_task
 from transcripts import load_history, append_message, summarize_history
 from metrics import record_tool_usage, record_response_time
@@ -169,9 +169,17 @@ class Orchestrator(QObject):
                     msg['content'] += f"\nNext Response By: {agent_name}"
                     break
 
+        # Generate JSON schema if tools are enabled
+        json_format = None
+        if agent_settings.get("tool_use", False):
+            enabled_tools_names = agent_settings.get("tools_enabled", [])
+            agent_tools = [t for t in self.tools if t["name"] in enabled_tools_names]
+            if agent_tools:
+                json_format = SchemaGenerator.generate(agent_tools)
+
         thread = QThread()
         # Pass the agents_data to the AIWorker
-        worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url)
+        worker = AIWorker(model_name, chat_history, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url, json_format=json_format)
         worker.moveToThread(thread)
         self.active_worker_threads.append((worker, thread))
 
@@ -414,8 +422,16 @@ class Orchestrator(QObject):
 
             chat_history_for_agent = self._build_agent_chat_history(agent_name, agent_settings)
 
+            # Generate JSON schema if tools are enabled
+            json_format = None
+            if agent_settings.get("tool_use", False):
+                enabled_tools_names = agent_settings.get("tools_enabled", [])
+                agent_tools = [t for t in self.tools if t["name"] in enabled_tools_names]
+                if agent_tools:
+                    json_format = SchemaGenerator.generate(agent_tools)
+
             thread = QThread()
-            worker = AIWorker(model_name, chat_history_for_agent, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url)
+            worker = AIWorker(model_name, chat_history_for_agent, temperature, max_tokens, self.debug_enabled, agent_name, self.agents_data, self.api_url, json_format=json_format)
             worker.moveToThread(thread)
             self.active_worker_threads.append((worker, thread))
 

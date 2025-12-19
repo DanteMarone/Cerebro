@@ -23,18 +23,14 @@ def generate_tool_instructions_message(app: Any, agent_name: str) -> str:
         instructions = (
             "You are a knowledgeable assistant. You can answer most questions directly.\n"
             "ONLY use a tool if you cannot answer from your own knowledge. If you can answer directly, do so.\n"
-            "If using a tool, respond ONLY in the following exact JSON format and nothing else:\n"
+            "You must respond in JSON format matching the enforced schema.\n"
+            "Structure:\n"
             "{\n"
             ' "role": "assistant",\n'
             ' "content": "<explanation>",\n'
-            ' "tool_request": {\n'
-            '     "name": "<tool_name>",\n'
-            '     "args": { ... }\n'
-            ' }\n'
+            ' "tool_request": null | { "name": "<tool_name>", "args": { ... } }\n'
             '}\n'
-            "No extra text outside this JSON when calling a tool.\n"
-            "After a non-silent tool call you will get the tool's result as the next user message.\n"
-            "Include that result in your reply if it's meant for the user.\n"
+            "If you need to call a tool, populate 'tool_request'. If not, set it to null.\n"
             f"Available tools:\n{tool_list_str}"
         )
         return instructions

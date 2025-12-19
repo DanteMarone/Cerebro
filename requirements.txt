@@ -9,3 +9,4 @@ QScintilla
 pyautogui
 pynput
 SpeechRecognition
+pydantic
