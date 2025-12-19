@@ -448,23 +448,23 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(update_layout)
 
-        # --- Tab 2: API Keys ---
+        # --- Tab 2: Keys ---
         self.keys_tab = QWidget()
-        self.tabs.addTab(self.keys_tab, "API Keys")
+        self.tabs.addTab(self.keys_tab, "Keys")
         keys_layout = QVBoxLayout(self.keys_tab)
 
         keys_layout.addWidget(QLabel("<b>API Keys Management</b>"))
         keys_layout.addWidget(QLabel("Keys are stored securely in your system keyring."))
 
         # Gemini Key
-        keys_layout.addWidget(QLabel("Gemini API Key (GEMINI_API_KEY):"))
+        keys_layout.addWidget(QLabel("Gemini API Key:"))
         self.gemini_key_edit = QLineEdit()
         self.gemini_key_edit.setEchoMode(QLineEdit.Password)
         self.gemini_key_edit.setPlaceholderText("Enter your Gemini API Key")
 
         # Try to load existing key
         try:
-            existing_key = keyring.get_password("cerebro", "GEMINI_API_KEY")
+            existing_key = keyring.get_password("cerebro", "gemini_api_key")
             if existing_key:
                 self.gemini_key_edit.setText(existing_key)
         except Exception as e:
@@ -510,7 +510,7 @@ class SettingsDialog(QDialog):
         key = self.gemini_key_edit.text().strip()
         if key:
             try:
-                keyring.set_password("cerebro", "GEMINI_API_KEY", key)
+                keyring.set_password("cerebro", "gemini_api_key", key)
                 QMessageBox.information(self, "Success", "Gemini API Key saved securely.")
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Failed to save key: {e}")
@@ -538,7 +538,7 @@ class SettingsDialog(QDialog):
         key = self.gemini_key_edit.text().strip()
         if key:
             try:
-                keyring.set_password("cerebro", "GEMINI_API_KEY", key)
+                keyring.set_password("cerebro", "gemini_api_key", key)
             except Exception:
                 pass
         super().accept()
