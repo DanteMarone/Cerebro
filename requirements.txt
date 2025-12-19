@@ -10,3 +10,4 @@ pyautogui
 pynput
 SpeechRecognition
 pydantic
+litellm
