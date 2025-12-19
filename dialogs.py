@@ -21,8 +21,10 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QToolBox,
     QWidget,
+    QTabWidget,
 )
 import subprocess
+import keyring
 from PyQt5.QtCore import Qt, QDateTime
 
 try:
@@ -340,8 +342,16 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.parent = parent
         self.setWindowTitle("Settings")
+        self.setMinimumWidth(450)
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+
+        # --- Tab 1: General ---
+        self.general_tab = QWidget()
+        self.tabs.addTab(self.general_tab, "General")
+        layout = QVBoxLayout(self.general_tab)
 
         # Dark Mode
         self.dark_mode_checkbox = QCheckBox("Dark Mode")
@@ -438,13 +448,43 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(update_layout)
 
+        # --- Tab 2: API Keys ---
+        self.keys_tab = QWidget()
+        self.tabs.addTab(self.keys_tab, "API Keys")
+        keys_layout = QVBoxLayout(self.keys_tab)
+
+        keys_layout.addWidget(QLabel("<b>API Keys Management</b>"))
+        keys_layout.addWidget(QLabel("Keys are stored securely in your system keyring."))
+
+        # Gemini Key
+        keys_layout.addWidget(QLabel("Gemini API Key (GEMINI_API_KEY):"))
+        self.gemini_key_edit = QLineEdit()
+        self.gemini_key_edit.setEchoMode(QLineEdit.Password)
+        self.gemini_key_edit.setPlaceholderText("Enter your Gemini API Key")
+
+        # Try to load existing key
+        try:
+            existing_key = keyring.get_password("cerebro", "GEMINI_API_KEY")
+            if existing_key:
+                self.gemini_key_edit.setText(existing_key)
+        except Exception as e:
+            print(f"Error accessing keyring: {e}")
+
+        keys_layout.addWidget(self.gemini_key_edit)
+
+        save_keys_btn = QPushButton("Save Keys")
+        save_keys_btn.clicked.connect(self.save_keys)
+        keys_layout.addWidget(save_keys_btn)
+
+        keys_layout.addStretch(1)
+
         # Buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.ok_button = self.button_box.button(QDialogButtonBox.Ok)
         self.ok_button.setEnabled(False)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
+        main_layout.addWidget(self.button_box)
 
         # Connect inputs to validation
         self.user_name_edit.textChanged.connect(self.validate_fields)
@@ -466,6 +506,18 @@ class SettingsDialog(QDialog):
             self.accent_color_button.setStyleSheet(f"background-color: {color.name()}")
             self.parent.accent_color = color.name()
 
+    def save_keys(self):
+        key = self.gemini_key_edit.text().strip()
+        if key:
+            try:
+                keyring.set_password("cerebro", "GEMINI_API_KEY", key)
+                QMessageBox.information(self, "Success", "Gemini API Key saved securely.")
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to save key: {e}")
+        else:
+            # Optionally handle empty key (clear it?)
+            pass
+
     def get_data(self):
         return {
             "dark_mode": self.dark_mode_checkbox.isChecked(),
@@ -482,6 +534,13 @@ class SettingsDialog(QDialog):
         self.validate_fields()
         if self.error_label.isVisible():
             return
+        # Auto-save keys on Accept as well, if user didn't click Save Keys
+        key = self.gemini_key_edit.text().strip()
+        if key:
+            try:
+                keyring.set_password("cerebro", "GEMINI_API_KEY", key)
+            except Exception:
+                pass
         super().accept()
 
     def validate_fields(self):
@@ -548,6 +607,7 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", "Ollama executable not found.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to update model: {e}")
+
 
 
 class SearchDialog(QDialog):
