@@ -1,7 +1,22 @@
 [
   {
-    "timestamp": "2025-06-08T05:51:19.935919",
+    "role": "system",
+    "content": ""
+  },
+  {
     "role": "user",
-    "content": "Test message, only specialist"
+    "content": "Hi"
+  },
+  {
+    "timestamp": "2025-12-19T00:39:06.336406",
+    "role": "assistant",
+    "content": "<thought>Step 1: thought1</thought>",
+    "agent": "a"
+  },
+  {
+    "timestamp": "2025-12-19T00:39:06.336623",
+    "role": "assistant",
+    "content": "<thought>Step 2: thought2</thought>",
+    "agent": "a"
   }
 ]

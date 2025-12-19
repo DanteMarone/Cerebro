@@ -68,3 +68,6 @@
 2025-06-08 05:51:19,754 [DEBUG] Starting new HTTP connection (1): localhost:11434
 2025-06-08 05:51:19,843 [DEBUG] Starting new HTTP connection (1): localhost:11434
 2025-06-08 05:51:19,906 [DEBUG] Starting new HTTP connection (1): localhost:11434
+2025-12-18 17:45:38,909 [DEBUG] Automations loaded: []
+2025-12-18 17:45:38,955 [DEBUG] Starting new HTTP connection (1): localhost:11434
+2025-12-18 17:45:39,058 [DEBUG] Starting new HTTP connection (1): localhost:11434
