@@ -2,6 +2,7 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 import sys
+import json
 
 # Mock PyQt5 before importing worker which inherits from QObject
 sys.modules["PyQt5"] = MagicMock()
@@ -17,6 +18,7 @@ class MockQObject:
 sys.modules["PyQt5.QtCore"].QObject = MockQObject
 sys.modules["PyQt5.QtCore"].pyqtSignal = MagicMock()
 
+# Now we can safely import worker
 from worker import AIWorker  # noqa: E402
 
 # Mock data
@@ -41,7 +43,6 @@ AGENTS_DATA_OLLAMA = {
     }
 }
 
-
 @pytest.fixture
 def mock_worker_gemini():
     return AIWorker(
@@ -53,7 +54,6 @@ def mock_worker_gemini():
         agent_name="Gemini Agent",
         agents_data=AGENTS_DATA_GEMINI
     )
-
 
 @pytest.fixture
 def mock_worker_ollama():
@@ -67,10 +67,16 @@ def mock_worker_ollama():
         agents_data=AGENTS_DATA_OLLAMA
     )
 
-
 def test_gemini_provider_call(mock_worker_gemini):
     with patch("worker.litellm.completion") as mock_completion, \
-         patch("worker.keyring.get_password", return_value="fake_key"):
+         patch("worker.keyring.get_password") as mock_keyring:
+
+        # Configure keyring mock to return key only for specific username
+        def side_effect(service, username):
+            if service == "cerebro" and username == "gemini_api_key":
+                return "fake_key_from_keyring"
+            return None
+        mock_keyring.side_effect = side_effect
 
         # Mock streaming response
         mock_chunk = MagicMock()
@@ -82,12 +88,39 @@ def test_gemini_provider_call(mock_worker_gemini):
         response = list(mock_worker_gemini.generate_response(mock_worker_gemini.chat_history, stream=True))
 
         assert response == ["Hello world"]
+
+        # Verify Keyring call
+        mock_keyring.assert_any_call("cerebro", "gemini_api_key")
+
+        # Verify LiteLLM call
         mock_completion.assert_called_once()
         args, kwargs = mock_completion.call_args
         assert kwargs["model"] == "gemini/gemini-1.5-flash"
-        assert kwargs["api_key"] == "fake_key"
+        assert kwargs["api_key"] == "fake_key_from_keyring"
         assert kwargs["stream"] is True
 
+def test_gemini_json_format(mock_worker_gemini):
+    # Set json_format on the worker
+    schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+    mock_worker_gemini.json_format = schema
+
+    with patch("worker.litellm.completion") as mock_completion, \
+         patch("worker.keyring.get_password", return_value="fake_key"):
+
+        mock_chunk = MagicMock()
+        mock_chunk.choices = [MagicMock()]
+        mock_chunk.choices[0].delta.content = '{"answer": "yes"}'
+        mock_completion.return_value = [mock_chunk]
+
+        list(mock_worker_gemini.generate_response(mock_worker_gemini.chat_history, stream=True))
+
+        mock_completion.assert_called_once()
+        args, kwargs = mock_completion.call_args
+
+        # Check if response_format was passed correctly
+        assert "response_format" in kwargs
+        assert kwargs["response_format"]["type"] == "json_object"
+        assert kwargs["response_format"]["response_schema"] == schema
 
 def test_gemini_missing_key(mock_worker_gemini):
     with patch("worker.keyring.get_password", return_value=None), \
@@ -95,7 +128,6 @@ def test_gemini_missing_key(mock_worker_gemini):
 
         with pytest.raises(ValueError, match="Missing API key"):
             list(mock_worker_gemini.generate_response(mock_worker_gemini.chat_history, stream=True))
-
 
 def test_ollama_provider_call(mock_worker_ollama):
     with patch("worker.requests.post") as mock_post:

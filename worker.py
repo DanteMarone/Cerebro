@@ -53,7 +53,11 @@ class AIWorker(QObject):
         if not api_key:
             try:
                 # In headless environments, keyring might fail if not configured
-                api_key = keyring.get_password("cerebro", api_key_env)
+                # Retrieve API key from keyring (service="cerebro", username="gemini_api_key")
+                api_key = keyring.get_password("cerebro", "gemini_api_key")
+                # Fallback to legacy key if not found
+                if not api_key:
+                    api_key = keyring.get_password("cerebro", api_key_env)
             except Exception as e:
                 if self.debug_enabled:
                     print(f"[Debug] Keyring access failed: {e}")
@@ -63,14 +67,24 @@ class AIWorker(QObject):
 
         try:
             # LiteLLM handles message formatting for Gemini
-            response = litellm.completion(
-                model=self.model_name,
-                messages=messages,
-                stream=stream,
-                api_key=api_key,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-            )
+            kwargs = {
+                "model": self.model_name,
+                "messages": messages,
+                "stream": stream,
+                "api_key": api_key,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+            }
+
+            if self.json_format:
+                # Pass the schema for structured output
+                # LiteLLM/Gemini mapping: response_format with type and response_schema
+                kwargs["response_format"] = {
+                    "type": "json_object",
+                    "response_schema": self.json_format
+                }
+
+            response = litellm.completion(**kwargs)
 
             if stream:
                 for chunk in response:
