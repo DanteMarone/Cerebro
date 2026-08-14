@@ -85,6 +85,19 @@ empty rows in the database. When the turn finishes, the message is atomically wr
 its completion timestamp and links the trigger message via `quote_msg_id`. At startup, the runtime
 runs a one-time sweep to clean any legacy empty placeholders from historical databases.
 
+### Agent Silence & Silent Completion (§9.3)
+
+In multi-agent channels, agents speak only when they have additive domain knowledge to contribute.
+An agent can decline to speak in two valid ways:
+- **Explicit PASS Token**: Emitting `PASS` (case-insensitive, ignoring whitespace and trailing period).
+- **Silent Completion**: Completing with provider `finish_reason: "stop"`, zero visible content tokens, and no tool calls.
+
+Both cases are treated as valid silent completions:
+- No durable message or error row is appended to the channel transcript.
+- The agent's activity status cleanly transitions back to `idle`.
+- An ephemeral `turn.discarded` WebSocket event (carrying structured `reason: "silent_stop"` or `reason: "pass"`) is published for runtime observability.
+- Genuine failures (such as `finish_reason: "length"` token exhaustion or backend errors) continue to produce descriptive error messages.
+
 ### Usage and quota board
 
 See what each agent has spent today and what each says it has left. Full detail:

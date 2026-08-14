@@ -379,6 +379,8 @@ async def test_a_pass_reply_is_discarded_and_leaves_no_row():
     assert result is None
     assert store.messages == []
     assert len(discarded) == 1
+    assert discarded[0].payload["reason"] == "pass"
+    assert discarded[0].payload["agent_id"] == "jarvis"
 
 
 async def test_pass_matching_is_strict():
@@ -410,14 +412,34 @@ async def test_an_empty_answer_becomes_an_explained_error_not_a_blank_message():
     assert "max_tokens" in reply.body
 
 
-async def test_an_empty_answer_with_a_normal_finish_still_errors():
-    provider = FakeProvider([Done(reason="stop")])
-    hub, runtime = build(provider)
+async def test_an_empty_answer_with_a_stop_finish_is_silent_completion_and_leaves_no_row():
+    """Provider finish_reason='stop' with zero content is valid silent completion (§9.3)."""
+    provider = FakeProvider([ReasoningDelta(text="I have nothing to add"), Done(reason="stop")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
+
+    async with hub.subscribe("turn.discarded") as sub:
+        reply = await runtime.run_turn(AGENT, "c1")
+        discarded = await drain(sub)
+
+    assert reply is None
+    assert store.messages == []
+    assert len(discarded) == 1
+    assert discarded[0].payload["reason"] == "silent_stop"
+    assert discarded[0].payload["agent_id"] == "jarvis"
+
+
+async def test_an_empty_answer_with_an_error_or_unknown_finish_still_errors():
+    """Empty body with non-stop finish reason (e.g. error, None) remains an error."""
+    provider = FakeProvider([Done(reason="error")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
 
     reply = await runtime.run_turn(AGENT, "c1")
 
     assert reply.kind == "error"
-    assert "no answer" in reply.body
+    assert "no answer (finished: error)" in reply.body
+    assert len(store.messages) == 1
 
 
 async def test_reasoning_never_reaches_the_channel(tmp_path):

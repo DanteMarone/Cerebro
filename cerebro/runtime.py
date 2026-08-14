@@ -141,6 +141,7 @@ class AgentRuntime:
         Returns the persisted message, or None when refused, passed, or failed.
         """
         turn_id = turn_id or new_turn_id()
+        self._last_finish = None
 
         verdict = self.guard.check(turn_id, depth)
         if not verdict.allowed:
@@ -183,6 +184,20 @@ class AgentRuntime:
             raise
 
         if not body.strip():
+            if self._last_finish == "stop":
+                logger.info("Agent %s completed turn %s silently (finish: stop)", agent.id, turn_id)
+                await self._status(agent, channel_id, "idle", turn_id=turn_id)
+                await self.hub.publish(
+                    "turn.discarded",
+                    {
+                        "channel_id": channel_id,
+                        "turn_id": turn_id,
+                        "agent_id": agent.id,
+                        "reason": "silent_stop",
+                    },
+                )
+                return None
+
             reason = "produced no answer"
             if self._last_finish == "length":
                 reason = (
@@ -197,7 +212,12 @@ class AgentRuntime:
             await self._status(agent, channel_id, "idle", turn_id=turn_id)
             await self.hub.publish(
                 "turn.discarded",
-                {"channel_id": channel_id, "turn_id": turn_id, "agent_id": agent.id},
+                {
+                    "channel_id": channel_id,
+                    "turn_id": turn_id,
+                    "agent_id": agent.id,
+                    "reason": "pass",
+                },
             )
             return None
 
