@@ -198,5 +198,79 @@ async def test_a_failing_turn_does_not_stop_the_poller(clock):
 
     world.turn_hook = None
     world.latest["warroom"] = 3
-    clock.advance(60)
+    # Past the widened wait: one failure doubles the interval, so 60s is no longer enough.
+    clock.advance(200)
     assert await poller.tick() == 1
+
+
+async def test_a_repeatedly_failing_agent_backs_off_then_stops(clock):
+    """A misconfigured agent must not retry forever.
+
+    Codex posted an identical config error every 45 seconds because nothing counted failures.
+    That is noise, rows, and — for a backend that gets far enough to start — real money.
+    """
+    world = World([CLAUDE], {"claude": ["warroom"]}, {"warroom": 1})
+    poller = build(world, clock, default_interval_s=45)
+    await poller.tick()
+
+    async def always_fails(agent, channel_id):
+        raise RuntimeError("backend offline")
+
+    world.turn_hook = always_fails
+
+    attempts = 0
+    for _ in range(40):
+        world.latest["warroom"] += 1
+        clock.advance(60)
+        attempts += await poller.tick()
+
+    from cerebro.poller import MAX_CONSECUTIVE_FAILURES
+
+    assert attempts == MAX_CONSECUTIVE_FAILURES, (
+        f"kept retrying: {attempts} attempts over 40 rounds"
+    )
+    assert poller._states["claude"].given_up
+
+
+async def test_backoff_grows_between_failures(clock):
+    world = World([CLAUDE], {"claude": ["warroom"]}, {"warroom": 1})
+    poller = build(world, clock, default_interval_s=10)
+    await poller.tick()
+
+    async def always_fails(agent, channel_id):
+        raise RuntimeError("nope")
+
+    world.turn_hook = always_fails
+    world.latest["warroom"] = 2
+    clock.advance(20)
+    await poller.tick()
+
+    state = poller._states["claude"]
+    assert state.consecutive_failures == 1
+    assert state.backoff_s > state.interval_s
+
+    # Not yet past the widened wait, so no second attempt.
+    world.latest["warroom"] = 3
+    clock.advance(11)
+    assert await poller.tick() == 0
+
+
+async def test_a_success_clears_the_failure_count(clock):
+    world = World([CLAUDE], {"claude": ["warroom"]}, {"warroom": 1})
+    poller = build(world, clock, default_interval_s=10)
+    await poller.tick()
+
+    async def fails_once(agent, channel_id):
+        world.turn_hook = None
+        raise RuntimeError("transient")
+
+    world.turn_hook = fails_once
+    world.latest["warroom"] = 2
+    clock.advance(20)
+    await poller.tick()
+    assert poller._states["claude"].consecutive_failures == 1
+
+    world.latest["warroom"] = 3
+    clock.advance(300)
+    await poller.tick()
+    assert poller._states["claude"].consecutive_failures == 0

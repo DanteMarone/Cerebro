@@ -131,8 +131,17 @@ class RuntimeService:
         )
 
     async def _poll_turn(self, agent: Agent, channel_id: str) -> None:
-        """A poll-produced turn is an ordinary turn: same caps, same guard, same attribution."""
-        await self.runtime.run_turn(agent, channel_id, depth=1)
+        """A poll-produced turn is an ordinary turn: same caps, same guard, same attribution.
+
+        The runtime deliberately turns provider failures into error *messages* rather than
+        exceptions, so a broken backend is visible in the channel instead of silent. That means
+        the poller cannot see a failure unless we re-raise it: without this, a misconfigured agent
+        looks successful every cycle and backs off never. Codex posted the same config error every
+        45 seconds for exactly this reason.
+        """
+        result = await self.runtime.run_turn(agent, channel_id, depth=1)
+        if result is not None and result.kind == "error":
+            raise RuntimeError(f"{agent.id} turn failed: {result.body[:200]}")
 
     async def start(self) -> None:
         self._sub = self.hub.subscribe("message.new")

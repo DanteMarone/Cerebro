@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL_S = 45.0
 DEFAULT_TICK_S = 5.0
+MAX_BACKOFF_S = 1800.0
+MAX_CONSECUTIVE_FAILURES = 4
 
 
 @dataclass
@@ -40,6 +42,24 @@ class AgentState:
     interval_s: float
     last_polled_at: float = 0.0
     cursors: dict[str, int] = field(default_factory=dict)
+    consecutive_failures: int = 0
+
+    @property
+    def backoff_s(self) -> float:
+        """Wait longer after each failure, and stop entirely after enough of them.
+
+        A misconfigured agent polling on a fixed interval retries forever and posts its error
+        every cycle. Codex did exactly that: a bad line in its own config produced an identical
+        failure message every 45 seconds, which is noise, rows, and — for a backend that gets far
+        enough to start — real money.
+        """
+        if self.consecutive_failures == 0:
+            return 0.0
+        return min(self.interval_s * (2 ** self.consecutive_failures), MAX_BACKOFF_S)
+
+    @property
+    def given_up(self) -> bool:
+        return self.consecutive_failures >= MAX_CONSECUTIVE_FAILURES
 
 
 class ChannelPoller:
@@ -119,7 +139,15 @@ class ChannelPoller:
     async def _consider(self, agent: Agent) -> bool:
         state = self._state(agent)
         now = self._clock()
-        if now - state.last_polled_at < state.interval_s:
+
+        if state.given_up:
+            # Stop rather than retry forever. A human fixes the cause and turns polling back on;
+            # the alternative is an agent that fails identically every interval until someone
+            # notices, which is how a broken config became a message every 45 seconds.
+            return False
+
+        wait = max(state.interval_s, state.backoff_s)
+        if now - state.last_polled_at < wait:
             return False
         state.last_polled_at = now
 
@@ -143,8 +171,13 @@ class ChannelPoller:
             self._in_flight.add(agent.id)
             try:
                 await self.run_turn(agent, channel_id)
+                state.consecutive_failures = 0
             except Exception:  # noqa: BLE001 - a failed turn is not a failed poller
-                logger.exception("poll turn failed for %s in %s", agent.id, channel_id)
+                state.consecutive_failures += 1
+                logger.exception(
+                    "poll turn failed for %s in %s (failure %d of %d before giving up)",
+                    agent.id, channel_id, state.consecutive_failures, MAX_CONSECUTIVE_FAILURES,
+                )
             finally:
                 self._in_flight.discard(agent.id)
             return True
