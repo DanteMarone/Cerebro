@@ -57,6 +57,13 @@ class StoreAdapter:
         )
         return [Message(**_message_fields(r)) for r in reversed(rows)]
 
+    async def channel(self, channel_id: str) -> dict:
+        return await store.get_channel(channel_id) or {"id": channel_id, "name": channel_id}
+
+    async def members(self, channel_id: str) -> list[str]:
+        rows = await store.get_channel_members(channel_id)
+        return [r["member_id"] for r in rows]
+
     async def system_prompt(self, agent: Agent) -> str:
         home = Path(agent.home_path) if agent.home_path else settings.agents_path / agent.id
         prompt_file = home / "system_prompt.md"

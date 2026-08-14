@@ -12,9 +12,12 @@ agent, which is the cheapest possible guarantee against a conversation that neve
 import asyncio
 import json
 import logging
+import re
+from pathlib import Path
 
 from cerebro import db, store
 from cerebro.config import settings
+from cerebro.context import ContextBuilder
 from cerebro.hub import Hub
 from cerebro.models import Agent
 from cerebro.persistence import StoreAdapter
@@ -47,7 +50,30 @@ def build_runtime(hub: Hub) -> AgentRuntime:
         },
         history_window=settings.history_window,
         max_tool_iterations=settings.max_tool_iterations,
+        context=ContextBuilder(
+            agents_root=settings.agents_path,
+            budget_tokens=settings.context_budget,
+            operating_manual=_operating_manual(),
+        ),
     )
+
+
+def _operating_manual() -> str:
+    """The house rules every agent reads, rendered once at startup.
+
+    Read as plain text rather than a Jinja render: the template's variables are per-agent and the
+    packet already states identity, channel and roster separately. A half-interpolated template
+    would be worse than the prose.
+    """
+    path = Path(__file__).resolve().parent / "prompts" / "operating_manual.md.j2"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    # Strip the Jinja bits rather than shipping `{{ agent.name }}` to a model.
+    text = re.sub(r"\{%.*?%\}", "", text, flags=re.S)
+    text = re.sub(r"\{\{.*?\}\}", "", text, flags=re.S)
+    return text.strip()
 
 
 def _agent_params(agent: Agent) -> dict:

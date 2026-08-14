@@ -20,10 +20,12 @@ MCP executor into `tool_executor` without touching this file.
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
 
+from cerebro.context import ContextBuilder
 from cerebro.hub import Hub
 from cerebro.models import (
     Agent,
@@ -37,6 +39,8 @@ from cerebro.models import (
 from cerebro.providers.base import Params, Provider, ToolSpec
 from cerebro.providers.lmstudio import ProviderError, ProviderUnavailable
 from cerebro.turnguard import TurnGuard, new_turn_id
+
+logger = logging.getLogger(__name__)
 
 PASS_TOKEN = "PASS"
 DEFAULT_HISTORY_WINDOW = 30
@@ -71,6 +75,10 @@ class Persistence(Protocol):
 
     async def system_prompt(self, agent: Agent) -> str: ...
 
+    async def channel(self, channel_id: str) -> dict: ...
+
+    async def members(self, channel_id: str) -> list[str]: ...
+
 
 ToolExecutor = Callable[[str, str, dict[str, Any]], Awaitable[str]]
 
@@ -89,6 +97,7 @@ class AgentRuntime:
         concurrency: dict[str, int] | None = None,
         history_window: int = DEFAULT_HISTORY_WINDOW,
         max_tool_iterations: int = DEFAULT_MAX_TOOL_ITERATIONS,
+        context: "ContextBuilder | None" = None,
     ) -> None:
         self.hub = hub
         self.store = store
@@ -98,6 +107,7 @@ class AgentRuntime:
         self.tools_for = tools_for or (lambda agent: [])
         self.history_window = history_window
         self.max_tool_iterations = max_tool_iterations
+        self.context = context
         self._last_finish: str | None = None
         self._limits = {
             name: asyncio.Semaphore(n)
@@ -326,6 +336,15 @@ class AgentRuntime:
         """
         prompt = await self.store.system_prompt(agent)
         history = await self.store.history(channel_id, self.history_window)
+
+        if self.context is not None:
+            try:
+                channel = await self.store.channel(channel_id)
+                members = await self.store.members(channel_id)
+                return self.context.build(agent, prompt, channel, members, history)
+            except Exception:  # noqa: BLE001 - a thin packet beats no turn at all
+                logger.exception("context build failed for %s; falling back", agent.id)
+
         system = Message(
             channel_id=channel_id, author_id="system", author_kind="system",
             kind="system", body=prompt,
