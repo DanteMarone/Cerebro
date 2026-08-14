@@ -14,6 +14,7 @@ function App() {
     const [activeChannelId, setActiveChannelId] = useState("dm-dante-jarvis");
     const [messages, setMessages] = useState({});
     const [streamingDeltas, setStreamingDeltas] = useState({});
+    const [thinkingDeltas, setThinkingDeltas] = useState({});
     const [connected, setConnected] = useState(false);
     const [inputText, setInputText] = useState("");
     const [sending, setSending] = useState(false);
@@ -121,6 +122,14 @@ function App() {
                                 return { ...prev, [channelId]: [...list, msg] };
                             });
                         }
+                    } else if (type === "agent.thinking") {
+                        const { message_id, text } = payload;
+                        if (message_id != null && text) {
+                            setThinkingDeltas(prev => ({
+                                ...prev,
+                                [message_id]: (prev[message_id] || "") + text
+                            }));
+                        }
                     } else if (type === "message.delta") {
                         const { message_id, text } = payload;
                         if (message_id != null && text) {
@@ -134,6 +143,11 @@ function App() {
                         if (msg && msg.id != null) {
                             const channelId = msg.channel_id;
                             setStreamingDeltas(prev => {
+                                const next = { ...prev };
+                                delete next[msg.id];
+                                return next;
+                            });
+                            setThinkingDeltas(prev => {
                                 const next = { ...prev };
                                 delete next[msg.id];
                                 return next;
@@ -317,6 +331,7 @@ function App() {
                     ${currentMessages.map(msg => {
                         const isUser = msg.author_id === 'dante';
                         const delta = streamingDeltas[msg.id];
+                        const thinking = thinkingDeltas[msg.id];
                         const content = delta ? (msg.content + delta) : msg.content;
                         const timeStr = msg.created_at ? msg.created_at.slice(11, 16) : '';
 
@@ -330,6 +345,12 @@ function App() {
                                         <span class="message-author">${isUser ? 'Dante' : msg.author_id}</span>
                                         <span class="message-time">${timeStr}</span>
                                     </div>
+                                    ${thinking && html`
+                                        <div class="thinking-block">
+                                            <div class="thinking-header">💭 Thinking...</div>
+                                            <div class="thinking-content">${thinking}</div>
+                                        </div>
+                                    `}
                                     <div class="message-content">
                                         ${content}
                                         ${delta && html`<span class="streaming-cursor"></span>`}

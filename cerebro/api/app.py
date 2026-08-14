@@ -11,6 +11,7 @@ from cerebro import db, agents_loader
 from cerebro.api import routes_agents, routes_channels, ws
 from cerebro.config import settings
 from cerebro.hub import Hub
+from cerebro.service import RuntimeService
 from version import __version__
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -37,7 +38,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await db.migrate()
     _app.state.hub = Hub()
     await agents_loader.bootstrap_seed_data()
+    _app.state.runtime = RuntimeService(_app.state.hub)
+    await _app.state.runtime.start()
     yield
+    if hasattr(_app.state, "runtime") and _app.state.runtime:
+        await _app.state.runtime.stop()
     if hasattr(_app.state, "hub") and _app.state.hub:
         await _app.state.hub.aclose()
     await db.close()

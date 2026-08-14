@@ -267,6 +267,38 @@ html, body {
     word-break: break-word;
 }
 
+.thinking-block {
+    background: rgba(99, 102, 241, 0.08);
+    border-left: 3px solid var(--accent-color);
+    padding: 0.4rem 0.65rem;
+    margin-bottom: 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+    max-height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.thinking-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-color);
+    margin-bottom: 0.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .streaming-cursor {
     display: inline-block;
     width: 7px;

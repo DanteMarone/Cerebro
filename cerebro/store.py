@@ -4,6 +4,8 @@ import json
 from typing import Any
 from cerebro import db
 
+VALID_MESSAGE_KINDS = {"chat", "system", "tool", "event", "error"}
+
 
 async def _execute_write(sql: str, params: tuple[Any, ...] = ()) -> Any:
     """Helper to enqueue a write and wait for its completion."""
@@ -22,7 +24,9 @@ def _normalize_agent_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
                 d["tools_enabled"] = pj.get("tools_enabled", [])
                 d["system_prompt"] = pj.get("system_prompt", "")
                 d["params"] = {
-                    k: v for k, v in pj.items() if k not in ("tools_enabled", "system_prompt")
+                    k: v
+                    for k, v in pj.items()
+                    if k not in ("tools_enabled", "system_prompt")
                 }
             else:
                 d["params"] = {}
@@ -65,7 +69,11 @@ async def list_agents() -> list[dict[str, Any]]:
 
 async def upsert_agent(agent: dict[str, Any]) -> None:
     """Insert or update an agent definition in SQLite."""
-    pj = dict(agent.get("params", {})) if isinstance(agent.get("params"), dict) else {}
+    pj = (
+        dict(agent.get("params", {}))
+        if isinstance(agent.get("params"), dict)
+        else {}
+    )
     if "tools_enabled" in agent:
         pj["tools_enabled"] = agent["tools_enabled"]
     if "system_prompt" in agent:
@@ -143,13 +151,20 @@ async def create_channel(
     topic: str = "",
     created_by: str = "dante",
 ) -> dict[str, Any]:
-    """Create a new channel and return its details."""
+    """Create a new channel and guarantee Dante is an owner member."""
     sql = """
     INSERT OR IGNORE INTO channels (id, team_id, kind, name, topic, created_by, created_at)
     VALUES (?, ?, ?, ?, ?, ?, datetime('now'));
     """
     await _execute_write(
         sql, (channel_id, team_id, channel_type, name, topic, created_by)
+    )
+    # Enforce §6.1 invariant: Dante is always a member of every channel
+    await add_channel_member(
+        channel_id=channel_id,
+        member_id="dante",
+        member_kind="user",
+        listen_mode="active",
     )
     channel = await get_channel(channel_id)
     return channel or {
@@ -178,6 +193,14 @@ async def add_channel_member(
     await _execute_write(sql, (channel_id, member_id, member_kind, listen_mode))
 
 
+async def remove_channel_member(channel_id: str, member_id: str) -> None:
+    """Remove a member from a channel. Enforces §6.1: Dante cannot be removed."""
+    if member_id.lower() == "dante":
+        raise ValueError("Cannot remove owner 'dante' from channel (§6.1 invariant)")
+    sql = "DELETE FROM channel_members WHERE channel_id = ? AND member_id = ?;"
+    await _execute_write(sql, (channel_id, member_id))
+
+
 async def get_channel_members(channel_id: str) -> list[dict[str, Any]]:
     """Retrieve all members of a channel."""
     sql = """
@@ -201,7 +224,7 @@ async def append_message(
     author_id: str,
     content: str,
     author_kind: str = "user",
-    msg_type: str = "text",
+    msg_type: str = "chat",
     turn_id: str | None = None,
     quote_msg_id: int | None = None,
     parent_id: int | None = None,
@@ -210,6 +233,7 @@ async def append_message(
 ) -> int:
     """Append a message to a channel and return its generated ID."""
     qid = quote_msg_id if quote_msg_id is not None else parent_id
+    kind = msg_type if msg_type in VALID_MESSAGE_KINDS else "chat"
     sql = """
     INSERT INTO messages (
         channel_id, author_id, author_kind, kind, body, quote_msg_id,
@@ -225,7 +249,7 @@ async def append_message(
             channel_id,
             author_id,
             author_kind,
-            msg_type,
+            kind,
             content,
             qid,
             turn_id,
@@ -245,7 +269,11 @@ async def get_message(message_id: int) -> dict[str, Any] | None:
 async def list_messages(
     channel_id: str, after_id: int | None = None, limit: int = 50
 ) -> list[dict[str, Any]]:
-    """List messages in a channel, optionally after a message ID."""
+    """List messages in a channel.
+
+    When after_id is provided, returns messages > after_id in ascending order.
+    When after_id is None, returns the most recent `limit` messages in ascending order.
+    """
     if after_id is not None:
         sql = """
         SELECT * FROM messages
@@ -256,10 +284,12 @@ async def list_messages(
         rows = await db.fetch_all(sql, (channel_id, after_id, limit))
     else:
         sql = """
-        SELECT * FROM messages
-        WHERE channel_id = ?
-        ORDER BY id ASC
-        LIMIT ?;
+        SELECT * FROM (
+            SELECT * FROM messages
+            WHERE channel_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        ) ORDER BY id ASC;
         """
         rows = await db.fetch_all(sql, (channel_id, limit))
     return [_normalize_message_row(r) for r in rows if r]
