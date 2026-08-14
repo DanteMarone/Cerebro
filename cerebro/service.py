@@ -10,6 +10,7 @@ agent, which is the cheapest possible guarantee against a conversation that neve
 """
 
 import asyncio
+import json
 import logging
 
 from cerebro import store
@@ -17,11 +18,15 @@ from cerebro.config import settings
 from cerebro.hub import Hub
 from cerebro.models import Agent
 from cerebro.persistence import StoreAdapter
+from cerebro.providers.cli_agent import CliAgentProvider
 from cerebro.providers.lmstudio import LMStudioProvider
 from cerebro.runtime import AgentRuntime
 from cerebro.turnguard import TurnGuard, TurnLimits, new_turn_id
 
 logger = logging.getLogger(__name__)
+
+# Which harness each seeded agent is, absent an explicit backend in its profile.
+_DEFAULT_BACKENDS = {"claude": "claude", "antigravity": "agy", "codex": "codex"}
 
 
 def build_runtime(hub: Hub) -> AgentRuntime:
@@ -44,6 +49,13 @@ def build_runtime(hub: Hub) -> AgentRuntime:
     )
 
 
+def _agent_params(agent: Agent) -> dict:
+    try:
+        return json.loads(agent.params_json) if agent.params_json else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
 def _provider_for(agent: Agent):
     if agent.provider == "lmstudio":
         return LMStudioProvider(
@@ -51,6 +63,20 @@ def _provider_for(agent: Agent):
             model=agent.model or None,
             base_url=settings.lmstudio_base_url,
         )
+
+    if agent.provider == "cli_agent":
+        # §9.3. Cerebro invokes the harness itself, so the agent exists without anyone holding a
+        # CLI window open. Note that each turn is a *fresh* process with no memory of previous
+        # ones: continuity comes from the context packet and the scratchpad, not from the harness.
+        params = _agent_params(agent)
+        return CliAgentProvider(
+            self_id=agent.id,
+            backend=params.get("backend") or _DEFAULT_BACKENDS.get(agent.id, "claude"),
+            cwd=params.get("cwd"),
+            timeout_s=float(params.get("timeout_s", 900)),
+            command=params.get("command"),
+        )
+
     raise NotImplementedError(f"provider {agent.provider!r} arrives in a later slice")
 
 
