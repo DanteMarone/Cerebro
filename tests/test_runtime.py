@@ -267,3 +267,21 @@ async def test_reasoning_is_shown_live_but_never_persisted():
 
     assert [t.payload["text"] for t in thoughts] == ["let me think"]
     assert reply.body == "the answer"
+
+
+async def test_message_done_uses_the_same_envelope_as_message_new():
+    """The front end reads payload.message on both. A bare message payload silently broke the
+    done handler: the thinking block never cleared and the live stream was never replaced."""
+    provider = FakeProvider([TextDelta(text="final"), Done(reason="stop")])
+    hub, runtime = build(provider)
+
+    async with hub.subscribe("message.*") as sub:
+        reply = await runtime.run_turn(AGENT, "c1")
+        events = await drain(sub)
+
+    for etype in ("message.new", "message.done"):
+        event = next(e for e in events if e.type == etype)
+        assert set(event.payload) >= {"channel_id", "message"}, etype
+        assert event.payload["message"]["id"] == reply.id, etype
+    done = next(e for e in events if e.type == "message.done")
+    assert done.payload["message"]["body"] == "final"

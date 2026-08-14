@@ -148,7 +148,11 @@ function App() {
                             }));
                         }
                     } else if (type === "message.done") {
-                        const msg = payload;
+                        // The runtime publishes {channel_id, message}, the same envelope as
+                        // message.new. Reading payload.id here left the guard below always false,
+                        // so the handler never ran: the thinking block never cleared and the live
+                        // stream was never replaced by the authoritative persisted row.
+                        const msg = payload.message;
                         if (msg && msg.id != null) {
                             const channelId = msg.channel_id;
                             setStreamingDeltas(prev => {
@@ -328,7 +332,8 @@ function App() {
                 ]) : null,
 
                 ...currentMessages.map(msg => {
-                    const isUser = msg.author_id === 'dante';
+                    const displayAuthorId = msg.display_author_id || msg.author_id;
+                    const isUser = displayAuthorId === 'dante';
                     const delta = streamingDeltas[msg.id];
                     const thinking = thinkingDeltas[msg.id];
                     const base = msg.body ?? msg.content ?? '';
@@ -337,11 +342,13 @@ function App() {
 
                     return h("div", { key: msg.id, class: "message-row" }, [
                         h("div", { class: `message-avatar ${isUser ? 'user' : ''}` },
-                            isUser ? 'D' : (msg.author_id?.[0]?.toUpperCase() || 'J')
+                            isUser ? 'D' : (displayAuthorId?.[0]?.toUpperCase() || 'J')
                         ),
                         h("div", { class: "message-body" }, [
                             h("div", { class: "message-meta" }, [
-                                h("span", { class: "message-author" }, isUser ? 'Dante' : msg.author_id),
+                                h("span", { class: "message-author" },
+                                    isUser ? 'Dante' : displayAuthorId
+                                ),
                                 h("span", { class: "message-time" }, timeStr)
                             ]),
                             thinking ? h("div", { class: "thinking-block" }, [
