@@ -187,3 +187,72 @@ async def test_websocket_invalid_token_rejects_with_4401(test_db: Settings):
 
     assert ws.accepted is False
     assert ws.closed_code == 4401
+
+
+def test_websocket_transient_activity_and_completion_events(test_db: Settings):
+    """WebSocket receives agent.activity ephemeral events and message completion envelopes."""
+    app.state.hub = Hub()
+    client = TestClient(app)
+    client.get("/")
+
+    with client.websocket_connect("/ws") as ws:
+        loop = asyncio.get_event_loop()
+        # 1. Ephemeral activity starts
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "agent.activity",
+                {
+                    "channel_id": "c1",
+                    "agent_id": "jarvis",
+                    "turn_id": "T-100",
+                    "status": "thinking",
+                    "quote_msg_id": 42,
+                },
+            )
+        )
+        data = json.loads(ws.receive_text())
+        assert data["type"] == "agent.activity"
+        assert data["payload"]["turn_id"] == "T-100"
+        assert data["payload"]["agent_id"] == "jarvis"
+        assert data["payload"]["status"] == "thinking"
+        assert data["payload"]["quote_msg_id"] == 42
+
+        # 2. Ephemeral streaming delta
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "turn.delta",
+                {
+                    "channel_id": "c1",
+                    "agent_id": "jarvis",
+                    "turn_id": "T-100",
+                    "text": "working...",
+                },
+            )
+        )
+        data = json.loads(ws.receive_text())
+        assert data["type"] == "turn.delta"
+        assert data["payload"]["turn_id"] == "T-100"
+        assert data["payload"]["text"] == "working..."
+
+        # 3. Final message.new on completion
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "message.new",
+                {
+                    "channel_id": "c1",
+                    "message": {
+                        "id": 105,
+                        "channel_id": "c1",
+                        "author_id": "jarvis",
+                        "body": "finished answer",
+                        "quote_msg_id": 42,
+                        "turn_id": "T-100",
+                    },
+                },
+            )
+        )
+        data = json.loads(ws.receive_text())
+        assert data["type"] == "message.new"
+        assert data["payload"]["message"]["id"] == 105
+        assert data["payload"]["message"]["body"] == "finished answer"
+        assert data["payload"]["message"]["turn_id"] == "T-100"

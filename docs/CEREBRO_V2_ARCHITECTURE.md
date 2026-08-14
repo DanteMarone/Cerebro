@@ -181,11 +181,11 @@ inbound message (human | agent | cron | event)
   → Store.append(message)                 [assign turn_id + depth]
   → Hub.publish(message.new)              [browser renders immediately]
   → TurnGuard.check(turn_id)              [caps — §8.4]
-  → Moderator.select_speakers(channel, message)
-  → for each speaker (sequential):
-        ContextBuilder.build()
+  → for each speaker:
+        Hub.publish(agent.activity)       [transient in-flight thinking indicator]
         AgentRuntime.run_turn()           [provider stream + tool loop]
-        Store.append(reply);  Hub.publish(message.delta / message.new)
+        Store.append(reply)               [persisted atomically on completion]
+        Hub.publish(message.new / done)   [browser renders completed bubble]
 ```
 
 **turn_id / depth (MUST):**
@@ -194,6 +194,14 @@ inbound message (human | agent | cron | event)
 - A cron fire starts a new `turn_id` at `depth = 0` with `author_kind = 'system'`.
 
 This is the spine of loop control. Do not implement the pipeline without it.
+
+### 5.1 Completion-Ordered Durable Chat & Ephemeral Turn State (MUST)
+
+Messages in Cerebro appear in transcript history strictly when they finish (completion-ordered).
+During generation, token streaming and thinking remain ephemeral over WebSockets (`agent.activity` /
+`agent.status`), driving live UI presence without creating uncommitted or empty rows in SQLite.
+Upon completion, the finalized message is atomically appended to `messages` with its completion
+timestamp, preserving the triggering prompt reference via `quote_msg_id`.
 
 ---
 
