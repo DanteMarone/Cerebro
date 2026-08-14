@@ -154,6 +154,18 @@ class ToolCallDelta(BaseModel):
     args_fragment: str
 
 
+class ReasoningDelta(BaseModel):
+    """Chain-of-thought emitted by a reasoning model.
+
+    Kept distinct from TextDelta because it is shown live and then discarded -- it never becomes
+    the message body. gpt-oss-20b, which Dante runs locally, streams this before any content, so
+    dropping it means the UI shows a long silence and then an answer.
+    """
+
+    type: Literal["reasoning"] = "reasoning"
+    text: str
+
+
 class Usage(BaseModel):
     type: Literal["usage"] = "usage"
     input: int
@@ -166,6 +178,6 @@ class Done(BaseModel):
 
 
 Delta = Annotated[
-    Union[TextDelta, ToolCallDelta, Usage, Done],
+    Union[TextDelta, ReasoningDelta, ToolCallDelta, Usage, Done],
     Field(discriminator="type"),
 ]

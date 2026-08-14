@@ -23,7 +23,15 @@ from typing import Any, AsyncIterator
 
 import httpx
 
-from cerebro.models import Delta, Done, Message, TextDelta, ToolCallDelta, Usage
+from cerebro.models import (
+    Delta,
+    Done,
+    Message,
+    ReasoningDelta,
+    TextDelta,
+    ToolCallDelta,
+    Usage,
+)
 from cerebro.providers.base import Params, ToolSpec
 
 DEFAULT_BASE_URL = "http://127.0.0.1:1234"
@@ -191,6 +199,13 @@ class LMStudioProvider:
                         if reason := choice.get("finish_reason"):
                             finish_reason = reason
                         delta = choice.get("delta") or {}
+
+                        # Reasoning models stream their thinking first and their answer
+                        # afterwards. LM Studio exposes it as `reasoning` (some builds use
+                        # `reasoning_content`). It is shown live and never persisted.
+                        thought = delta.get("reasoning") or delta.get("reasoning_content")
+                        if thought:
+                            yield ReasoningDelta(text=thought)
 
                         if text := delta.get("content"):
                             yield TextDelta(text=text)

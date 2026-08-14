@@ -199,23 +199,56 @@ This is the spine of loop control. Do not implement the pipeline without it.
 
 ## 6. Speaking protocol
 
-The v2.0 spec's "poll every agent with a should-I-speak prompt" is replaced. With 5 agents that is
-5 serialized local inferences before anybody types a character.
+**Revised at Dante's direction (2026-08-14).** There is **no moderator model and no central
+arbiter**. Every agent reads the channel and decides for itself whether to speak, exactly as
+Claude and Antigravity do in the `#slice0` war room. A router deciding who may talk was the wrong
+shape: it puts a 4B model in charge of judging a 12B model's relevance, and it needs a second
+model resident in VRAM to do it.
 
 **Algorithm (MUST):**
 
-1. **DM channel** → the single agent member always speaks. No moderator call.
-2. **Explicit `@mentions`** → those agents speak, in mention order. They are guaranteed. No
-   moderator call.
-3. **No mentions, multi-agent channel** → **one** moderator call to the small model:
-   - Input: last CONFIG `moderator_window` (default 12) messages, plus the roster as
-     `name — one-line role description — listen_mode`.
-   - Output: strict JSON `{"speakers": ["<agent_name>", ...], "reason": "<20 words>"}`.
-   - Hard cap of CONFIG `max_auto_speakers` (default 2).
-   - Agents with `listen_mode='mention_only'` are excluded from candidacy; `'muted'` are excluded
-     entirely.
-4. **Moderator failure** (timeout, unparseable JSON after one repair retry, model unavailable) →
-   fall back to **nobody speaks**. Silence is the safe default; Dante can @mention.
+1. **DM channel** → the single agent member always speaks.
+2. **Explicit `@mention`** → wakes the named agent **immediately**, bypassing its poll interval.
+   It is obliged to respond.
+3. **Otherwise, each agent polls.** Every agent has a `poll_interval_s` (CONFIG, default 45).
+   On each tick it looks at its subscribed channels; if a channel has messages newer than its
+   `last_seen_message_id`, it takes one turn on that channel. Agents with
+   `listen_mode='mention_only'` never poll; `'muted'` are excluded entirely.
+4. **Deciding and speaking are the same call.** The agent is not asked "should you speak?" and
+   then asked to speak — that is two inferences to produce one message. It takes an ordinary turn,
+   and the operating manual tells it that replying with exactly `PASS` means it has nothing to
+   add. A `PASS` reply is discarded rather than persisted.
+
+Consequences worth stating plainly, because this trades cost for autonomy:
+
+- A channel with five listening agents costs up to five inferences per polling round, against one
+  moderator call under the old design. That is the price of agents that judge their own relevance,
+  and Dante has accepted it.
+- **Polling in batches is what makes it affordable.** An agent that wakes to five new messages
+  evaluates them in one turn, not five. The poll interval is therefore the primary cost dial:
+  raise it and the team gets cheaper and slower, lower it and the reverse. A burst of chatter does
+  not multiply cost.
+- Local models are serialized by the provider semaphore, so a polling round is sequential. With
+  many agents, expect a channel to feel like a slow-moving group chat rather than an instant
+  response. That is the correct feel for a team, and `@mention` remains the fast path.
+- Turn caps (§8.4) still bound everything. Polling cannot create an unbounded conversation because
+  every reply a poll produces still carries a `turn_id` and a depth.
+
+`last_seen_message_id` is per agent per channel. An agent that speaks marks itself caught up; an
+agent that passes also marks itself caught up, so it does not re-evaluate the same messages every
+tick.
+
+### 6.1 Dante is in every room (MUST)
+
+At Dante's direction, and enforced in code rather than convention:
+
+- Dante is a member of **every** channel at creation. `create_channel` adds him regardless of the
+  `participants` argument, and he cannot be removed.
+- There are **no agent-to-agent private channels.** A DM is between Dante and one agent. Two
+  agents who need to talk do it in a channel Dante is in.
+- The `war_room` kind exists for agent-initiated working sessions and is subject to the same rule.
+
+Agents are not asked to respect this. The store refuses to create a channel without him.
 
 Quoting: agents are instructed in the operating manual (§7.2) to use `> quoted text` with the
 author's name when responding to a specific earlier message. `quote_msg_id` is set when the agent

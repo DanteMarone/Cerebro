@@ -1,7 +1,7 @@
 """The agent turn loop: streaming, persistence ordering, tool rounds and failure handling."""
 
 from cerebro.hub import Hub
-from cerebro.models import Agent, Done, Message, TextDelta, ToolCallDelta
+from cerebro.models import Agent, Done, Message, ReasoningDelta, TextDelta, ToolCallDelta
 from cerebro.providers.fake import FakeProvider
 from cerebro.providers.lmstudio import ProviderUnavailable
 from cerebro.runtime import AgentRuntime
@@ -231,3 +231,39 @@ async def test_status_events_bracket_the_turn():
 
     assert statuses[0] == "thinking"
     assert statuses[-1] == "idle"
+
+
+async def test_the_placeholder_row_is_not_fed_back_to_the_model():
+    """Context is built before the empty reply is persisted.
+
+    Against gpt-oss-20b, letting the placeholder into history made the model see itself having
+    already answered with nothing, and it produced an empty reply.
+    """
+    provider = FakeProvider([TextDelta(text="real answer"), Done(reason="stop")])
+    store = MemoryStore()
+    await store.append_message(
+        Message(channel_id="c1", author_id="dante", author_kind="user", body="question?")
+    )
+    _, runtime = build(provider, store)
+
+    await runtime.run_turn(AGENT, "c1")
+
+    sent = provider.calls[0]["messages"]
+    assert [m.body for m in sent] == ["you are jarvis", "question?"]
+    assert not any(m.body == "" for m in sent)
+
+
+async def test_reasoning_is_shown_live_but_never_persisted():
+    provider = FakeProvider([
+        ReasoningDelta(text="let me think"),
+        TextDelta(text="the answer"),
+        Done(reason="stop"),
+    ])
+    hub, runtime = build(provider)
+
+    async with hub.subscribe("agent.thinking") as sub:
+        reply = await runtime.run_turn(AGENT, "c1")
+        thoughts = await drain(sub)
+
+    assert [t.payload["text"] for t in thoughts] == ["let me think"]
+    assert reply.body == "the answer"

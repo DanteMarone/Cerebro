@@ -23,7 +23,7 @@ import json
 from typing import Any, Awaitable, Callable, Protocol
 
 from cerebro.hub import Hub
-from cerebro.models import Agent, Message, TextDelta, ToolCallDelta, Usage
+from cerebro.models import Agent, Message, ReasoningDelta, TextDelta, ToolCallDelta, Usage
 from cerebro.providers.base import Params, Provider, ToolSpec
 from cerebro.providers.lmstudio import ProviderError, ProviderUnavailable
 from cerebro.turnguard import TurnGuard, new_turn_id
@@ -111,6 +111,12 @@ class AgentRuntime:
             return None
 
         provider = self.provider_for(agent)
+
+        # Build the context BEFORE persisting the placeholder. The placeholder is a real row in
+        # the channel, so reading history afterwards hands the model an empty assistant turn of
+        # its own -- against gpt-oss-20b that alone was enough to make it answer with nothing.
+        transcript = await self._context(agent, channel_id)
+
         reply = await self.store.append_message(
             Message(
                 channel_id=channel_id,
@@ -127,7 +133,7 @@ class AgentRuntime:
 
         async with self._semaphore(provider):
             try:
-                body = await self._generate(agent, channel_id, reply, provider)
+                body = await self._generate(agent, channel_id, reply, provider, transcript)
             except ProviderUnavailable as exc:
                 return await self._fail(agent, channel_id, reply, f"backend offline — {exc}")
             except ProviderError as exc:
@@ -149,11 +155,11 @@ class AgentRuntime:
         channel_id: str,
         reply: Message,
         provider: Provider,
+        transcript: list[Message],
     ) -> str:
         """Stream a completion, servicing tool calls until the model stops asking for them."""
         params = _params_for(agent)
         tools = self.tools_for(agent)
-        transcript = await self._context(agent, channel_id)
         text_parts: list[str] = []
 
         for _ in range(self.max_tool_iterations):
@@ -167,6 +173,14 @@ class AgentRuntime:
                     await self.hub.publish(
                         "message.delta",
                         {"channel_id": channel_id, "message_id": reply.id, "text": delta.text},
+                    )
+                elif isinstance(delta, ReasoningDelta):
+                    # Shown live so the user sees work happening, then discarded. It is not the
+                    # answer and must never reach the message body.
+                    await self.hub.publish(
+                        "agent.thinking",
+                        {"channel_id": channel_id, "agent_id": agent.id,
+                         "message_id": reply.id, "text": delta.text},
                     )
                 elif isinstance(delta, ToolCallDelta):
                     call = calls.setdefault(delta.id, {"name": delta.name, "args": ""})
