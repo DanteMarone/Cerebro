@@ -49,9 +49,15 @@ def save_state(
     state: dict[str, int],
     state_file: Path | None = None,
 ) -> None:
-    """Save the state dictionary atomically using a unique temporary file."""
+    """Save the state dictionary atomically, merging with existing on-disk state."""
     path = state_file or get_state_file(agent_id)
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Merge with on-disk state so concurrent writes for the same agent never regress cursors
+    current = load_state(agent_id, state_file=path)
+    merged = {**current}
+    for k, v in state.items():
+        merged[str(k)] = max(merged.get(str(k), 0), int(v))
 
     # Use unique NamedTemporaryFile in the same directory to avoid concurrent collision
     tmp_fd, tmp_name = tempfile.mkstemp(
@@ -61,7 +67,7 @@ def save_state(
     )
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2)
+            json.dump(merged, f, indent=2)
             f.write("\n")
             f.flush()
             os.fsync(f.fileno())

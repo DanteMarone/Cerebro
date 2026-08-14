@@ -135,3 +135,26 @@ def test_poll_all_channels_filters_non_member_channels(tmp_path: Path):
         assert "warroom" in unseen
         assert "secret-room" not in unseen
         assert load_state("jarvis", state_file=state_file) == {"warroom": 1}
+
+
+def test_save_state_merges_concurrent_updates(tmp_path: Path):
+    state_file = tmp_path / "state.json"
+
+    # Process 1 writes c1=50, c2=20
+    save_state("jarvis", {"c1": 50, "c2": 20}, state_file=state_file)
+
+    # Process 2 concurrently writes c1=40 (older), c2=30 (newer), c3=10
+    save_state("jarvis", {"c1": 40, "c2": 30, "c3": 10}, state_file=state_file)
+
+    loaded = load_state("jarvis", state_file=state_file)
+    assert loaded == {"c1": 50, "c2": 30, "c3": 10}
+
+
+def test_cli_missing_agent_exits_code_2(monkeypatch):
+    import pytest
+    from scripts.poll_channels import main
+
+    monkeypatch.setattr("sys.argv", ["poll_channels.py"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2
