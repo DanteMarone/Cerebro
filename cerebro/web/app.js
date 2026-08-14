@@ -3,7 +3,8 @@
  * Built with pure Preact Hyperscript (Zero-build, zero parser overhead, 100% reliable)
  */
 
-import { h, render, useState, useEffect, useRef, useCallback } from "./vendor/preact.module.js";
+import { h, render } from "./vendor/preact.module.js";
+import { useState, useEffect, useRef, useCallback } from "./vendor/hooks.module.js";
 
 function App() {
     const [channels, setChannels] = useState([]);

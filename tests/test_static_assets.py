@@ -21,6 +21,14 @@ def test_index_is_served():
     assert "<script" in resp.text
 
 
+def test_app_imports_hooks_from_hooks_module():
+    """Preact core does not export hooks; importing them there leaves the entire UI blank."""
+    app_source = client().get("/static/app.js").text
+    assert 'from "./vendor/hooks.module.js"' in app_source
+    core_import = app_source.split('from "./vendor/preact.module.js"')[0].split("import")[-1]
+    assert "useState" not in core_import
+
+
 def test_vendored_modules_are_served_as_javascript():
     """A module served as text/plain is rejected by strict MIME checking and the app is blank."""
     c = client()
