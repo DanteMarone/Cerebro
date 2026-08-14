@@ -65,7 +65,7 @@ async def test_fake_provider_streaming_and_call_recording():
 import pytest  # noqa: E402
 
 from cerebro.providers.openai_compatible import to_chat_messages  # noqa: E402
-from cerebro.providers.validate import InvalidConversation, validate_chat_turns  # noqa: E402
+from cerebro.providers.fake import InvalidConversation, validate_chat_turns  # noqa: E402
 
 
 async def _drive(provider, messages):
