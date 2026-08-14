@@ -575,3 +575,89 @@ async def sweep_expired_leases(hub: Any = None) -> list[str]:
             except Exception:
                 pass
     return resources
+
+
+# -- Tasks CRUD (§10.2) --------------------------------------------------------
+
+
+async def create_task(
+    title: str,
+    body: str = "",
+    owner_agent_id: str | None = None,
+    channel_id: str | None = None,
+    team_id: str | None = None,
+    status: str = "pending",
+    due_at: str | None = None,
+) -> dict[str, Any]:
+    """Create a durable task in the database."""
+    import uuid
+    task_id = str(uuid.uuid4())[:8]
+    now = datetime.now(timezone.utc).isoformat()
+
+    sql = """
+    INSERT INTO tasks (
+        id, title, body, owner_agent_id, channel_id, team_id, status, created_at, updated_at, due_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """
+    await _execute_write(
+        sql,
+        (task_id, title, body, owner_agent_id, channel_id, team_id, status, now, now, due_at),
+    )
+    return {
+        "id": task_id,
+        "title": title,
+        "body": body,
+        "owner_agent_id": owner_agent_id,
+        "channel_id": channel_id,
+        "team_id": team_id,
+        "status": status,
+        "created_at": now,
+        "updated_at": now,
+        "due_at": due_at,
+    }
+
+
+async def get_task(task_id: str) -> dict[str, Any] | None:
+    """Retrieve a task by ID."""
+    row = await db.fetch_one("SELECT * FROM tasks WHERE id = ?;", (task_id,))
+    return dict(row) if row else None
+
+
+async def list_tasks(
+    status: str | None = None,
+    owner_agent_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """List tasks with optional status and owner filters."""
+    query = "SELECT * FROM tasks WHERE 1=1"
+    params: list[Any] = []
+    if status:
+        query += " AND status = ?"
+        params.append(status)
+    if owner_agent_id:
+        query += " AND owner_agent_id = ?"
+        params.append(owner_agent_id)
+    query += " ORDER BY created_at DESC;"
+    rows = await db.fetch_all(query, tuple(params))
+    return [dict(r) for r in rows if r]
+
+
+async def update_task(
+    task_id: str,
+    status: str | None = None,
+    body: str | None = None,
+    due_at: str | None = None,
+) -> dict[str, Any] | None:
+    """Update a task's status, body, or due date."""
+    existing = await get_task(task_id)
+    if not existing:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    new_status = status if status is not None else existing.get("status")
+    new_body = body if body is not None else existing.get("body")
+    new_due = due_at if due_at is not None else existing.get("due_at")
+
+    sql = """
+    UPDATE tasks SET status = ?, body = ?, due_at = ?, updated_at = ? WHERE id = ?;
+    """
+    await _execute_write(sql, (new_status, new_body, new_due, now, task_id))
+    return await get_task(task_id)

@@ -168,6 +168,17 @@ To coordinate safely across shared repositories, development ports, and schemas,
 
 Cerebro records debug output to `cerebro.log` in the application directory. Error messages shown in the chat include a **View Logs** link that opens this file. Checking the log is useful when diagnosing connection issues or other problems.
 
+## Core Tools & Trust Tiers (§10.2, §8.8)
+
+Cerebro implements in-process system tools gated by trust tier:
+
+- **Trust Tiers**:
+  - `sandboxed` (default): Private agent memory and scratchpad only (`scratchpad_read`, `scratchpad_append`, `memory_write`, `memory_list`, `memory_read`). Gated from filesystem, channels, and task modification.
+  - `standard` / `full`: Expanded capabilities including `fs_read` (confined file read), `fs_list` (confined directory listing), `list_agents` / `get_agent_profile`, `create_channel` / `post_message`, and durable `task_create` / `task_list` / `task_get` / `task_update`.
+
+- **Confinement**:
+  All file access tools strictly enforce workspace and home directory confinement, preventing path traversal across boundaries.
+
 ## Staying Updated
 
 The application notifies you when an update is available. You can also check for updates manually from the **Help menu** -> **Check for Updates**.
@@ -175,3 +186,4 @@ The application notifies you when an update is available. You can also check for
 ---
 
 We hope this guide helps you make the most of Cerebro! If you have further questions or encounter issues, please refer to the project's main [README.md](https://github.com/dantemarone/cerebro/blob/main/README.md) or consider opening an issue on GitHub.
+

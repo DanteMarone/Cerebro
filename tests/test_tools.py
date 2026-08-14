@@ -238,3 +238,100 @@ async def test_the_scratchpad_is_trimmed_rather_than_growing_without_bound(tools
     read = await tools.execute(jarvis, "scratchpad_read", {}, SANDBOXED)
     assert len(read) < 60_000
     assert "older notes trimmed" in read
+
+
+# -- §8.8 Tier Differentiation & Expanded Tools ----------------------------------
+
+STANDARD = {"trust": "standard"}
+
+
+def test_standard_tier_offers_expanded_tools(tools, jarvis):
+    offered = names(tools.specs_for(jarvis, STANDARD))
+    expected = {
+        "scratchpad_read", "scratchpad_append", "memory_write", "memory_list", "memory_read",
+        "fs_read", "fs_list", "list_agents", "get_agent_profile",
+        "create_channel", "post_message", "task_create", "task_list", "task_get", "task_update",
+    }
+    assert expected <= offered
+
+
+def test_sandboxed_tier_is_refused_standard_tools(tools, jarvis):
+    offered = names(tools.specs_for(jarvis, SANDBOXED))
+    for tool_name in ("fs_read", "fs_list", "create_channel", "post_message", "task_create"):
+        assert tool_name not in offered
+
+
+async def test_sandboxed_agent_execution_of_standard_tool_is_refused(tools, jarvis):
+    result = await tools.execute(jarvis, "fs_read", {"path": "README.md"}, SANDBOXED)
+    assert "not available" in result
+
+
+async def test_fs_read_and_fs_list_within_workspace(tools, jarvis, tmp_path):
+    workspace = tmp_path
+    sample_file = workspace / "test_doc.txt"
+    sample_file.write_text("Hello from Cerebro workspace!", encoding="utf-8")
+
+    read = await tools.execute(jarvis, "fs_read", {"path": "test_doc.txt"}, STANDARD)
+    assert "Hello from Cerebro workspace!" in read
+
+    listed = await tools.execute(jarvis, "fs_list", {"path": "."}, STANDARD)
+    assert "test_doc.txt" in listed
+
+
+async def test_fs_read_escaping_workspace_is_refused(tools, jarvis, tmp_path):
+    result = await tools.execute(
+        jarvis, "fs_read", {"path": "../../outside_system.txt"}, STANDARD
+    )
+    assert "confinement violation" in result or "error" in result
+
+
+@pytest.mark.asyncio
+async def test_agent_and_channel_tools(test_db):
+    from cerebro.tools import CoreTools
+    tools_inst = CoreTools(agents_root=test_db.agents_path)
+    jarvis_agent = Agent(id="jarvis", name="jarvis", provider="lmstudio")
+
+    agents_json = await tools_inst.execute(jarvis_agent, "list_agents", {}, STANDARD)
+    assert "jarvis" in agents_json or "[]" in agents_json
+
+    chan_res = await tools_inst.execute(
+        jarvis_agent, "create_channel",
+        {"name": "test-channel", "topic": "Testing", "initial_message": "Channel ready"},
+        STANDARD,
+    )
+    assert "created channel #test-channel" in chan_res
+
+    post_res = await tools_inst.execute(
+        jarvis_agent, "post_message",
+        {"channel": "test-channel", "body": "Hello world"},
+        STANDARD,
+    )
+    assert "message posted" in post_res
+
+
+@pytest.mark.asyncio
+async def test_task_tools_lifecycle(test_db):
+    from cerebro.tools import CoreTools
+    tools_inst = CoreTools(agents_root=test_db.agents_path)
+    jarvis_agent = Agent(id="jarvis", name="jarvis", provider="lmstudio")
+
+    create_res = await tools_inst.execute(
+        jarvis_agent, "task_create",
+        {"title": "Implement feature X", "description": "Details here"},
+        STANDARD,
+    )
+    assert "task created" in create_res
+    task_id = create_res.split("id: ")[-1].rstrip(")")
+
+    list_res = await tools_inst.execute(jarvis_agent, "task_list", {}, STANDARD)
+    assert "Implement feature X" in list_res
+
+    get_res = await tools_inst.execute(jarvis_agent, "task_get", {"task_id": task_id}, STANDARD)
+    assert "Implement feature X" in get_res
+
+    update_res = await tools_inst.execute(
+        jarvis_agent, "task_update",
+        {"task_id": task_id, "status": "in_progress", "notes": "Working on it"},
+        STANDARD,
+    )
+    assert "updated" in update_res
