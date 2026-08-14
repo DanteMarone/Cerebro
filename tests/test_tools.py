@@ -12,7 +12,7 @@ well as at catalogue time.
 import pytest
 
 from cerebro.models import Agent
-from cerebro.tools import CoreTools
+from cerebro.tools import CoreTools, ToolError, _confined_path
 
 
 @pytest.fixture
@@ -90,6 +90,96 @@ async def test_writes_land_inside_the_agents_own_home(tools, jarvis, tmp_path):
     written = list((tmp_path / "jarvis" / "memory").glob("*.md"))
     assert [p.name for p in written] == ["fact.md"]
     assert "the sky is up" in written[0].read_text(encoding="utf-8")
+
+
+async def test_symlinked_note_outside_root_is_rejected_on_read(tools, jarvis, tmp_path):
+    """An attacker or compromised process creates a symlink in memory/ pointing to an
+    external secret."""
+    outside_file = tmp_path / "secret.txt"
+    outside_file.write_text("SUPER_SECRET_TOKEN", encoding="utf-8")
+
+    mem_dir = tmp_path / "jarvis" / "memory"
+    mem_dir.mkdir(parents=True, exist_ok=True)
+    symlink_file = mem_dir / "secret.md"
+
+    try:
+        symlink_file.symlink_to(outside_file)
+    except OSError:
+        pytest.skip("Symlink creation not permitted on this platform/account")
+
+    # Reading the symlink must be blocked by confinement check
+    result = await tools.execute(jarvis, "memory_read", {"name": "secret"}, SANDBOXED)
+    assert "confinement violation" in result or "error" in result
+    assert "SUPER_SECRET_TOKEN" not in result
+
+
+async def test_symlinked_note_outside_root_is_excluded_from_list(tools, jarvis, tmp_path):
+    outside_file = tmp_path / "secret.txt"
+    outside_file.write_text("SECRET", encoding="utf-8")
+
+    mem_dir = tmp_path / "jarvis" / "memory"
+    mem_dir.mkdir(parents=True, exist_ok=True)
+    symlink_file = mem_dir / "external.md"
+
+    try:
+        symlink_file.symlink_to(outside_file)
+    except OSError:
+        pytest.skip("Symlink creation not permitted on this platform/account")
+
+    # Listing must not include the escaped symlink
+    listed = await tools.execute(jarvis, "memory_list", {}, SANDBOXED)
+    assert "external.md" not in listed
+
+
+def test_confined_path_rejects_escaping_targets(tmp_path):
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+
+    with pytest.raises(ToolError, match="confinement violation"):
+        _confined_path(root, outside)
+
+    with pytest.raises(ToolError, match="confinement violation"):
+        _confined_path(root, "../outside.txt")
+
+
+def test_confined_path_allows_strictly_contained_targets(tmp_path):
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    safe = _confined_path(root, "valid.md")
+    assert safe == (root / "valid.md").resolve()
+
+
+async def test_home_outside_agents_root_is_rejected(tools, tmp_path):
+    rogue = Agent(
+        id="rogue",
+        name="rogue",
+        provider="lmstudio",
+        home_path=str(tmp_path.parent / "escape_dir"),
+    )
+    result = await tools.execute(rogue, "scratchpad_read", {}, SANDBOXED)
+    assert "confinement violation" in result
+
+
+async def test_junction_home_escaping_agents_root_is_rejected(tmp_path):
+    agents_root = tmp_path / "agents"
+    agents_root.mkdir()
+    outside_dir = tmp_path / "outside_victim"
+    outside_dir.mkdir()
+
+    junction_path = agents_root / "attacker"
+    try:
+        import _winapi
+        _winapi.CreateJunction(str(outside_dir), str(junction_path))
+    except (ImportError, OSError, AttributeError):
+        pytest.skip("Directory junction creation not available on this platform")
+
+    attacker = Agent(id="attacker", name="attacker", provider="lmstudio")
+    tools = CoreTools(agents_root=agents_root)
+
+    result = await tools.execute(attacker, "scratchpad_append", {"text": "leak"}, SANDBOXED)
+    assert "confinement violation" in result
+    assert not list(outside_dir.glob("*")), "Victim directory must not be modified"
 
 
 # -- behaviour --------------------------------------------------------------------

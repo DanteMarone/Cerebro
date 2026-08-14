@@ -52,7 +52,29 @@ class Tool:
 
 
 def _home(agent: Agent, agents_root: Path) -> Path:
-    return Path(agent.home_path) if agent.home_path else agents_root / agent.id
+    root = agents_root.resolve()
+    base = Path(agent.home_path) if agent.home_path else root / agent.id
+    resolved = base.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        raise ToolError(
+            f"confinement violation: agent home '{base}' escapes agents root '{root}'"
+        )
+    return resolved
+
+
+def _confined_path(parent_dir: Path, target_name: str | Path) -> Path:
+    """Ensure the target path is strictly confined under parent_dir after symlink resolution."""
+    parent = parent_dir.resolve()
+    target = (parent / target_name).resolve()
+    try:
+        target.relative_to(parent)
+    except ValueError:
+        raise ToolError(
+            f"confinement violation: '{target_name}' escapes allowed directory '{parent}'"
+        )
+    return target
 
 
 def _safe_name(name: str) -> str:
@@ -62,7 +84,13 @@ def _safe_name(name: str) -> str:
     hide an attempt worth seeing in the audit log.
     """
     cleaned = name.strip().replace(" ", "-")
-    if not cleaned or cleaned != Path(cleaned).name or cleaned.startswith("."):
+    if (
+        not cleaned
+        or cleaned != Path(cleaned).name
+        or cleaned.startswith(".")
+        or "/" in cleaned
+        or "\\" in cleaned
+    ):
         raise ToolError(
             f"'{name}' is not a usable note name. Use a plain name with no path separators."
         )
@@ -73,7 +101,7 @@ class CoreTools:
     """Builds the per-agent catalogue and executes calls against it."""
 
     def __init__(self, agents_root: Path) -> None:
-        self.agents_root = Path(agents_root)
+        self.agents_root = Path(agents_root).resolve()
         self._tools = {t.spec.name: t for t in self._build()}
 
     # -- catalogue ----------------------------------------------------------------
@@ -172,14 +200,17 @@ class CoreTools:
     # -- implementations ----------------------------------------------------------
 
     def _scratchpad_path(self, agent: Agent) -> Path:
-        return _home(agent, self.agents_root) / "scratchpad.md"
+        return _confined_path(_home(agent, self.agents_root), "scratchpad.md")
 
     def _memory_dir(self, agent: Agent) -> Path:
-        return _home(agent, self.agents_root) / "memory"
+        return _confined_path(_home(agent, self.agents_root), "memory")
 
     def _scratchpad_read(self, agent: Agent, args: dict) -> str:
         try:
-            text = self._scratchpad_path(agent).read_text(encoding="utf-8").strip()
+            path = self._scratchpad_path(agent)
+            text = path.read_text(encoding="utf-8").strip()
+        except ToolError as exc:
+            return f"error: {exc}"
         except OSError:
             return "(your scratchpad is empty)"
         return text or "(your scratchpad is empty)"
@@ -215,24 +246,36 @@ class CoreTools:
 
         directory = self._memory_dir(agent)
         directory.mkdir(parents=True, exist_ok=True)
+        target = _confined_path(directory, name)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         front = f"---\nwritten: {stamp}\nby: {agent.id}\n---\n\n"
-        (directory / name).write_text(front + body + "\n", encoding="utf-8")
+        target.write_text(front + body + "\n", encoding="utf-8")
         return f"saved as {name}"
 
     def _memory_list(self, agent: Agent, args: dict) -> str:
         directory = self._memory_dir(agent)
         try:
-            notes = sorted(directory.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if not directory.is_dir():
+                return "(no memory notes yet)"
+            valid_notes = []
+            for p in directory.glob("*.md"):
+                try:
+                    p.resolve().relative_to(directory.resolve())
+                    valid_notes.append(p)
+                except ValueError:
+                    continue
+            valid_notes.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         except OSError:
             return "(no memory notes yet)"
-        if not notes:
+        if not valid_notes:
             return "(no memory notes yet)"
-        return json.dumps([n.name for n in notes])
+        return json.dumps([n.name for n in valid_notes])
 
     def _memory_read(self, agent: Agent, args: dict) -> str:
         name = _safe_name(str(args.get("name") or ""))
+        directory = self._memory_dir(agent)
+        target = _confined_path(directory, name)
         try:
-            return (self._memory_dir(agent) / name).read_text(encoding="utf-8")
+            return target.read_text(encoding="utf-8")
         except OSError:
             raise ToolError(f"no note called {name}") from None
