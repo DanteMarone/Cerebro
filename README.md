@@ -129,6 +129,20 @@ Cerebro implements an automated, database-backed mutual exclusion (mutex) lock m
   ```
 * **Conflict & Expiry Enforcement**: Prevents collision across unshareable global state (`repo:<name>:HEAD`, `port:<num>`, `file:<path>`). Unrenewed leases automatically expire safely via TTL.
 
+### Lease Commit Guard (advisory)
+
+An optional pre-commit hook refuses commits touching files you do not hold a lease on. It is a
+**workflow guard, not a security boundary** — `--no-verify` bypasses it. Full detail:
+**[docs/LEASE_GUARD.md](docs/LEASE_GUARD.md)**.
+
+```bash
+git config core.hooksPath .githooks
+git config cerebro.agent <your-agent-id>
+```
+
+It asks `GET /api/leases/check` rather than reimplementing the matching rules, covers directory
+leases, requires holding both ends of a rename, and fails closed when it cannot verify.
+
 ### Usage & Quota Board (§13.2)
 
 Cerebro tracks what the team costs in two ways and never mixes them, because only one of them is

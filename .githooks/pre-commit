@@ -1,0 +1,23 @@
+#!/bin/sh
+# Cerebro lease guard — refuse commits touching files the committer does not hold (§8.7).
+#
+# Advisory only. `git commit --no-verify` bypasses this, and it is not a security boundary.
+# Enable with:  git config core.hooksPath .githooks
+#
+# Set CEREBRO_LEASE_GUARD=off to disable without --no-verify (and say so in the channel).
+
+if [ "$CEREBRO_LEASE_GUARD" = "off" ]; then
+    echo "lease-guard: disabled via CEREBRO_LEASE_GUARD=off"
+    exit 0
+fi
+
+if [ -x ".venv/Scripts/python.exe" ]; then
+    PY=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+    PY=".venv/bin/python"
+else
+    PY="python"
+fi
+
+"$PY" scripts/lease_guard.py
+exit $?

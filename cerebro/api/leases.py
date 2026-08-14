@@ -1,7 +1,7 @@
 """REST API routes for distributed mutex leases (§8.7)."""
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from cerebro import store
 from cerebro.auth import Principal, get_current_principal
@@ -148,3 +148,69 @@ async def renew_lease(
         await hub.publish("lease.acquired", lease.model_dump())
 
     return {"lease": lease.model_dump()}
+
+
+# -- path checking, for the commit guard -------------------------------------------
+#
+# The matching rules live here rather than in scripts/lease_guard.py deliberately. A guard that
+# reimplements "does this lease cover this file" drifts from the server the moment either side
+# changes, and then reports confidently using the wrong rules. The hook asks; this answers.
+
+
+def _covers(resource: str, path: str) -> bool:
+    """Does a lease on `resource` cover the repo-relative `path`?
+
+    Only `file:` leases cover paths. `repo:Cerebro:HEAD` governs moving the branch, not the contents
+    of a commit, and conflating the two would let one HEAD lease authorise editing anything.
+
+    A directory lease covers everything beneath it, because the alternative is twenty declarations
+    per slice and people quietly stop declaring.
+    """
+    if not resource.startswith("file:"):
+        return False
+
+    target = resource[len("file:"):].strip().replace("\\", "/").strip("/")
+    candidate = path.strip().replace("\\", "/").strip("/")
+    if not target:
+        return False
+    return candidate == target or candidate.startswith(target + "/")
+
+
+@router.get("/check")
+async def check_paths(
+    request: Request,
+    path: list[str] = Query(default=[], description="Repo-relative paths to check"),
+    principal: Principal = Depends(get_current_principal),
+):
+    """Report whether the authenticated principal holds a lease covering each path.
+
+    Identity comes from the bearer principal, never from a query parameter -- otherwise the guard
+    could be told whose leases to consult, which is the same hole as claiming attribution.
+    """
+    leases = await store.list_leases(
+        include_expired=False, hub=getattr(request.app.state, "hub", None)
+    )
+    is_owner = principal.id == "dante"
+
+    results = []
+    for candidate in path:
+        covering = [lease for lease in leases if _covers(lease.resource, candidate)]
+        mine = [lease for lease in covering if lease.holder_id == principal.id]
+        others = [lease for lease in covering if lease.holder_id != principal.id]
+        results.append(
+            {
+                "path": candidate,
+                "held": bool(mine) or is_owner,
+                "by_owner_override": bool(is_owner and not mine),
+                "matched_resource": mine[0].resource if mine else None,
+                "held_by": others[0].holder_id if others else None,
+                "conflicting_resource": others[0].resource if others else None,
+            }
+        )
+
+    return {
+        "principal": principal.id,
+        "is_owner": is_owner,
+        "results": results,
+        "all_held": all(r["held"] for r in results) if results else True,
+    }
