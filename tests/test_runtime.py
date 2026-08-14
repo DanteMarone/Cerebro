@@ -258,7 +258,7 @@ async def test_the_placeholder_row_is_not_fed_back_to_the_model():
     assert not any(m.body == "" for m in sent)
 
 
-async def test_reasoning_is_neither_published_nor_persisted():
+async def test_reasoning_is_neither_published_nor_persisted(tmp_path):
     """Superseded by Dante's call that thinking is private.
 
     This test previously asserted the opposite -- that reasoning was streamed live into the
@@ -272,9 +272,13 @@ async def test_reasoning_is_neither_published_nor_persisted():
         Done(reason="stop"),
     ])
     hub, runtime = build(provider)
+    # A home under tmp_path: without it the runtime writes reasoning into the *live*
+    # agents/jarvis/logs, and test fixtures end up in a real agent's private log.
+    agent = Agent(id="jarvis", name="jarvis", provider="lmstudio",
+                  home_path=str(tmp_path / "jarvis"))
 
     async with hub.subscribe() as sub:
-        reply = await runtime.run_turn(AGENT, "c1")
+        reply = await runtime.run_turn(agent, "c1")
         events = await drain(sub)
 
     assert reply.body == "the answer"
