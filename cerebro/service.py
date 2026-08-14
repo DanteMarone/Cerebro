@@ -22,6 +22,7 @@ from cerebro.context import ContextBuilder
 from cerebro.hub import Hub
 from cerebro.models import Agent
 from cerebro.persistence import StoreAdapter
+from cerebro.mcp import CompositeToolExecutor, MCPRegistry
 from cerebro.poller import ChannelPoller
 from cerebro.providers.cli_agent import CliAgentProvider
 from cerebro.providers.lmstudio import LMStudioProvider
@@ -36,6 +37,8 @@ _DEFAULT_BACKENDS = {"claude": "claude", "antigravity": "agy", "codex": "codex"}
 
 
 _CORE_TOOLS = CoreTools(agents_root=settings.agents_path)
+_MCP_REGISTRY = MCPRegistry(repo_root=Path(__file__).resolve().parent.parent)
+_COMPOSITE_TOOLS = CompositeToolExecutor(core_tools=_CORE_TOOLS, mcp_registry=_MCP_REGISTRY)
 
 
 def _profile_of(agent: Agent) -> dict:
@@ -53,13 +56,13 @@ def _profile_of(agent: Agent) -> dict:
 
 
 def _tools_for(agent: Agent):
-    return _CORE_TOOLS.specs_for(agent, _profile_of(agent))
+    return _COMPOSITE_TOOLS.specs_for(agent, _profile_of(agent))
 
 
 async def _run_tool(agent_id: str, name: str, args: dict) -> str:
     row = await store.get_agent(agent_id)
     agent = Agent(**{k: v for k, v in (row or {}).items() if k in Agent.model_fields})
-    return await _CORE_TOOLS.execute(agent, name, args, _profile_of(agent))
+    return await _COMPOSITE_TOOLS.execute(agent, name, args, _profile_of(agent))
 
 
 def build_runtime(hub: Hub) -> AgentRuntime:
