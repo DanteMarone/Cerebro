@@ -179,3 +179,39 @@ def test_deploy_refuses_a_dirty_tree(monkeypatch, capsys):
 
     assert deploy.main() == 2
     assert "working tree is dirty" in capsys.readouterr().err
+
+
+def test_deploy_exits_0_early_when_already_up_to_date(monkeypatch, capsys):
+    monkeypatch.setattr(deploy, "git_state", lambda: {
+        "head": "current1", "branch": "v2", "dirty": False, "origin": "current1"})
+    monkeypatch.setattr(deploy, "health", lambda: {
+        "status": "ok", "db": True, "running_commit": "current1",
+        "repo_commit": "current1", "stale": False, "schema_version": 4})
+    monkeypatch.setattr(sys, "argv", ["deploy.py"])
+
+    assert deploy.main() == 0
+    assert "Already up to date" in capsys.readouterr().out
+
+
+def test_deploy_refuses_when_deploy_lease_is_held(tmp_path, monkeypatch, capsys):
+    db_file = tmp_path / "cerebro.db"
+    con = sqlite3.connect(db_file)
+    con.execute(
+        "CREATE TABLE leases (resource TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT, "
+        "expires_at TEXT, ttl_seconds INTEGER, reason TEXT)"
+    )
+    con.execute(
+        "INSERT INTO leases VALUES "
+        "('service:cerebro:deploy', 'other_agent', '2026-08-14T00:00:00Z', '2099-01-01T00:00:00Z', 120, 'deploying')"
+    )
+    con.commit()
+    con.close()
+
+    _point_settings_at(monkeypatch, db_file, tmp_path)
+    monkeypatch.setattr(deploy, "git_state", lambda: {
+        "head": "abc1234", "branch": "v2", "dirty": False, "origin": "abc1234"})
+    monkeypatch.setattr(deploy, "health", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["deploy.py"])
+
+    assert deploy.main() == 2
+    assert "deployment lease 'service:cerebro:deploy' is held" in capsys.readouterr().err

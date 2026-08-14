@@ -35,7 +35,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +46,60 @@ from cerebro.config import settings  # noqa: E402
 PORT = 8765
 BASE_URL = f"http://127.0.0.1:{PORT}"
 HEALTH_TIMEOUT_S = 60
+DEPLOY_RESOURCE = "service:cerebro:deploy"
+
+
+def acquire_deploy_lease(holder: str = "deploy.py", ttl: int = 120) -> bool:
+    """Acquire the deployment mutex across the SQLite WAL lease registry (§8.7)."""
+    db_file = Path(settings.db_path)
+    if not db_file.exists():
+        return True
+    try:
+        conn = sqlite3.connect(str(db_file), timeout=5.0)
+        try:
+            conn.execute("BEGIN IMMEDIATE;")
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute("DELETE FROM leases WHERE expires_at <= ?;", (now,))
+            cur = conn.execute(
+                "SELECT holder, expires_at FROM leases WHERE resource = ?;", (DEPLOY_RESOURCE,)
+            )
+            row = cur.fetchone()
+            if row:
+                conn.rollback()
+                return False
+            expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat()
+            conn.execute(
+                "INSERT INTO leases (resource, holder, acquired_at, expires_at, ttl_seconds, reason) "
+                "VALUES (?, ?, ?, ?, ?, ?);",
+                (DEPLOY_RESOURCE, holder, now, expires, ttl, "deploying update"),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception as exc:
+        print(f"  note      lease registry unavailable ({exc}); continuing without lease")
+        return True
+
+
+def release_deploy_lease(holder: str = "deploy.py") -> None:
+    """Release the deployment mutex."""
+    db_file = Path(settings.db_path)
+    if not db_file.exists():
+        return
+    try:
+        conn = sqlite3.connect(str(db_file), timeout=5.0)
+        try:
+            conn.execute("BEGIN IMMEDIATE;")
+            conn.execute(
+                "DELETE FROM leases WHERE resource = ? AND holder = ?;",
+                (DEPLOY_RESOURCE, holder),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
 
 
 class DeployRefused(Exception):
@@ -192,6 +246,8 @@ def report(label: str, state: dict | None) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="report only, change nothing")
+    parser.add_argument("--force", action="store_true",
+                        help="deploy even if the service is already running the current repo HEAD")
     parser.add_argument("--no-restart", action="store_true", help="back up and verify only")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="deploy with uncommitted changes (what runs will not be what is committed)")
@@ -210,10 +266,6 @@ def main() -> int:
             print("\n  not running")
             return 1
         if before.get("running_commit") is None:
-            # Caught by running this against the live server the first time: it answered health
-            # happily, reported stale=None because it predates the field, and --check cheerfully
-            # said "up to date" about a process it could not interrogate. An unanswerable question
-            # is not a yes. This is the same fail-closed rule as the lease guard.
             print(
                 "\n  CANNOT DETERMINE: this server does not report its running commit, so it "
                 "predates\n  the version-visibility change -- which means it is stale by "
@@ -226,6 +278,14 @@ def main() -> int:
         print("\n  up to date")
         return 0
 
+    # If running commit already matches and is not stale, exit 0 early unless --force
+    if not args.force and not args.no_restart and before and not before.get("stale"):
+        if before.get("running_commit") == git["head"]:
+            print("\n  Already up to date (running commit matches repo HEAD). Use --force to redeploy.")
+            return 0
+
+    holder = f"deploy.py:{git['head']}"
+    lease_acquired = False
     try:
         if git["dirty"] and not args.allow_dirty:
             raise DeployRefused(
@@ -236,6 +296,13 @@ def main() -> int:
         if git["origin"] and not git["origin"].startswith(git["head"][:7]) \
                 and not git["head"].startswith(git["origin"][:7]):
             print(f"  note      HEAD {git['head']} differs from origin {git['origin']}")
+
+        if not acquire_deploy_lease(holder):
+            raise DeployRefused(
+                "deployment lease 'service:cerebro:deploy' is held by another process. "
+                "Wait or release it before deploying."
+            )
+        lease_acquired = True
 
         backup()
         if args.no_restart:
@@ -256,6 +323,9 @@ def main() -> int:
     except DeployRefused as exc:
         print(f"\n  REFUSED: {exc}", file=sys.stderr)
         return 2
+    finally:
+        if lease_acquired:
+            release_deploy_lease(holder)
 
 
 if __name__ == "__main__":
