@@ -2,13 +2,14 @@
 
 Polls the Cerebro HTTP API (/api/channels) for new messages in channels where the
 specified agent is an enrolled member. Uses positive bearer token authentication
-from `.secrets.env` and maintains an atomic state cursor file.
+from `.secrets.env` and maintains an atomic, isolated per-agent state cursor file.
 """
 
 import argparse
 import json
 import os
 import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,15 +24,16 @@ from cerebro.auth import TokenStore  # noqa: E402
 from cerebro.config import settings  # noqa: E402
 
 
-def get_state_file(data_dir: Path | None = None) -> Path:
-    """Return path to the agent seen message state file."""
+def get_state_file(agent_id: str, data_dir: Path | None = None) -> Path:
+    """Return path to the isolated per-agent seen message state file."""
     base = Path(data_dir) if data_dir else settings.data_dir
-    return base / ".agent_seen.json"
+    safe_agent = agent_id.replace("/", "_").replace("\\", "_").replace("..", "_")
+    return base / f".agent_seen_{safe_agent}.json"
 
 
-def load_state(state_file: Path | None = None) -> dict[str, int]:
-    """Load the state dictionary mapping agent:channel -> last seen message ID."""
-    path = state_file or get_state_file()
+def load_state(agent_id: str, state_file: Path | None = None) -> dict[str, int]:
+    """Load the state dictionary mapping channel_id -> last seen message ID for an agent."""
+    path = state_file or get_state_file(agent_id)
     if path.exists():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -42,13 +44,35 @@ def load_state(state_file: Path | None = None) -> dict[str, int]:
     return {}
 
 
-def save_state(state: dict[str, int], state_file: Path | None = None) -> None:
-    """Save the state dictionary atomically using a temporary file."""
-    path = state_file or get_state_file()
+def save_state(
+    agent_id: str,
+    state: dict[str, int],
+    state_file: Path | None = None,
+) -> None:
+    """Save the state dictionary atomically using a unique temporary file."""
+    path = state_file or get_state_file(agent_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp_path, path)
+
+    # Use unique NamedTemporaryFile in the same directory to avoid concurrent collision
+    tmp_fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=f".agent_seen_{agent_id}_",
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        if os.path.exists(tmp_name):
+            try:
+                os.remove(tmp_name)
+            except OSError:
+                pass
+        raise
 
 
 def get_agent_token(
@@ -82,7 +106,12 @@ def fetch_channels(
     except urllib.error.HTTPError as e:
         print(f"[AUTH ERROR {e.code}] {agent_id}: {e.reason}", file=sys.stderr)
         return []
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+        OSError,
+    ) as e:
         print(f"[NETWORK ERROR] fetch_channels({agent_id}): {e}", file=sys.stderr)
         return []
 
@@ -115,8 +144,8 @@ def fetch_channel_members(
 
 def fetch_messages(
     channel_id: str,
+    agent_id: str,
     after_id: int | None = None,
-    agent_id: str = "antigravity",
     base_url: str = "http://127.0.0.1:8765",
     token: str | None = None,
 ) -> list[dict]:
@@ -144,8 +173,8 @@ def fetch_messages(
 
 def post_message(
     channel_id: str,
+    agent_id: str,
     content: str,
-    agent_id: str = "antigravity",
     base_url: str = "http://127.0.0.1:8765",
     token: str | None = None,
 ) -> dict | None:
@@ -180,55 +209,89 @@ def post_message(
 
 
 def poll_all_channels(
-    agent_id: str = "antigravity",
+    agent_id: str,
     base_url: str = "http://127.0.0.1:8765",
     update_state: bool = True,
     state_file: Path | None = None,
+    token: str | None = None,
 ) -> dict[str, list[dict]]:
     """Poll only channels where the agent is an enrolled member."""
-    state = load_state(state_file)
-    agent_key_prefix = f"{agent_id}:"
-    channels = fetch_channels(agent_id=agent_id, base_url=base_url)
+    state = load_state(agent_id, state_file=state_file)
+    tok = token or get_agent_token(agent_id)
+    channels = fetch_channels(agent_id=agent_id, base_url=base_url, token=tok)
     unseen: dict[str, list[dict]] = {}
 
     for ch in channels:
         ch_id = ch["id"]
         # Verify agent membership before querying channel messages
-        members = fetch_channel_members(ch_id, agent_id=agent_id, base_url=base_url)
+        members = fetch_channel_members(
+            channel_id=ch_id,
+            agent_id=agent_id,
+            base_url=base_url,
+            token=tok,
+        )
         if not any(m.get("member_id") == agent_id for m in members):
             continue
 
-        last_id = state.get(f"{agent_key_prefix}{ch_id}", 0)
-        messages = fetch_messages(ch_id, after_id=last_id, agent_id=agent_id, base_url=base_url)
+        last_id = state.get(ch_id, 0)
+        messages = fetch_messages(
+            channel_id=ch_id,
+            agent_id=agent_id,
+            after_id=last_id,
+            base_url=base_url,
+            token=tok,
+        )
         if messages:
             unseen[ch_id] = messages
             if update_state:
                 max_id = max(m["id"] for m in messages if "id" in m)
-                state[f"{agent_key_prefix}{ch_id}"] = max(last_id, max_id)
+                state[ch_id] = max(last_id, max_id)
 
     if update_state and unseen:
-        save_state(state, state_file)
+        save_state(agent_id, state, state_file=state_file)
     return unseen
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Poll Cerebro channels for new messages.")
-    parser.add_argument(
-        "--agent", default="antigravity", help="Agent identifier to authenticate as."
+    parser = argparse.ArgumentParser(
+        description="Poll Cerebro channels for new messages or post as an agent."
     )
     parser.add_argument(
-        "--base-url", default="http://127.0.0.1:8765", help="Cerebro API base URL."
+        "--agent",
+        required=True,
+        help="Agent identifier to authenticate as (e.g. 'antigravity', 'claude', 'codex').",
     )
-    parser.add_argument("--no-state", action="store_true", help="Do not persist read cursor state.")
-    parser.add_argument("--post", help="Post a message to a channel specified by --channel.")
-    parser.add_argument("--channel", default="warroom", help="Target channel for --post.")
+    parser.add_argument(
+        "--base-url",
+        default="http://127.0.0.1:8765",
+        help="Cerebro API base URL (default: http://127.0.0.1:8765).",
+    )
+    parser.add_argument(
+        "--no-state",
+        action="store_true",
+        help="Do not persist read cursor state to disk.",
+    )
+    parser.add_argument(
+        "--post",
+        help="Post a message string to the channel specified by --channel.",
+    )
+    parser.add_argument(
+        "--channel",
+        default="warroom",
+        help="Target channel for --post (default: 'warroom').",
+    )
     args = parser.parse_args()
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     if args.post:
-        res = post_message(args.channel, args.post, agent_id=args.agent, base_url=args.base_url)
+        res = post_message(
+            channel_id=args.channel,
+            agent_id=args.agent,
+            content=args.post,
+            base_url=args.base_url,
+        )
         if res:
             print(f"Posted to #{args.channel}: message ID {res.get('id')}")
         else:

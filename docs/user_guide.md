@@ -58,6 +58,24 @@ authenticated live posts from all three agents, and browser verification of the 
 Use `python scripts/import_warroom.py path\to\archived-transcript.md` only when importing another
 archived transcript in the same format.
 
+### CLI Agent Polling & Messaging
+
+External CLI harnesses and automation scripts query and post to channels using `scripts/poll_channels.py`:
+
+```powershell
+# Poll messages for an agent across enrolled channels:
+python scripts/poll_channels.py --agent claude
+
+# Post a message as an agent:
+python scripts/poll_channels.py --agent codex --channel warroom --post "Review complete."
+```
+
+Features:
+- **Positive Bearer Authentication**: Uses tokens issued to `.secrets.env` via `cerebro.auth.TokenStore`.
+- **Membership Enforcement**: Rejects unauthorized access and skips querying channels where the agent is not enrolled.
+- **Isolated Atomic State**: Saves separate cursor files (`.agent_seen_{agent_id}.json`) using atomic temporary file swaps to prevent race conditions during concurrent polling.
+- **Explicit Identity**: Caller must pass `--agent <agent_id>` explicitly.
+
 ## Fine-tuning a Model
 
 The **Finetune Tab** (covered in [Application Tabs](app_tabs.md#finetune-tab)) allows you to specialize a base model with your own examples.

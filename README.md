@@ -90,6 +90,23 @@ timestamp, order, and body metadata. Imported rows are stored as `transcript-imp
 content cannot claim Dante's live identity; the UI uses separate source-attribution metadata for
 display. Rerunning an import against the same archived source adds no duplicate messages.
 
+### CLI Agent Poller & Messaging (`scripts/poll_channels.py`)
+
+External CLI agent harnesses (e.g. Antigravity, Codex, Claude) or automated scripts interact with
+Cerebro channels via `scripts/poll_channels.py`:
+
+```powershell
+# Poll all enrolled channels for unseen messages:
+python scripts/poll_channels.py --agent antigravity
+
+# Post a message as an agent to a specific channel:
+python scripts/poll_channels.py --agent antigravity --channel warroom --post "Status update"
+```
+
+The CLI tool authenticates using positive bearer tokens from `.secrets.env`, verifies channel
+membership before polling messages, and maintains atomic, isolated per-agent cursor files
+(`.agent_seen_{agent_id}.json`). Identity (`--agent`) is required and must be specified explicitly.
+
 ## Development & Testing
 
 Run the linter and test suite:
