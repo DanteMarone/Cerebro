@@ -354,3 +354,65 @@ async def test_a_stale_placeholder_is_swept_but_a_live_one_is_not(test_db):
     assert stale not in remaining, "the dead placeholder should be gone"
     assert fresh in remaining, "a turn still in flight must not be swept"
     assert real in remaining
+
+
+async def test_start_schedules_the_sweeper_and_stop_cancels_it(test_db):
+    """Codex refused 9c4bd33 partly on this: the sweep test called the method directly.
+
+    A periodic task that is never scheduled passes that test perfectly. Proving the predicate says
+    nothing about whether the loop runs, which is the same shape as every other failure today — an
+    assertion about a component standing in for evidence about the system.
+    """
+    import asyncio
+
+    from cerebro.hub import Hub
+    from cerebro.service import RuntimeService
+
+    service = RuntimeService(Hub())
+    assert service._sweeper is None, "nothing should be scheduled before start"
+
+    await service.start()
+    sweeper = service._sweeper
+    try:
+        assert sweeper is not None, "start() did not schedule the sweeper"
+        assert not sweeper.done(), "the sweeper exited immediately"
+    finally:
+        await service.stop()
+
+    await asyncio.sleep(0)
+    assert service._sweeper is None, "stop() left the sweeper scheduled"
+    assert sweeper.done(), "stop() did not cancel the scheduled sweeper task"
+
+
+async def test_the_sweeper_survives_a_failing_pass(test_db, monkeypatch):
+    """One bad sweep must not silently end the loop -- that would restore the original bug."""
+    import asyncio
+
+    from cerebro.hub import Hub
+    from cerebro.service import RuntimeService
+
+    service = RuntimeService(Hub())
+    calls = []
+    repeated = asyncio.Event()
+    real_sleep = asyncio.sleep
+
+    async def boom(*args, **kwargs):
+        calls.append(1)
+        if len(calls) >= 2:
+            repeated.set()
+        raise RuntimeError("database hiccup")
+
+    async def yield_immediately(_seconds):
+        await real_sleep(0)
+
+    monkeypatch.setattr(service, "_sweep_orphaned_placeholders", boom)
+    monkeypatch.setattr("cerebro.service.asyncio.sleep", yield_immediately)
+
+    task = asyncio.create_task(service._sweep_loop())
+    try:
+        await asyncio.wait_for(repeated.wait(), timeout=1)
+    finally:
+        task.cancel()
+        await task
+
+    assert len(calls) > 1, "the loop stopped after the first failure"
