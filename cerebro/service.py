@@ -25,12 +25,40 @@ from cerebro.poller import ChannelPoller
 from cerebro.providers.cli_agent import CliAgentProvider
 from cerebro.providers.lmstudio import LMStudioProvider
 from cerebro.runtime import AgentRuntime
+from cerebro.tools import CoreTools
 from cerebro.turnguard import TurnGuard, TurnLimits, new_turn_id
 
 logger = logging.getLogger(__name__)
 
 # Which harness each seeded agent is, absent an explicit backend in its profile.
 _DEFAULT_BACKENDS = {"claude": "claude", "antigravity": "agy", "codex": "codex"}
+
+
+_CORE_TOOLS = CoreTools(agents_root=settings.agents_path)
+
+
+def _profile_of(agent: Agent) -> dict:
+    """The agent's profile.json, which carries its trust tier (§8.8).
+
+    Read from disk rather than the database row because trust is Dante's decision, recorded in a
+    file he edits; §8.3 forbids an agent writing its own profile, which is what keeps a sandboxed
+    agent from promoting itself.
+    """
+    path = settings.agents_path / agent.id / "profile.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _tools_for(agent: Agent):
+    return _CORE_TOOLS.specs_for(agent, _profile_of(agent))
+
+
+async def _run_tool(agent_id: str, name: str, args: dict) -> str:
+    row = await store.get_agent(agent_id)
+    agent = Agent(**{k: v for k, v in (row or {}).items() if k in Agent.model_fields})
+    return await _CORE_TOOLS.execute(agent, name, args, _profile_of(agent))
 
 
 def build_runtime(hub: Hub) -> AgentRuntime:
@@ -44,6 +72,8 @@ def build_runtime(hub: Hub) -> AgentRuntime:
         store=StoreAdapter(),
         provider_for=_provider_for,
         guard=TurnGuard(limits),
+        tools_for=_tools_for,
+        tool_executor=_run_tool,
         concurrency={
             "lmstudio": settings.lmstudio_concurrency,
             "gemini": settings.gemini_concurrency,
