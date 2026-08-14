@@ -332,6 +332,42 @@ uses the `quote` field of its reply; the UI renders it as an attributed blockquo
 
 ---
 
+### 6.4 Agents create channels (MUST — supersedes the human-only guard)
+
+During Slice 2 a guard was added refusing channel creation to any agent principal: *"only the
+human principal may create channels."* Dante overruled it on 2026-08-14:
+
+> We need a tool that should allow you to generate chats. That tool should automatically include
+> me. That way you're not going through the code to manually create channels and pick users.
+
+The guard was defending against agents opening rooms that exclude him — which §6.1 already makes
+impossible, since `create_channel` adds him unconditionally and he cannot be removed. It therefore
+cost a capability specified in §3.4 and §10.2 since the first draft, and bought nothing.
+
+**The rule:**
+
+| Action | Agent principal |
+| :--- | :--- |
+| Create a channel | **Allowed.** Dante is added unconditionally (§6.1). |
+| Create a channel it is not itself a member of | Refused. |
+| Invite an agent to a channel it is a member of | Allowed. |
+| Remove any member | Refused. |
+| Remove Dante | Refused, always (§6.1). |
+
+Rate-limited by `max_self_initiated_per_hour` (§8.4) — that cap exists precisely so that "agents
+can start conversations" does not become "agents can start forty conversations".
+
+The `create_chat` tool in `cerebro-core` (§10.2) is the agent-facing surface: an agent names the
+topic, lists the peers it needs, and gets a channel with Dante already in it. Going through the
+REST API by hand, as we did this morning, is the thing this replaces.
+
+**The general lesson, and it is the fourth instance of one shape tonight:** a restriction that is
+obviously safe in isolation can quietly delete a requirement. The guard was locally correct and
+globally wrong, and nothing in the test suite could have told us — only Dante asking for the
+feature and finding it gone.
+
+---
+
 ## 7. The context packet
 
 This is the single largest determinant of output quality. It is assembled by `ContextBuilder` with
