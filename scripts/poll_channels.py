@@ -57,7 +57,7 @@ def save_state(
     path = state_file or get_state_file(agent_id)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Merge with on-disk state so concurrent writes for the same agent never regress cursors
+    # Merge with on-disk state so monotonic cursors are preserved across successive saves
     current = load_state(agent_id, state_file=path)
     merged = {**current}
     for k, v in state.items():
