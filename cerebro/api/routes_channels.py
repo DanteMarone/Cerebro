@@ -135,15 +135,29 @@ async def get_channel_members_list(channel_id: str):
 async def add_channel_member(
     channel_id: str,
     req: AddMemberRequest,
+    request: Request,
     principal: Principal = Depends(get_current_principal),
 ):
-    """Add a member to a channel. Only the human principal may administer members."""
-    if principal.is_agent:
-        raise HTTPException(status_code=403, detail="Agent member administration not permitted")
+    """Add a member (§6.4).
 
+    An agent may invite peers into a channel it is already in — that is the point of an agent
+    recruiting the expertise it needs. It may not add members to rooms it is not part of, and
+    removal stays human-only.
+    """
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+
+    if principal.is_agent:
+        roster = await store.get_channel_members(channel_id)
+        if not any(m["member_id"] == principal.id for m in roster):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Agent '{principal.id}' is not a member of '{channel_id}' and cannot "
+                    "invite others into it (§6.4)."
+                ),
+            )
 
     await store.add_channel_member(
         channel_id=channel_id,
@@ -152,6 +166,11 @@ async def add_channel_member(
         listen_mode=req.listen_mode,
     )
     members = await store.get_channel_members(channel_id)
+
+    hub: Any = getattr(request.app.state, "hub", None)
+    if hub is not None:
+        await hub.publish("channel.update", {"channel": channel, "members": members})
+
     return {"ok": True, "members": members}
 
 

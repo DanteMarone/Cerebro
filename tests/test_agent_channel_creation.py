@@ -110,3 +110,32 @@ async def test_creating_a_channel_publishes_channel_new(agent_token):
 
     assert event.payload["channel"]["id"] == "live-update"
     assert {m["member_id"] for m in event.payload["members"]} >= {"claude", "dante"}
+
+
+async def test_agent_can_invite_a_peer_into_a_channel_it_is_in(agent_token):
+    resp = await create(agent_token, name="Recruiting", id="recruiting", member_ids=["claude"])
+    assert resp.status_code == 201
+
+    async with client() as c:
+        added = await c.post(
+            "/api/channels/recruiting/members",
+            json={"member_id": "jarvis", "member_kind": "agent"},
+            headers=auth(agent_token),
+        )
+    assert added.status_code == 201, added.text
+    assert "jarvis" in {m["member_id"] for m in added.json()["members"]}
+
+
+async def test_agent_cannot_invite_into_a_channel_it_is_not_in(agent_token):
+    """Recruiting into someone else's room is administering a conversation you are not part of."""
+    await store.create_channel(channel_id="not-ours", name="Not Ours",
+                               team_id="personal-assistant", kind="topic")
+
+    async with client() as c:
+        resp = await c.post(
+            "/api/channels/not-ours/members",
+            json={"member_id": "jarvis", "member_kind": "agent"},
+            headers=auth(agent_token),
+        )
+    assert resp.status_code == 403
+    assert "not a member" in resp.text
