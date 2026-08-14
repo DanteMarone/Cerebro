@@ -64,7 +64,6 @@ async def test_fake_provider_streaming_and_call_recording():
 
 import pytest  # noqa: E402
 
-from cerebro.providers.openai_compatible import to_chat_messages  # noqa: E402
 from cerebro.providers.fake import InvalidConversation, validate_chat_turns  # noqa: E402
 
 
@@ -89,29 +88,13 @@ async def test_consecutive_system_turns_are_rejected():
         await _drive(provider, [_sys("identity"), _sys("house rules"), _user()])
 
 
-async def test_an_empty_assistant_turn_never_reaches_the_wire():
-    """Handled by removal rather than rejection, and the distinction is worth stating.
-
-    The mapper drops an empty assistant turn carrying no tool_calls, so it cannot reach a model —
-    which is the guarantee that matters, since an empty assistant message is what convinces a
-    model it has already answered. The validator would reject one; it never sees one.
-
-    That leaves a real gap rather than a closed one: the mapper is a safety net for rows persisted
-    by older code, so a *new* source of empty assistant turns would be silently absorbed instead of
-    reported. The rows themselves are what the periodic sweep removes.
-    """
+async def test_an_empty_assistant_turn_is_rejected_by_fake_provider():
+    """FakeProvider must reject empty non-tool assistant turns before lossy mapping."""
     provider = FakeProvider([Done(reason="stop")], self_id="jarvis")
     empty = Message(channel_id="c", author_id="jarvis", author_kind="agent", body="")
 
-    await _drive(provider, [_sys(), _user(), empty, _user("still there?")])
-
-    sent = to_chat_messages(provider.calls[0]["messages"], "jarvis")
-    assert not any(
-        t["role"] == "assistant"
-        and not t.get("tool_calls")
-        and not (t.get("content") or "").strip()
-        for t in sent
-    )
+    with pytest.raises(InvalidConversation, match="empty assistant turn"):
+        await _drive(provider, [_sys(), _user(), empty, _user("still there?")])
 
 
 def test_the_validator_would_reject_an_empty_assistant_turn():

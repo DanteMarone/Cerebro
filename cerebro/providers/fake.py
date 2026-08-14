@@ -1,6 +1,7 @@
 """FakeProvider implementation for test scripting and verification."""
 
 import asyncio
+import json
 from typing import Any, AsyncIterator
 
 from cerebro.models import (
@@ -81,10 +82,10 @@ class FakeProvider:
 
         Validates the conversation first. A fake that accepts more than a real model does is not a
         test double, it is a way of not testing: three of Cerebro's first six silent failures were
-        green here and dead against qwen3.6-27b. Validation runs on the mapped outbound shape —
-        the same turns a real provider would put on the wire — so what passes here is what a model
-        could actually have understood.
+        green here and dead against qwen3.6-27b. Validation runs on the incoming messages (before
+        lossy to_chat_messages mapping) and on the mapped outbound shape.
         """
+        validate_input_messages(list(messages), self.self_id)
         validate_chat_turns(to_chat_messages(list(messages), self.self_id))
 
         self.calls.append(
@@ -99,6 +100,31 @@ class FakeProvider:
             if self.delay_s > 0:
                 await asyncio.sleep(self.delay_s)
             yield delta
+
+
+def validate_input_messages(messages: list[Message], self_id: str) -> None:
+    """Validate raw Message objects before to_chat_messages mapping.
+
+    Rejects empty assistant turns carrying no tool_calls so malformed turns are not
+    silently absorbed by lossy mapping.
+    """
+    for index, msg in enumerate(messages):
+        is_assistant = (msg.author_kind == "agent" and msg.author_id == self_id)
+        if is_assistant:
+            has_text = bool((msg.body or "").strip())
+            tool_calls = None
+            if msg.meta_json:
+                try:
+                    meta = json.loads(msg.meta_json)
+                    if isinstance(meta, dict):
+                        tool_calls = meta.get("tool_calls")
+                except (json.JSONDecodeError, TypeError):
+                    tool_calls = None
+            if not has_text and not tool_calls:
+                raise InvalidConversation(
+                    f"message {index}: empty assistant turn carrying no tool_calls. "
+                    "An empty assistant turn convinces a model it has already answered."
+                )
 
 # -- what a real chat template quietly refuses ------------------------------------
 #
