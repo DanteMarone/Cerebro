@@ -28,8 +28,20 @@ from cerebro.providers.base import Params, Provider, ToolSpec
 from cerebro.providers.lmstudio import ProviderError, ProviderUnavailable
 from cerebro.turnguard import TurnGuard, new_turn_id
 
+PASS_TOKEN = "PASS"
 DEFAULT_HISTORY_WINDOW = 30
 DEFAULT_MAX_TOOL_ITERATIONS = 12
+
+
+def is_pass(body: str) -> bool:
+    """Did the agent decline to speak?
+
+    Deliberately strict: exactly PASS, ignoring case and surrounding whitespace and a trailing
+    full stop. A model that writes "PASS - nothing to add here" has said something, and treating
+    that as silence would swallow real content. Better to occasionally show a short message than
+    to occasionally hide one.
+    """
+    return body.strip().rstrip(".").upper() == PASS_TOKEN
 
 
 class Persistence(Protocol):
@@ -42,6 +54,8 @@ class Persistence(Protocol):
     async def append_message(self, message: Message) -> Message: ...
 
     async def update_message_body(self, message_id: int, body: str) -> None: ...
+
+    async def delete_message(self, message_id: int) -> None: ...
 
     async def history(self, channel_id: str, limit: int) -> list[Message]: ...
 
@@ -140,6 +154,19 @@ class AgentRuntime:
                 return await self._fail(agent, channel_id, reply, f"provider error — {exc}")
             except Exception as exc:  # noqa: BLE001 - an agent must never take the process down
                 return await self._fail(agent, channel_id, reply, f"unexpected error — {exc!r}")
+
+        if is_pass(body):
+            # §6: deciding and speaking are the same call. An agent with nothing to add replies
+            # PASS, and PASS is discarded rather than persisted -- otherwise every poll of every
+            # agent would leave a row saying "nothing to say", and the channel would fill with
+            # silence made visible.
+            await self.store.delete_message(reply.id)
+            await self._status(agent, channel_id, "idle")
+            await self.hub.publish(
+                "message.discarded",
+                {"channel_id": channel_id, "message_id": reply.id, "agent_id": agent.id},
+            )
+            return None
 
         reply.body = body
         await self.store.update_message_body(reply.id, body)

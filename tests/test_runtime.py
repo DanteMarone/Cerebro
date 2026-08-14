@@ -27,6 +27,9 @@ class MemoryStore:
             if m.id == message_id:
                 m.body = body
 
+    async def delete_message(self, message_id: int) -> None:
+        self.messages = [m for m in self.messages if m.id != message_id]
+
     async def history(self, channel_id: str, limit: int) -> list[Message]:
         return [m for m in self.messages if m.channel_id == channel_id][-limit:]
 
@@ -285,3 +288,34 @@ async def test_message_done_uses_the_same_envelope_as_message_new():
         assert event.payload["message"]["id"] == reply.id, etype
     done = next(e for e in events if e.type == "message.done")
     assert done.payload["message"]["body"] == "final"
+
+
+async def test_a_pass_reply_is_discarded_and_leaves_no_row():
+    """§6: an agent with nothing to add says PASS, and PASS must not become a message.
+
+    Otherwise every poll of every agent leaves a row saying "nothing to say", and the channel
+    fills with silence made visible.
+    """
+    provider = FakeProvider([TextDelta(text="PASS"), Done(reason="stop")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
+
+    async with hub.subscribe("message.discarded") as sub:
+        result = await runtime.run_turn(AGENT, "c1")
+        discarded = await drain(sub)
+
+    assert result is None
+    assert store.messages == []
+    assert len(discarded) == 1
+
+
+async def test_pass_matching_is_strict():
+    """"PASS - nothing to add" has said something; treating it as silence would hide content."""
+    from cerebro.runtime import is_pass
+
+    assert is_pass("PASS")
+    assert is_pass("  pass  ")
+    assert is_pass("Pass.")
+    assert not is_pass("PASS - nothing to add")
+    assert not is_pass("I'll pass on this one")
+    assert not is_pass("")

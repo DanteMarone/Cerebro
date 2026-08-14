@@ -40,6 +40,11 @@ class StoreAdapter:
         )
         await future
 
+    async def delete_message(self, message_id: int) -> None:
+        """Remove a row. Used for discarded PASS replies, which must leave no trace."""
+        future = await db.enqueue_write("DELETE FROM messages WHERE id = ?;", (message_id,))
+        await future
+
     async def history(self, channel_id: str, limit: int) -> list[Message]:
         """The most recent `limit` messages, oldest first.
 
