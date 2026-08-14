@@ -52,3 +52,20 @@ def test_stylesheet_is_served_as_css():
     resp = c.get("/static/style.css")
     assert resp.status_code == 200
     assert resp.headers["content-type"].split(";")[0] == "text/css"
+
+
+def test_app_js_implements_turn_scoped_indicator_contract():
+    """app.js must key and render turn activity by turn_id with terminal event clearing."""
+    app_source = client().get("/static/app.js").text
+    assert "activeTurns" in app_source
+    assert "turn-activity-row" in app_source
+    assert 'data-turn-id' in app_source
+    assert "turn.cancelled" in app_source
+    assert "agent.activity" in app_source
+
+
+def test_stylesheet_contains_turn_activity_styles():
+    """style.css must contain animations and styling for ephemeral turn activity rows."""
+    css_source = client().get("/static/style.css").text
+    assert ".turn-activity-row" in css_source
+    assert ".thinking-spinner" in css_source

@@ -1,6 +1,7 @@
 """The agent turn loop: streaming, persistence ordering, tool rounds and failure handling."""
 
 import json
+import pytest
 
 from cerebro.hub import Hub
 from cerebro.models import Agent, Done, Message, ReasoningDelta, TextDelta, ToolCallDelta
@@ -488,3 +489,81 @@ async def test_no_empty_placeholder_rows_created_during_generation():
     # Only upon completion does the single completed row appear
     assert len(store.messages) == 1
     assert store.messages[0].id == reply.id
+
+
+async def test_same_agent_overlapping_turns_have_distinct_turn_ids():
+    """Two turns for the same agent carry distinct turn_ids on events and persistence."""
+    import asyncio
+
+    store = MemoryStore()
+    hub = Hub()
+
+    provider_slow = FakeProvider([TextDelta(text="first reply"), Done(reason="stop")], delay_s=0.06)
+    provider_fast = FakeProvider([TextDelta(text="second reply"), Done(reason="stop")], delay_s=0.0)
+
+    call_count = [0]
+
+    def provider_for(agent: Agent):
+        call_count[0] += 1
+        return provider_slow if call_count[0] == 1 else provider_fast
+
+    runtime = AgentRuntime(
+        hub=hub,
+        store=store,
+        provider_for=provider_for,
+    )
+
+    async with hub.subscribe("agent.activity") as sub:
+        task1 = asyncio.create_task(runtime.run_turn(AGENT, "c1", turn_id="turn_A"))
+        await asyncio.sleep(0.01)
+        task2 = asyncio.create_task(runtime.run_turn(AGENT, "c1", turn_id="turn_B"))
+        await asyncio.gather(task1, task2)
+        events = await drain(sub)
+
+    turn_ids = {e.payload.get("turn_id") for e in events if "turn_id" in e.payload}
+    assert turn_ids == {"turn_A", "turn_B"}
+
+    # Fast turn (turn_B) finishes first, then slow turn (turn_A)
+    assert store.messages[0].turn_id == "turn_B"
+    assert store.messages[0].body == "second reply"
+    assert store.messages[1].turn_id == "turn_A"
+    assert store.messages[1].body == "first reply"
+
+
+async def test_cancelled_turn_emits_terminal_activity_event_and_leaves_no_rows():
+    """A cancelled turn publishes turn.cancelled with turn_id and leaves zero database rows."""
+    import asyncio
+
+    store = MemoryStore()
+    hub = Hub()
+
+    class HangingProvider:
+        name = "lmstudio"
+
+        async def stream(self, messages, tools, params):
+            await asyncio.sleep(10)
+            yield TextDelta(text="never reached")
+            yield Done(reason="stop")
+
+    runtime = AgentRuntime(
+        hub=hub,
+        store=store,
+        provider_for=lambda a: HangingProvider(),
+    )
+
+    async with hub.subscribe("*") as sub:
+        task = asyncio.create_task(runtime.run_turn(AGENT, "c1", turn_id="turn_cancelled_1"))
+        await asyncio.sleep(0.02)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        events = await drain(sub)
+
+    kinds = [e.type for e in events]
+    assert "turn.cancelled" in kinds
+    cancelled_event = next(e for e in events if e.type == "turn.cancelled")
+    assert cancelled_event.payload["turn_id"] == "turn_cancelled_1"
+    assert cancelled_event.payload["agent_id"] == "jarvis"
+
+    # Zero rows created in database
+    assert store.messages == []

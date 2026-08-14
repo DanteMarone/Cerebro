@@ -324,95 +324,23 @@ async def test_an_agent_does_not_wake_itself_with_its_own_reply(clock):
     assert await poller.tick() == 0, "the agent woke itself with its own reply"
 
 
-async def test_a_stale_placeholder_is_swept_but_a_live_one_is_not(test_db):
-    """A turn that dies mid-flight leaves an empty row nothing ever revisits.
-
-    The startup sweep only catches placeholders from a previous run. This is the third time Dante
-    has seen an agent apparently replying with silence, and each time the row was a corpse rather
-    than a slow answer. The age threshold is the turn wallclock cap, so a legitimately slow model
-    is never swept out from under itself.
-    """
+async def test_startup_sweep_cleans_legacy_placeholders(test_db):
+    """At startup, RuntimeService sweeps legacy empty agent rows while preserving valid messages."""
     from cerebro import db, store
     from cerebro.hub import Hub
     from cerebro.service import RuntimeService
 
     await store.create_channel(channel_id="c1", name="c1", team_id="personal-assistant")
-    fresh = await store.append_message("c1", "jarvis", "", author_kind="agent")
-    stale = await store.append_message("c1", "jarvis", "", author_kind="agent")
-    real = await store.append_message("c1", "jarvis", "a real reply", author_kind="agent")
-
-    # Age the second one well past any legal turn.
-    future = await db.enqueue_write(
-        "UPDATE messages SET created_at = datetime('now', '-2 hours') WHERE id = ?;", (stale,)
-    )
-    await future
+    legacy_empty = await store.append_message("c1", "jarvis", "", author_kind="agent")
+    real_agent = await store.append_message("c1", "jarvis", "a real reply", author_kind="agent")
+    human_msg = await store.append_message("c1", "dante", "", author_kind="user")
 
     service = RuntimeService(Hub())
-    await service._sweep_orphaned_placeholders(older_than_s=600)
-
-    remaining = {r["id"] for r in await db.fetch_all("SELECT id FROM messages;")}
-    assert stale not in remaining, "the dead placeholder should be gone"
-    assert fresh in remaining, "a turn still in flight must not be swept"
-    assert real in remaining
-
-
-async def test_start_schedules_the_sweeper_and_stop_cancels_it(test_db):
-    """Codex refused 9c4bd33 partly on this: the sweep test called the method directly.
-
-    A periodic task that is never scheduled passes that test perfectly. Proving the predicate says
-    nothing about whether the loop runs, which is the same shape as every other failure today — an
-    assertion about a component standing in for evidence about the system.
-    """
-    import asyncio
-
-    from cerebro.hub import Hub
-    from cerebro.service import RuntimeService
-
-    service = RuntimeService(Hub())
-    assert service._sweeper is None, "nothing should be scheduled before start"
-
     await service.start()
-    sweeper = service._sweeper
     try:
-        assert sweeper is not None, "start() did not schedule the sweeper"
-        assert not sweeper.done(), "the sweeper exited immediately"
+        remaining = {r["id"] for r in await db.fetch_all("SELECT id FROM messages;")}
+        assert legacy_empty not in remaining, "legacy empty agent placeholder should be swept"
+        assert real_agent in remaining, "real agent messages must be preserved"
+        assert human_msg in remaining, "human messages must be preserved"
     finally:
         await service.stop()
-
-    await asyncio.sleep(0)
-    assert service._sweeper is None, "stop() left the sweeper scheduled"
-    assert sweeper.done(), "stop() did not cancel the scheduled sweeper task"
-
-
-async def test_the_sweeper_survives_a_failing_pass(test_db, monkeypatch):
-    """One bad sweep must not silently end the loop -- that would restore the original bug."""
-    import asyncio
-
-    from cerebro.hub import Hub
-    from cerebro.service import RuntimeService
-
-    service = RuntimeService(Hub())
-    calls = []
-    repeated = asyncio.Event()
-    real_sleep = asyncio.sleep
-
-    async def boom(*args, **kwargs):
-        calls.append(1)
-        if len(calls) >= 2:
-            repeated.set()
-        raise RuntimeError("database hiccup")
-
-    async def yield_immediately(_seconds):
-        await real_sleep(0)
-
-    monkeypatch.setattr(service, "_sweep_orphaned_placeholders", boom)
-    monkeypatch.setattr("cerebro.service.asyncio.sleep", yield_immediately)
-
-    task = asyncio.create_task(service._sweep_loop())
-    try:
-        await asyncio.wait_for(repeated.wait(), timeout=1)
-    finally:
-        task.cancel()
-        await task
-
-    assert len(calls) > 1, "the loop stopped after the first failure"

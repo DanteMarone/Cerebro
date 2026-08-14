@@ -256,3 +256,73 @@ def test_websocket_transient_activity_and_completion_events(test_db: Settings):
         assert data["payload"]["message"]["id"] == 105
         assert data["payload"]["message"]["body"] == "finished answer"
         assert data["payload"]["message"]["turn_id"] == "T-100"
+
+
+def test_websocket_concurrent_turns_scoped_by_turn_id_and_cancellation(test_db: Settings):
+    """WebSocket delivers distinct turn_id scoped activity and terminal cancellation events."""
+    app.state.hub = Hub()
+    client = TestClient(app)
+    client.get("/")
+
+    with client.websocket_connect("/ws") as ws:
+        loop = asyncio.get_event_loop()
+
+        # Turn 1 and Turn 2 for the same agent jarvis
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "agent.activity",
+                {
+                    "channel_id": "c1",
+                    "agent_id": "jarvis",
+                    "turn_id": "turn-A",
+                    "status": "thinking",
+                },
+            )
+        )
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "agent.activity",
+                {
+                    "channel_id": "c1",
+                    "agent_id": "jarvis",
+                    "turn_id": "turn-B",
+                    "status": "thinking",
+                },
+            )
+        )
+
+        event_a = json.loads(ws.receive_text())
+        event_b = json.loads(ws.receive_text())
+        assert event_a["payload"]["turn_id"] == "turn-A"
+        assert event_b["payload"]["turn_id"] == "turn-B"
+
+        # Turn A cancelled, Turn B finishes
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "turn.cancelled",
+                {"channel_id": "c1", "agent_id": "jarvis", "turn_id": "turn-A"},
+            )
+        )
+        loop.run_until_complete(
+            app.state.hub.publish(
+                "message.new",
+                {
+                    "channel_id": "c1",
+                    "message": {
+                        "id": 201,
+                        "channel_id": "c1",
+                        "author_id": "jarvis",
+                        "body": "turn B result",
+                        "turn_id": "turn-B",
+                    },
+                },
+            )
+        )
+
+        cancel_ev = json.loads(ws.receive_text())
+        assert cancel_ev["type"] == "turn.cancelled"
+        assert cancel_ev["payload"]["turn_id"] == "turn-A"
+
+        done_ev = json.loads(ws.receive_text())
+        assert done_ev["type"] == "message.new"
+        assert done_ev["payload"]["message"]["turn_id"] == "turn-B"

@@ -189,7 +189,6 @@ class RuntimeService:
         self.runtime = runtime or build_runtime(hub)
         self._sub = None
         self._pump: asyncio.Task | None = None
-        self._sweeper: asyncio.Task | None = None
         self._turns: set[asyncio.Task] = set()
         self.poller = ChannelPoller(
             list_agents=_polling_agents,
@@ -222,62 +221,20 @@ class RuntimeService:
         await self._sweep_orphaned_placeholders()
         self._sub = self.hub.subscribe("message.new")
         self._pump = asyncio.create_task(self._run())
-        self._sweeper = asyncio.create_task(self._sweep_loop())
         await self.poller.start()
 
-    async def _sweep_loop(self) -> None:
-        """Sweep periodically, not only at startup.
-
-        The startup sweep only catches placeholders left by a *previous* run. A turn that dies
-        while the process keeps going -- a cancelled task, a provider that never returns, a
-        restart mid-stream -- leaves an empty row that nothing ever revisits, and Dante sees an
-        agent replying with silence. That symptom has now recurred three times.
-
-        The age threshold is the turn wallclock cap, so a legitimately slow turn is never touched:
-        anything older than the longest a turn is allowed to take is definitionally dead.
-        """
-        while True:
-            try:
-                await asyncio.sleep(60)
-                await self._sweep_orphaned_placeholders(
-                    older_than_s=settings.max_turn_wallclock_s
-                )
-            except asyncio.CancelledError:
-                break
-            except Exception:  # noqa: BLE001 - the sweeper must outlive one bad pass
-                logger.exception("placeholder sweep failed")
-
-    async def _sweep_orphaned_placeholders(self, older_than_s: float | None = None) -> None:
-        """Remove empty agent rows left behind by turns that never finished.
-
-        The runtime persists a reply row empty *before* streaming, so deltas have a durable id and
-        a client reconnecting mid-stream finds the message already there. If the process dies
-        between those two moments -- a restart, a crash, a turn cancelled by shutdown -- the empty
-        row survives and shows up in the channel as an agent that said nothing.
-
-        That is what Dante saw as "Codex and Antigravity now just have blank responses". It was
-        not the providers, which work: it was four placeholders orphaned across restarts.
-        """
+    async def _sweep_orphaned_placeholders(self) -> None:
+        """Remove empty agent rows left behind by legacy runs before completion-ordered chat."""
         where = "author_kind = 'agent' AND (body IS NULL OR TRIM(body) = '')"
-        params: tuple = ()
-        if older_than_s is not None:
-            # Only rows older than the longest a turn may legally take, so a slow model mid-answer
-            # is never swept out from under itself.
-            where += " AND created_at < datetime('now', ?)"
-            params = (f"-{int(older_than_s)} seconds",)
-
-        rows = await db.fetch_all(f"SELECT id FROM messages WHERE {where};", params)
+        rows = await db.fetch_all(f"SELECT id FROM messages WHERE {where};")
         if not rows:
             return
-        future = await db.enqueue_write(f"DELETE FROM messages WHERE {where};", params)
+        future = await db.enqueue_write(f"DELETE FROM messages WHERE {where};")
         await future
         logger.info("swept %d orphaned empty agent message(s) from a previous run", len(rows))
 
     async def stop(self) -> None:
         await self.poller.stop()
-        if self._sweeper:
-            self._sweeper.cancel()
-            self._sweeper = None
         for task in tuple(self._turns):
             task.cancel()
         if self._pump:

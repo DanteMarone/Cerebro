@@ -117,11 +117,14 @@ class AgentRuntime:
     def _semaphore(self, provider: Provider) -> asyncio.Semaphore:
         return self._limits.setdefault(provider.name, asyncio.Semaphore(2))
 
-    async def _status(self, agent: Agent, channel_id: str, status: str) -> None:
-        await self.hub.publish(
-            "agent.status",
-            {"agent_id": agent.id, "channel_id": channel_id, "status": status},
-        )
+    async def _status(
+        self, agent: Agent, channel_id: str, status: str, turn_id: str | None = None
+    ) -> None:
+        payload = {"agent_id": agent.id, "channel_id": channel_id, "status": status}
+        if turn_id is not None:
+            payload["turn_id"] = turn_id
+        await self.hub.publish("agent.status", payload)
+        await self.hub.publish("agent.activity", payload)
 
     async def run_turn(
         self,
@@ -150,34 +153,32 @@ class AgentRuntime:
 
         transcript = await self._context(agent, channel_id)
 
-        # Signal in-flight turn activity across WebSockets without writing a message row to database
-        await self._status(agent, channel_id, "thinking")
-        await self.hub.publish(
-            "agent.activity",
-            {
-                "channel_id": channel_id,
-                "agent_id": agent.id,
-                "turn_id": turn_id,
-                "status": "thinking",
-                "quote_msg_id": quote_msg_id,
-            },
-        )
+        # Signal in-flight turn activity across WebSockets without writing a message row to DB
+        await self._status(agent, channel_id, "thinking", turn_id=turn_id)
 
-        async with self._semaphore(provider):
-            try:
-                body = await self._generate(agent, channel_id, turn_id, provider, transcript)
-            except ProviderUnavailable as exc:
-                return await self._fail(
-                    agent, channel_id, turn_id, depth, quote_msg_id, f"backend offline — {exc}"
-                )
-            except ProviderError as exc:
-                return await self._fail(
-                    agent, channel_id, turn_id, depth, quote_msg_id, f"provider error — {exc}"
-                )
-            except Exception as exc:  # noqa: BLE001 - an agent must never take the process down
-                return await self._fail(
-                    agent, channel_id, turn_id, depth, quote_msg_id, f"unexpected error — {exc!r}"
-                )
+        try:
+            async with self._semaphore(provider):
+                try:
+                    body = await self._generate(agent, channel_id, turn_id, provider, transcript)
+                except ProviderUnavailable as exc:
+                    return await self._fail(
+                        agent, channel_id, turn_id, depth, quote_msg_id, f"backend offline — {exc}"
+                    )
+                except ProviderError as exc:
+                    return await self._fail(
+                        agent, channel_id, turn_id, depth, quote_msg_id, f"provider error — {exc}"
+                    )
+                except Exception as exc:  # noqa: BLE001 - an agent must never crash the service
+                    err = f"unexpected error — {exc!r}"
+                    return await self._fail(agent, channel_id, turn_id, depth, quote_msg_id, err)
+        except asyncio.CancelledError:
+            # Emit terminal cancellation so UI indicator never remains orphaned
+            await self._status(agent, channel_id, "cancelled", turn_id=turn_id)
+            await self.hub.publish(
+                "turn.cancelled",
+                {"channel_id": channel_id, "turn_id": turn_id, "agent_id": agent.id},
+            )
+            raise
 
         if not body.strip():
             reason = "produced no answer"
@@ -191,7 +192,7 @@ class AgentRuntime:
             return await self._fail(agent, channel_id, turn_id, depth, quote_msg_id, reason)
 
         if is_pass(body):
-            await self._status(agent, channel_id, "idle")
+            await self._status(agent, channel_id, "idle", turn_id=turn_id)
             await self.hub.publish(
                 "turn.discarded",
                 {"channel_id": channel_id, "turn_id": turn_id, "agent_id": agent.id},
@@ -212,7 +213,7 @@ class AgentRuntime:
             )
         )
         self.guard.record_agent_message(turn_id, depth)
-        await self._status(agent, channel_id, "idle")
+        await self._status(agent, channel_id, "idle", turn_id=turn_id)
         await self.hub.publish(
             "message.new",
             {"channel_id": channel_id, "message": reply.model_dump()},
@@ -238,7 +239,7 @@ class AgentRuntime:
         thinking: list[str] = []
 
         for _ in range(self.max_tool_iterations):
-            await self._status(agent, channel_id, "thinking")
+            await self._status(agent, channel_id, "thinking", turn_id=turn_id)
             calls: dict[str, dict[str, str]] = {}
             produced = ""
 
@@ -302,7 +303,7 @@ class AgentRuntime:
                 ),
             ]
             for call_id, call in calls.items():
-                result = await self._run_tool(agent, channel_id, call_id, call)
+                result = await self._run_tool(agent, channel_id, call_id, call, turn_id=turn_id)
                 transcript.append(
                     Message(
                         channel_id=channel_id, author_id="tool", author_kind="system",
@@ -333,9 +334,14 @@ class AgentRuntime:
             pass
 
     async def _run_tool(
-        self, agent: Agent, channel_id: str, call_id: str, call: dict[str, str]
+        self,
+        agent: Agent,
+        channel_id: str,
+        call_id: str,
+        call: dict[str, str],
+        turn_id: str | None = None,
     ) -> str:
-        await self._status(agent, channel_id, f"tool:{call['name']}")
+        await self._status(agent, channel_id, f"tool:{call['name']}", turn_id=turn_id)
         await self.hub.publish(
             "tool.call",
             {"channel_id": channel_id, "agent_id": agent.id, "id": call_id,
@@ -415,7 +421,7 @@ class AgentRuntime:
                 depth=depth,
             )
         )
-        await self._status(agent, channel_id, "idle")
+        await self._status(agent, channel_id, "idle", turn_id=turn_id)
         await self.hub.publish(
             "error",
             {
