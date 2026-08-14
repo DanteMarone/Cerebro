@@ -1,6 +1,8 @@
 """Tests for FakeProvider."""
 
 import pytest
+import json
+
 from cerebro.models import Done, Message, TextDelta, ToolCallDelta, Usage
 from cerebro.providers.base import Params, ToolSpec
 from cerebro.providers.fake import FakeProvider
@@ -52,3 +54,113 @@ async def test_fake_provider_streaming_and_call_recording():
     assert provider.last_messages == messages
     assert provider.last_tools == tools
     assert provider.last_params == params
+
+
+# -- the strict fake ---------------------------------------------------------------
+#
+# Three of Cerebro's first six silent failures were green against a permissive fake and dead
+# against a real model. These pin the shapes a real chat template mishandles without complaining,
+# so a test that passes has exercised a conversation a model could actually have understood.
+
+import pytest  # noqa: E402
+
+from cerebro.providers.openai_compatible import to_chat_messages  # noqa: E402
+from cerebro.providers.validate import InvalidConversation, validate_chat_turns  # noqa: E402
+
+
+async def _drive(provider, messages):
+    return [d async for d in provider.stream(messages, [], Params())]
+
+
+def _sys(body="you are jarvis"):
+    return Message(channel_id="c", author_id="system", author_kind="system", kind="system",
+                   body=body)
+
+
+def _user(body="hello"):
+    return Message(channel_id="c", author_id="dante", author_kind="user", body=body)
+
+
+async def test_consecutive_system_turns_are_rejected():
+    """This exact shape made Jarvis mute in production while every test stayed green."""
+    provider = FakeProvider([Done(reason="stop")])
+
+    with pytest.raises(InvalidConversation, match="two system turns in a row"):
+        await _drive(provider, [_sys("identity"), _sys("house rules"), _user()])
+
+
+async def test_an_empty_assistant_turn_never_reaches_the_wire():
+    """Handled by removal rather than rejection, and the distinction is worth stating.
+
+    The mapper drops an empty assistant turn carrying no tool_calls, so it cannot reach a model —
+    which is the guarantee that matters, since an empty assistant message is what convinces a
+    model it has already answered. The validator would reject one; it never sees one.
+
+    That leaves a real gap rather than a closed one: the mapper is a safety net for rows persisted
+    by older code, so a *new* source of empty assistant turns would be silently absorbed instead of
+    reported. The rows themselves are what the periodic sweep removes.
+    """
+    provider = FakeProvider([Done(reason="stop")], self_id="jarvis")
+    empty = Message(channel_id="c", author_id="jarvis", author_kind="agent", body="")
+
+    await _drive(provider, [_sys(), _user(), empty, _user("still there?")])
+
+    sent = to_chat_messages(provider.calls[0]["messages"], "jarvis")
+    assert not any(
+        t["role"] == "assistant"
+        and not t.get("tool_calls")
+        and not (t.get("content") or "").strip()
+        for t in sent
+    )
+
+
+def test_the_validator_would_reject_an_empty_assistant_turn():
+    """Pinned directly, since the mapper removes it before the validator can see it."""
+    with pytest.raises(InvalidConversation, match="empty assistant turn"):
+        validate_chat_turns([
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "  "},
+        ])
+
+
+async def test_a_tool_result_without_an_id_is_rejected():
+    provider = FakeProvider([Done(reason="stop")], self_id="jarvis")
+    orphan = Message(channel_id="c", author_id="tool", author_kind="system", kind="tool",
+                     body="saved", meta_json=json.dumps({}))
+
+    with pytest.raises(InvalidConversation, match="no tool_call_id"):
+        await _drive(provider, [_sys(), _user(), orphan])
+
+
+async def test_a_valid_tool_round_is_accepted():
+    """The positive case: assistant carrying tool_calls, then a tool turn answering it."""
+    calls = [{"id": "call_1", "type": "function",
+              "function": {"name": "memory_write", "arguments": "{}"}}]
+    provider = FakeProvider([TextDelta(text="done"), Done(reason="stop")], self_id="jarvis")
+
+    deltas = await _drive(provider, [
+        _sys(),
+        _user("remember x"),
+        Message(channel_id="c", author_id="jarvis", author_kind="agent", body="",
+                meta_json=json.dumps({"tool_calls": calls})),
+        Message(channel_id="c", author_id="tool", author_kind="system", kind="tool",
+                body="saved as x.md",
+                meta_json=json.dumps({"tool_call_id": "call_1", "name": "memory_write"})),
+    ])
+
+    assert any(isinstance(d, TextDelta) for d in deltas)
+    assert provider.calls, "a valid conversation must reach the provider"
+
+
+def test_a_tool_result_answering_a_call_nobody_made_is_rejected():
+    turns = [
+        {"role": "user", "content": "hi"},
+        {"role": "tool", "tool_call_id": "call_ghost", "content": "result"},
+    ]
+    with pytest.raises(InvalidConversation, match="no preceding assistant turn requested"):
+        validate_chat_turns(turns)
+
+
+def test_an_empty_conversation_is_rejected():
+    with pytest.raises(InvalidConversation, match="empty conversation"):
+        validate_chat_turns([])

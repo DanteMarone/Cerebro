@@ -12,6 +12,8 @@ from cerebro.models import (
     Usage,
 )
 from cerebro.providers.base import Params, ToolSpec
+from cerebro.providers.openai_compatible import to_chat_messages
+from cerebro.providers.validate import validate_chat_turns
 
 
 class FakeProvider:
@@ -22,8 +24,10 @@ class FakeProvider:
         deltas: list[Delta] | None = None,
         delay_s: float = 0.0,
         name: str = "fake",
+        self_id: str = "jarvis",
     ) -> None:
         self.name = name
+        self.self_id = self_id
         self.deltas: list[Delta] = list(deltas) if deltas is not None else []
         self.delay_s = delay_s
         self.calls: list[dict[str, Any]] = []
@@ -74,7 +78,16 @@ class FakeProvider:
         tools: list[ToolSpec],
         params: Params,
     ) -> AsyncIterator[Delta]:
-        """Record invocation and yield configured deltas."""
+        """Record invocation and yield configured deltas.
+
+        Validates the conversation first. A fake that accepts more than a real model does is not a
+        test double, it is a way of not testing: three of Cerebro's first six silent failures were
+        green here and dead against qwen3.6-27b. Validation runs on the mapped outbound shape —
+        the same turns a real provider would put on the wire — so what passes here is what a model
+        could actually have understood.
+        """
+        validate_chat_turns(to_chat_messages(list(messages), self.self_id))
+
         self.calls.append(
             {
                 "messages": list(messages),
