@@ -169,3 +169,49 @@ def test_only_my_own_messages_are_assistant_turns():
     assert turns[2]["content"] == "I think yes"
     # A peer's turn is attributed, otherwise the model cannot tell who is arguing with it.
     assert turns[3]["content"] == "forge: I think no"
+
+
+def test_a_tool_round_is_mapped_to_the_protocol_shape():
+    """Codex refuted the first version: an empty assistant turn plus a system message.
+
+    The API requires an assistant turn carrying tool_calls, then a tool turn per call carrying the
+    matching tool_call_id. A model is not obliged to make sense of anything else.
+    """
+    import json as _json
+
+    calls = [{"id": "call_1", "type": "function",
+              "function": {"name": "memory_write", "arguments": '{"name":"x"}'}}]
+    turns = to_chat_messages(
+        [
+            Message(channel_id="c", author_id="dante", author_kind="user", body="remember x"),
+            Message(channel_id="c", author_id="jarvis", author_kind="agent", kind="chat", body="",
+                    meta_json=_json.dumps({"tool_calls": calls})),
+            Message(channel_id="c", author_id="tool", author_kind="system", kind="tool",
+                    body="saved as x.md",
+                    meta_json=_json.dumps({"tool_call_id": "call_1", "name": "memory_write"})),
+        ],
+        self_id="jarvis",
+    )
+
+    assert turns[1]["role"] == "assistant"
+    assert turns[1]["tool_calls"] == calls
+    assert turns[1]["content"] is None, "an empty tool-call turn must not send an empty string"
+
+    assert turns[2]["role"] == "tool"
+    assert turns[2]["tool_call_id"] == "call_1"
+    assert turns[2]["content"] == "saved as x.md"
+
+    assert not any(t["role"] == "system" and "returned" in str(t.get("content")) for t in turns)
+
+
+def test_an_empty_assistant_turn_with_no_tool_calls_is_dropped():
+    """It says nothing, and consecutive/empty turns are what silently break chat templates."""
+    turns = to_chat_messages(
+        [
+            Message(channel_id="c", author_id="dante", author_kind="user", body="hello"),
+            Message(channel_id="c", author_id="jarvis", author_kind="agent", body="   "),
+        ],
+        self_id="jarvis",
+    )
+
+    assert [t["role"] for t in turns] == ["user"]

@@ -267,15 +267,32 @@ class AgentRuntime:
             if not calls or self.tool_executor is None:
                 break
 
+            # The protocol shape: one assistant turn carrying the calls, then one tool turn per
+            # call carrying its id. Codex refuted the previous version, which emitted an empty
+            # assistant message and a system message -- a sequence no model is obliged to
+            # understand and which the API forbids.
             transcript = transcript + [
-                Message(channel_id=channel_id, author_id=agent.id, author_kind="agent",
-                        kind="chat", body=produced or ""),
+                Message(
+                    channel_id=channel_id, author_id=agent.id, author_kind="agent",
+                    kind="chat", body=produced or "",
+                    meta_json=json.dumps({"tool_calls": [
+                        {
+                            "id": call_id,
+                            "type": "function",
+                            "function": {"name": call["name"], "arguments": call["args"] or "{}"},
+                        }
+                        for call_id, call in calls.items()
+                    ]}),
+                ),
             ]
             for call_id, call in calls.items():
                 result = await self._run_tool(agent, channel_id, call_id, call)
                 transcript.append(
-                    Message(channel_id=channel_id, author_id="tool", author_kind="system",
-                            kind="tool", body=f"{call['name']} returned: {result}")
+                    Message(
+                        channel_id=channel_id, author_id="tool", author_kind="system",
+                        kind="tool", body=result,
+                        meta_json=json.dumps({"tool_call_id": call_id, "name": call["name"]}),
+                    )
                 )
         else:
             text_parts.append(
