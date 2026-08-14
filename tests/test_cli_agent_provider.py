@@ -142,3 +142,41 @@ def test_seeded_profiles_only_name_backends_that_exist():
         if backend is None:
             continue
         assert backend in BACKENDS, f"{profile.parent.name} names unknown backend {backend!r}"
+
+
+async def test_output_file_backends_ignore_stdout_and_use_the_file(tmp_path, monkeypatch):
+    """codex prints 160KB of its own system prompt to stdout; only the reply file is the answer."""
+    from cerebro.providers import cli_agent
+
+    monkeypatch.setitem(cli_agent.OUTPUT_FILE_FLAG, "fakecodex", "--out")
+    harness = fake_harness(
+        "import sys;"
+        "sys.stdin.read();"
+        "flag = sys.argv[sys.argv.index('--out') + 1];"
+        "sys.stdout.write('NOISE: my entire system prompt' * 50);"
+        "open(flag, 'w', encoding='utf-8').write('the actual reply')"
+    )
+    prov = CliAgentProvider(self_id="fake", backend="fakecodex", command=harness)
+
+    deltas = await collect(prov)
+    text = "".join(d.text for d in deltas if isinstance(d, TextDelta))
+
+    assert text == "the actual reply"
+    assert "NOISE" not in text
+
+
+async def test_an_empty_reply_file_is_an_error_not_an_empty_message(tmp_path, monkeypatch):
+    """An empty message in the channel tells Dante nothing about what went wrong."""
+    from cerebro.providers import cli_agent
+
+    monkeypatch.setitem(cli_agent.OUTPUT_FILE_FLAG, "fakecodex2", "--out")
+    harness = fake_harness(
+        "import sys;"
+        "sys.stdin.read();"
+        "flag = sys.argv[sys.argv.index('--out') + 1];"
+        "open(flag, 'w', encoding='utf-8').write('   ')"
+    )
+    prov = CliAgentProvider(self_id="fake", backend="fakecodex2", command=harness)
+
+    with pytest.raises(ProviderError, match="reply was empty"):
+        await collect(prov)
