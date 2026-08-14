@@ -196,6 +196,11 @@ function App() {
                                 });
                             }
                         }
+                    } else if (type === "channel.new" || type === "channel.update") {
+                        // A channel created while the page is open -- by Dante in another tab, or
+                        // by an agent opening a room (§6.4) -- was previously invisible until F5,
+                        // because the sidebar was only ever populated once on mount.
+                        loadChannelsAndAgents();
                     }
                 } catch (err) {
                     console.debug("Failed to parse WS message:", err);
@@ -220,7 +225,7 @@ function App() {
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             if (wsRef.current) wsRef.current.close();
         };
-    }, [activeChannelId, loadChannelMessages]);
+    }, [activeChannelId, loadChannelMessages, loadChannelsAndAgents]);
 
     const handleScroll = () => {
         if (!streamRef.current) return;

@@ -95,3 +95,18 @@ async def test_unknown_token_still_cannot_create_anything(test_db: Settings):
     resp = await create("not-a-real-token", name="Nope", id="nope", member_ids=["claude"])
     assert resp.status_code == 401
     assert await store.get_channel("nope") is None
+
+
+async def test_creating_a_channel_publishes_channel_new(agent_token):
+    """Without this event the sidebar stays stale until F5 -- which is how Dante found it."""
+    from cerebro.hub import Hub
+
+    app.state.hub = Hub()
+    async with app.state.hub.subscribe("channel.new") as sub:
+        resp = await create(agent_token, name="Live Update", id="live-update",
+                            member_ids=["claude"])
+        assert resp.status_code == 201
+        event = await sub.get()
+
+    assert event.payload["channel"]["id"] == "live-update"
+    assert {m["member_id"] for m in event.payload["members"]} >= {"claude", "dante"}

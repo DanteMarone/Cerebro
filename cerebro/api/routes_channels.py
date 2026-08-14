@@ -49,6 +49,7 @@ async def get_channels():
 @router.post("", status_code=201)
 async def create_channel(
     req: CreateChannelRequest,
+    request: Request,
     principal: Principal = Depends(get_current_principal),
 ):
     """Create a channel (§6.4).
@@ -99,8 +100,15 @@ async def create_channel(
             )
 
     channel = await store.get_channel(channel_id)
-    members = await store.get_channel_members(channel_id)
-    return {"channel": channel, "members": members}
+    roster = await store.get_channel_members(channel_id)
+
+    # Without this the sidebar only ever populates on mount, so a channel created while the page
+    # is open -- by Dante in another tab, or by an agent under §6.4 -- stays invisible until F5.
+    hub: Any = getattr(request.app.state, "hub", None)
+    if hub is not None:
+        await hub.publish("channel.new", {"channel": channel, "members": roster})
+
+    return {"channel": channel, "members": roster}
 
 
 @router.get("/{channel_id}")
