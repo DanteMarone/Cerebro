@@ -1,0 +1,14 @@
+# Vendored dependencies must survive checkout byte-for-byte.
+#
+# Git's autocrlf rewrites line endings on checkout. For cerebro/web/vendor/* that silently changes
+# the files' SHA-256, so tests/test_vendor_integrity.py fails on any fresh clone and — far worse —
+# the "unmodified upstream artifact" guarantee in VENDOR.md stops being true the moment someone
+# clones the repository. The bytes we verified against npm are not the bytes they would get.
+#
+# Found by scripts/clean_tree_gate.py on its first run: three integrity tests that pass on every
+# developer's desk and fail in a pristine checkout.
+cerebro/web/vendor/** -text
+
+# Lockfiles are hash-pinned; a line-ending rewrite invalidates the hashes the same way.
+requirements.txt -text
+requirements-dev.txt -text
