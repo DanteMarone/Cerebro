@@ -1,0 +1,16 @@
+# Cerebro v2 top-level runtime dependencies.
+# This file is the SOURCE. The installable artifact is requirements.txt, which MUST be
+# generated with:  pip-compile --generate-hashes --output-file=requirements.txt requirements.in
+# Never hand-edit requirements.txt. See docs/slices/SLICE_0.md for the pinning rules.
+
+fastapi
+uvicorn[standard]
+aiosqlite
+httpx
+jinja2
+pydantic
+croniter
+keyring
+python-dotenv
+mcp
+google-genai

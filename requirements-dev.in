@@ -1,0 +1,9 @@
+# Cerebro v2 development dependencies.
+# Generated artifact:  pip-compile --generate-hashes --output-file=requirements-dev.txt requirements-dev.in
+
+-c requirements.in
+
+pytest
+pytest-asyncio
+flake8
+pip-tools

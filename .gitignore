@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Runtime state — never committed
+data/
+workspace/
+agents/*/logs/
+agents/*/scratchpad.md
+downloads/
+screenshots/
+cerebro.log
+metrics.json
+
+# Secrets — never committed under any circumstances
+*.env
+!.env.example
+*.pem
+*.key
