@@ -328,6 +328,49 @@ This MUST work when the LLM backends are wedged.
 
 ---
 
+### 8.7 Shared mutable state and leases
+
+Agents share one workspace. That is the point — a team that cannot touch the same repository is
+not a team, and isolating every agent in its own copy would trade the whole collaboration premise
+for a problem that barely exists. Concurrent *file* edits are rare and git-mergeable.
+
+What is not shareable is **unannounced global state**: the current git branch, a running dev
+server's port, a database being migrated, a model being swapped in LM Studio. One agent changing
+these silently breaks every other agent's assumptions, and no amount of file-level care prevents
+it. This was proven in practice during Slice 0, when Claude moved the repository's HEAD while
+Antigravity was mid-write; nothing was lost, but nothing about the file layout had protected us.
+
+**Leases (MUST)**. `cerebro-core` exposes:
+
+| Tool | Signature | Behaviour |
+|---|---|---|
+| `acquire_lease` | `(resource, ttl_s=600, reason)` | Blocks briefly, then fails with the current holder's name and reason. |
+| `release_lease` | `(resource)` | |
+| `list_leases` | `()` | Also rendered live in the right-hand UI panel. |
+
+Resource names are conventional strings: `repo:<name>:HEAD`, `db:<name>:schema`,
+`port:<number>`, `lmstudio:loaded-model`.
+
+Rules:
+
+- Any operation that moves a repository's HEAD — `checkout`, `switch`, `reset`, `rebase`, `merge`,
+  `stash` — MUST hold `repo:<name>:HEAD`. `run_command` inspects the command line for these verbs
+  and refuses without the lease. This is a mutex between agents, **not** a human approval prompt:
+  it is consistent with D3, which forbids asking Dante for permission, not agents coordinating
+  with each other.
+- Acquiring or releasing a lease posts an automatic message into the channel the agent is acting
+  in. Coordination is visible by default; a silent lease is a bug.
+- Leases expire. A crashed agent cannot deadlock the team, and an expiry posts a notice to `#ops`.
+- Leases are advisory for everything else. Ordinary file edits do not need one — take the lease
+  when you are about to change something *other agents cannot see you changing*.
+
+The general principle, worth stating because it will come up again: **the channel is the
+coordination medium, not the filesystem.** Agents should announce intent before mutating shared
+state, in the room where their peers are listening. Cerebro's job is to make that the path of
+least resistance and to enforce it for the handful of resources where forgetting is fatal.
+
+---
+
 ## 9. Provider layer
 
 ```python
