@@ -274,3 +274,27 @@ async def test_a_success_clears_the_failure_count(clock):
     clock.advance(300)
     await poller.tick()
     assert poller._states["claude"].consecutive_failures == 0
+
+
+async def test_orphaned_placeholders_are_swept_on_start(test_db):
+    """An empty agent row left by a turn that never finished shows up as an agent saying nothing.
+
+    Dante saw exactly that -- "Codex and Antigravity now just have blank responses" -- and it was
+    not the providers, which work. It was placeholders orphaned across server restarts.
+    """
+    from cerebro import db, store
+    from cerebro.hub import Hub
+    from cerebro.service import RuntimeService
+
+    await store.create_channel(channel_id="c1", name="c1", team_id="personal-assistant")
+    good = await store.append_message("c1", "codex", "a real reply", author_kind="agent")
+    empty = await store.append_message("c1", "codex", "", author_kind="agent")
+    human = await store.append_message("c1", "dante", "", author_kind="user")
+
+    service = RuntimeService(Hub())
+    await service._sweep_orphaned_placeholders()
+
+    remaining = {r["id"] for r in await db.fetch_all("SELECT id FROM messages;")}
+    assert good in remaining, "a real agent reply must survive"
+    assert empty not in remaining, "the orphaned placeholder should be gone"
+    assert human in remaining, "only agent placeholders are swept, never the human's rows"

@@ -78,6 +78,17 @@ def _provider_for(agent: Agent):
             command=params.get("command"),
         )
 
+    if agent.provider in ("openai_compatible", "openrouter", "deepseek", "glm", "openai"):
+        from cerebro.providers.openai_compatible import OpenAICompatibleProvider
+        params = _agent_params(agent)
+        return OpenAICompatibleProvider(
+            self_id=agent.id,
+            model=agent.model or None,
+            base_url=params.get("base_url"),
+            api_key=params.get("api_key"),
+            name=agent.provider,
+        )
+
     raise NotImplementedError(f"provider {agent.provider!r} arrives in a later slice")
 
 
@@ -144,9 +155,34 @@ class RuntimeService:
             raise RuntimeError(f"{agent.id} turn failed: {result.body[:200]}")
 
     async def start(self) -> None:
+        await self._sweep_orphaned_placeholders()
         self._sub = self.hub.subscribe("message.new")
         self._pump = asyncio.create_task(self._run())
         await self.poller.start()
+
+    async def _sweep_orphaned_placeholders(self) -> None:
+        """Remove empty agent rows left behind by turns that never finished.
+
+        The runtime persists a reply row empty *before* streaming, so deltas have a durable id and
+        a client reconnecting mid-stream finds the message already there. If the process dies
+        between those two moments -- a restart, a crash, a turn cancelled by shutdown -- the empty
+        row survives and shows up in the channel as an agent that said nothing.
+
+        That is what Dante saw as "Codex and Antigravity now just have blank responses". It was
+        not the providers, which work: it was four placeholders orphaned across restarts.
+        """
+        rows = await db.fetch_all(
+            "SELECT id FROM messages WHERE author_kind = 'agent' "
+            "AND (body IS NULL OR TRIM(body) = '');"
+        )
+        if not rows:
+            return
+        future = await db.enqueue_write(
+            "DELETE FROM messages WHERE author_kind = 'agent' "
+            "AND (body IS NULL OR TRIM(body) = '');"
+        )
+        await future
+        logger.info("swept %d orphaned empty agent message(s) from a previous run", len(rows))
 
     async def stop(self) -> None:
         await self.poller.stop()
