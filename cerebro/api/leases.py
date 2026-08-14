@@ -28,11 +28,13 @@ class RenewLeaseRequest(BaseModel):
 
 @router.get("")
 async def list_leases(
+    request: Request,
     include_expired: bool = False,
     principal: Principal = Depends(get_current_principal),
 ):
     """List all active leases (or all including expired if requested)."""
-    leases = await store.list_leases(include_expired=include_expired)
+    hub = getattr(request.app.state, "hub", None)
+    leases = await store.list_leases(include_expired=include_expired, hub=hub)
     return {"leases": [lease.model_dump() for lease in leases]}
 
 

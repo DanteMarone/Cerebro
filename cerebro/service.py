@@ -221,7 +221,19 @@ class RuntimeService:
         await self._sweep_orphaned_placeholders()
         self._sub = self.hub.subscribe("message.new")
         self._pump = asyncio.create_task(self._run())
+        self._lease_sweeper = asyncio.create_task(self._sweep_leases_loop())
         await self.poller.start()
+
+    async def _sweep_leases_loop(self) -> None:
+        """Periodically sweep expired leases and dispatch lease.expired events (§8.7)."""
+        while True:
+            try:
+                await asyncio.sleep(15)
+                await store.sweep_expired_leases(hub=self.hub)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("periodic lease sweep error: %r", exc)
 
     async def _sweep_orphaned_placeholders(self) -> None:
         """Remove empty agent rows left behind by legacy runs before completion-ordered chat."""
@@ -234,6 +246,8 @@ class RuntimeService:
         logger.info("swept %d orphaned empty agent message(s) from a previous run", len(rows))
 
     async def stop(self) -> None:
+        if hasattr(self, "_lease_sweeper") and self._lease_sweeper:
+            self._lease_sweeper.cancel()
         await self.poller.stop()
         for task in tuple(self._turns):
             task.cancel()

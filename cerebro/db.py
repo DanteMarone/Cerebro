@@ -61,17 +61,34 @@ async def _writer_consumer() -> None:
             _write_queue.task_done()
             break
 
-        sql, params, future = item
-        try:
-            cursor = await _db.execute(sql, params)
-            await _db.commit()
-            if not future.done():
-                future.set_result(cursor.lastrowid)
-        except Exception as exc:
-            if not future.done():
-                future.set_exception(exc)
-        finally:
-            _write_queue.task_done()
+        if len(item) == 3 and item[0] == "tx":
+            _, fn, future = item
+            try:
+                res = await fn(_db)
+                await _db.commit()
+                if not future.done():
+                    future.set_result(res)
+            except Exception as exc:
+                try:
+                    await _db.rollback()
+                except Exception:
+                    pass
+                if not future.done():
+                    future.set_exception(exc)
+            finally:
+                _write_queue.task_done()
+        else:
+            sql, params, future = item
+            try:
+                cursor = await _db.execute(sql, params)
+                await _db.commit()
+                if not future.done():
+                    future.set_result(cursor.lastrowid)
+            except Exception as exc:
+                if not future.done():
+                    future.set_exception(exc)
+            finally:
+                _write_queue.task_done()
 
 
 async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
@@ -219,3 +236,15 @@ async def enqueue_write(
     future: asyncio.Future[Any] = loop.create_future()
     await _write_queue.put((sql, params, future))
     return future
+
+
+async def run_in_writer(fn: Any) -> Any:
+    """Execute a callable atomically on the single-writer connection inside a transaction."""
+    _check_loop()
+    if _write_queue is None or _db is None:
+        raise RuntimeError("Database is not connected or writer is not active.")
+
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[Any] = loop.create_future()
+    await _write_queue.put(("tx", fn, future))
+    return await future

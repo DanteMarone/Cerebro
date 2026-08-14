@@ -4,9 +4,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import pytest
-import aiosqlite
 
 from cerebro import db, store
+from cerebro.hub import Hub
 from cerebro.models import LeaseConflictError
 
 
@@ -130,7 +130,9 @@ async def test_release_by_non_holder_fails():
         await store.release_lease("file:cerebro/api/app.py", holder_id="codex")
 
     # Owner can release any lease
-    released = await store.release_lease("file:cerebro/api/app.py", holder_id="dante", is_owner=True)
+    released = await store.release_lease(
+        "file:cerebro/api/app.py", holder_id="dante", is_owner=True
+    )
     assert released is True
 
 
@@ -156,11 +158,15 @@ async def test_expired_lease_allows_reacquisition():
     INSERT INTO leases (resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?);
     """
-    fut = await db.enqueue_write(sql, ("work:slice6", "claude", "agent", None, "old task", past, past))
+    fut = await db.enqueue_write(
+        sql, ("work:slice6", "claude", "agent", None, "old task", past, past)
+    )
     await fut
 
     # Another agent acquires without conflict
-    lease = await store.acquire_lease("work:slice6", holder_id="codex", ttl_s=300, reason="fresh task")
+    lease = await store.acquire_lease(
+        "work:slice6", holder_id="codex", ttl_s=300, reason="fresh task"
+    )
     assert lease.holder_id == "codex"
     assert lease.reason == "fresh task"
 
@@ -191,70 +197,74 @@ async def test_list_and_sweep_expired_leases():
     assert active_leases[0].resource == "res:active"
 
     all_leases = await store.list_leases(include_expired=True)
-    assert len(all_leases) == 2
+    assert len(all_leases) == 1  # Lazy sweep already deleted the expired one
 
-    # Sweep
+    # Sweep remaining
     swept = await store.sweep_expired_leases()
-    assert swept == ["res:expired"]
-
-    remaining = await store.list_leases(include_expired=True)
-    assert len(remaining) == 1
-    assert remaining[0].resource == "res:active"
+    assert swept == []
 
 
-async def test_two_independent_connections_race_for_lease(init_db: Path):
-    """Concurrency proof: Two independent SQLite connections race for the same resource.
+async def test_sweep_expired_leases_publishes_events():
+    """Sweeping expired leases dispatches lease.expired event over Hub."""
+    hub = Hub()
+    sub = hub.subscribe("lease.expired")
 
-    One transaction commits and locks the resource; the second sees the conflict.
+    past = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+    sql = """
+    INSERT INTO leases (resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?);
     """
-    db_path = str(init_db)
+    fut = await db.enqueue_write(
+        sql, ("res:sweeptest", "antigravity", "agent", "warroom", "test sweep", past, past)
+    )
+    await fut
 
-    async def worker(agent_id: str, results: list):
-        async with aiosqlite.connect(db_path) as conn:
-            conn.row_factory = aiosqlite.Row
-            await conn.execute("PRAGMA journal_mode=WAL;")
-            now_dt = datetime.now(timezone.utc)
-            now = now_dt.isoformat()
-            expires = (now_dt + timedelta(seconds=60)).isoformat()
+    swept = await store.sweep_expired_leases(hub=hub)
+    assert swept == ["res:sweeptest"]
 
-            await conn.execute("BEGIN IMMEDIATE;")
-            try:
-                cur = await conn.execute(
-                    "SELECT * FROM leases WHERE resource = ?;",
-                    ("repo:Cerebro:HEAD",),
-                )
-                row = await cur.fetchone()
-                if row and row["expires_at"] > now and row["holder_id"] != agent_id:
-                    results.append((agent_id, "conflict", row["holder_id"]))
-                    await conn.execute("ROLLBACK;")
-                    return
+    # Verify event on Hub
+    event = await asyncio.wait_for(sub.get(), timeout=1.0)
+    assert event.type == "lease.expired"
+    assert event.payload["resource"] == "res:sweeptest"
+    assert event.payload["holder_id"] == "antigravity"
+    sub.close()
 
-                await conn.execute(
-                    """
-                    INSERT INTO leases (resource, holder_id, holder_kind, reason, acquired_at, expires_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(resource) DO UPDATE SET
-                        holder_id=excluded.holder_id,
-                        acquired_at=excluded.acquired_at,
-                        expires_at=excluded.expires_at;
-                    """,
-                    ("repo:Cerebro:HEAD", agent_id, "agent", f"racing from {agent_id}", now, expires),
-                )
-                await conn.commit()
-                results.append((agent_id, "acquired", agent_id))
-            except Exception as exc:
-                results.append((agent_id, "error", str(exc)))
-                await conn.execute("ROLLBACK;")
 
+async def test_production_race_for_lease():
+    """Concurrency proof: Two callers race production store.acquire_lease() concurrently.
+
+    Exactly one wins and acquires the lock; the second receives a typed LeaseConflictError.
+    """
     results = []
-    # Run two worker tasks concurrently racing for repo:Cerebro:HEAD
+
+    async def worker(agent_id: str):
+        try:
+            lease = await store.acquire_lease(
+                resource="repo:Cerebro:HEAD",
+                holder_id=agent_id,
+                holder_kind="agent",
+                ttl_s=300,
+                reason=f"racing from {agent_id}",
+            )
+            results.append(("success", lease.holder_id))
+        except LeaseConflictError as exc:
+            results.append(("conflict", exc.holder_id, exc.resource))
+        except Exception as exc:
+            results.append(("error", str(exc)))
+
+    # Launch two concurrent workers calling the production store method
     await asyncio.gather(
-        worker("agent_alpha", results),
-        worker("agent_beta", results),
+        worker("agent_alpha"),
+        worker("agent_beta"),
     )
 
-    statuses = [r[1] for r in results]
-    assert "acquired" in statuses, f"Expected one winner, got results: {results}"
-    # Exactly one acquired and one saw conflict or error
-    acquired_count = statuses.count("acquired")
-    assert acquired_count == 1, f"Expected exactly 1 acquired, got {results}"
+    statuses = [r[0] for r in results]
+    assert "success" in statuses, f"Expected one success, got: {results}"
+    assert "conflict" in statuses, f"Expected one conflict, got: {results}"
+    assert statuses.count("success") == 1
+    assert statuses.count("conflict") == 1
+
+    winner = next(r[1] for r in results if r[0] == "success")
+    loser_conflict = next(r for r in results if r[0] == "conflict")
+    assert loser_conflict[1] == winner
+    assert loser_conflict[2] == "repo:Cerebro:HEAD"
