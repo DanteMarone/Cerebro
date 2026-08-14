@@ -618,7 +618,7 @@ function App() {
     const currentMessages = messages[activeChannelId] || [];
     const nonMemberAgents = agents.filter(ag => !channelMembers.some(m => m.member_id === ag.id));
 
-    return h("div", { id: "app" }, [
+    return h("div", { class: "app-container" }, [
         // Deployment banner. Rendered only when the server can actually tell -- an unknown commit
         // says nothing rather than guessing, because a false "up to date" is worse than silence.
         health && health.stale
@@ -630,8 +630,9 @@ function App() {
               ])
             : null,
 
-        // Sidebar
-        h("aside", { class: "sidebar" }, [
+        h("div", { class: "app-layout" }, [
+            // Sidebar
+            h("aside", { class: "sidebar" }, [
             h("div", { class: "sidebar-header" }, [
                 h("h1", null, "⚡ Cerebro"),
                 h("div", { class: "status-badge" }, [
@@ -898,7 +899,7 @@ function App() {
                         }, "Send")
                     ])
                 ])
-            ])
+            ]),
         ]),
 
         // New DM Modal Dialog
