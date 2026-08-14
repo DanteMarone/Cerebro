@@ -68,23 +68,27 @@ You can also view the documentation online here: **[Cerebro User Guide](docs/use
     curl http://127.0.0.1:8765/api/health
     ```
 
-### Channel visibility and war-room import (v2)
+### Channel visibility and permanent war room (v2)
 
 Recipient selection routes attention; it does not create a private audience. Dante is added to
 every channel automatically, cannot be removed, and sees the complete shared transcript including
 agent war rooms. Cerebro does not support hidden agent-to-agent channels.
 
-To move the temporary append-only build transcript into the permanent `#warroom` channel, run:
+The temporary append-only Markdown build room has been retired. Its complete 130-message snapshot
+was imported into the permanent `#warroom` channel and verified for count, ordering, representative
+content, attribution metadata, and idempotency before the legacy source and viewer were removed.
+
+For an archived Markdown transcript using the same format, an explicit path can still be imported:
 
 ```powershell
-python scripts/import_warroom.py
+python scripts/import_warroom.py path\to\archived-transcript.md
 ```
 
 The importer creates the Cerebro Core team, seeds missing Claude, Antigravity, and Codex CLI-agent
 profiles, includes Dante as the permanent owner member, and preserves source author, recipient,
 timestamp, order, and body metadata. Imported rows are stored as `transcript-importer` so historical
 content cannot claim Dante's live identity; the UI uses separate source-attribution metadata for
-display. Rerunning the importer adds no duplicate messages.
+display. Rerunning an import against the same archived source adds no duplicate messages.
 
 ## Development & Testing
 

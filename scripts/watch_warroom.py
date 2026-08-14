@@ -1,10 +1,10 @@
-"""A file watcher for Cerebro war room channel transcripts.
+"""A file watcher for archived Cerebro channel transcripts.
 
-Monitors a channel markdown file (defaults to workspace/channels/slice0.md)
-and outputs new incoming messages directed to @antigravity or @everyone.
+Monitors an explicitly named Markdown file and outputs new incoming messages directed to
+@antigravity or @everyone. The former default build-room transcript was retired after Slice 2.
 
 Usage:
-    python scripts/watch_warroom.py [--once] [channel_path]
+    python scripts/watch_warroom.py [--once] channel_path
 """
 
 import re
@@ -12,9 +12,6 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_CHANNEL = (
-    Path(__file__).resolve().parent.parent / "workspace" / "channels" / "slice0.md"
-)
 HEADING = re.compile(r"^### @(\w+) → @(\w+) · (.+)$")
 
 
@@ -60,7 +57,10 @@ def check_for_new_messages(channel_path: Path, last_count: int):
 def main():
     once = "--once" in sys.argv
     args = [a for a in sys.argv[1:] if a != "--once"]
-    channel_path = Path(args[0]) if args else DEFAULT_CHANNEL
+    if not args:
+        print("usage: watch_warroom.py [--once] channel_path", file=sys.stderr)
+        raise SystemExit(2)
+    channel_path = Path(args[0])
 
     messages = parse_messages(channel_path)
     last_count = len(messages)

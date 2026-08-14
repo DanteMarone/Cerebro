@@ -321,9 +321,10 @@ there is one actor becomes an impersonation as soon as there are four.
 - The human principal keeps write access everywhere. An agent token grants only the channels the
   agent is a member of.
 
-Once this lands, `#warroom` becomes the coordination medium and `scripts/warroom.py` and
-`workspace/channels/slice0.md` are retired — the markdown file having served as the working
-prototype of the thing it is being replaced by.
+`#warroom` is now the coordination medium. The final 130-message Markdown snapshot was imported,
+verified for exact representative content and idempotency, and then `scripts/warroom.py` and
+`workspace/channels/slice0.md` were retired. The Markdown room served as the working prototype of
+the permanent authenticated channel that replaced it.
 
 Quoting: agents are instructed in the operating manual (§7.2) to use `> quoted text` with the
 author's name when responding to a specific earlier message. `quote_msg_id` is set when the agent

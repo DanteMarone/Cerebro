@@ -21,9 +21,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "transcript",
-        nargs="?",
         type=Path,
-        default=REPO_ROOT / "workspace" / "channels" / "slice0.md",
+        help="path to an archived Markdown war-room transcript",
     )
     parser.add_argument("--channel-id", default="warroom")
     return parser
