@@ -1,10 +1,11 @@
 """End-to-end WebSocket proofs using the app's real ASGI route and lifespan."""
 
 import importlib
+import threading
 
 from fastapi.testclient import TestClient
 
-from cerebro import config, db
+from cerebro import config, db, store
 from cerebro.api.app import app
 from cerebro.auth import SessionStore, TokenStore
 from cerebro.config import Settings
@@ -157,3 +158,50 @@ def test_real_websocket_session_authors_human_as_dante(monkeypatch, tmp_path):
         assert message["author_id"] == "dante"
         assert message["author_kind"] == "user"
         assert message["body"] == "positive human session"
+
+
+def test_real_websocket_refuses_nonmember_agent_write(monkeypatch, tmp_path):
+    """The real socket reaches the membership guard and persists nothing for a nonmember."""
+    _configure_lifespan(monkeypatch, tmp_path)
+    token = app.state.token_store.issue("codex")
+    guard_seen = threading.Event()
+    original_get_members = store.get_channel_members
+
+    async def observed_get_members(channel_id: str):
+        members = await original_get_members(channel_id)
+        if channel_id == "ws-nonmember-proof":
+            guard_seen.set()
+        return members
+
+    monkeypatch.setattr(store, "get_channel_members", observed_get_members)
+
+    with TestClient(app) as client:
+        client.get("/")
+        created = client.post(
+            "/api/channels",
+            json={
+                "id": "ws-nonmember-proof",
+                "name": "WebSocket nonmember proof",
+            },
+        )
+        assert created.status_code == 201
+        guard_seen.clear()
+
+        with client.websocket_connect(
+            "/ws",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as websocket:
+            websocket.send_json(
+                {
+                    "type": "message.send",
+                    "payload": {
+                        "channel_id": "ws-nonmember-proof",
+                        "content": "must not cross membership boundary",
+                    },
+                }
+            )
+            assert guard_seen.wait(timeout=1), "real WebSocket never reached membership guard"
+
+        history = client.get("/api/channels/ws-nonmember-proof/messages")
+        assert history.status_code == 200
+        assert history.json()["messages"] == []
