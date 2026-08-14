@@ -20,7 +20,9 @@ class MemoryKeyring(keyring.backend.KeyringBackend):
 
 def test_store_get_delete():
     keyring.set_keyring(MemoryKeyring())
-    credential_manager.run_tool({"action": "store", "service": "svc", "username": "u", "value": "secret"})
+    credential_manager.run_tool(
+        {"action": "store", "service": "svc", "username": "u", "value": "secret"}
+    )
     value = credential_manager.run_tool({"action": "get", "service": "svc", "username": "u"})
     assert value == "secret"
     credential_manager.run_tool({"action": "delete", "service": "svc", "username": "u"})

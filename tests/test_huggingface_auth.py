@@ -1,7 +1,9 @@
 import tool_plugins.huggingface_auth as hf_auth
 
+
 def test_login(monkeypatch):
     called = {}
+
     def fake_login(token=None, add_to_git_credential=True):
         called['token'] = token
     monkeypatch.setattr(hf_auth, 'login', fake_login)
@@ -14,6 +16,7 @@ def test_login(monkeypatch):
 
 def test_logout(monkeypatch):
     called = {'logout': False}
+
     def fake_logout():
         called['logout'] = True
     monkeypatch.setattr(hf_auth, 'logout', fake_logout)

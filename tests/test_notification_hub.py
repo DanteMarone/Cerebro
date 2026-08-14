@@ -7,6 +7,7 @@ def test_run_tool(monkeypatch):
 
     def fake_post(url, json=None, timeout=5):
         sent.append((url, json))
+
         class R:
             status_code = 200
         return R()
@@ -26,7 +27,7 @@ def test_win_toast_threaded(monkeypatch):
             calls['threaded'] = threaded
 
     monkeypatch.setattr(nh, 'sys', type('s', (), {'platform': 'win32'}))
-    monkeypatch.setitem(sys.modules, 'win10toast', type('m', (), {'ToastNotifier': lambda: FakeToast()}))
+    fake_module = type('m', (), {'ToastNotifier': lambda: FakeToast()})
+    monkeypatch.setitem(sys.modules, 'win10toast', fake_module)
     nh.run_tool({'title': 't', 'message': 'm'})
     assert calls.get('threaded') is True
-

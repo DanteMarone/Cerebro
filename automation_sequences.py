@@ -2,8 +2,17 @@ import json
 import os
 import time
 from typing import List, Dict, Any, Literal, Union
-from log_utils import logger  # Import logger
-from screenshot import capture_screenshot_to_tempfile # Import for screenshot functionality
+try:
+    from log_utils import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger("automation_sequences")
+
+try:
+    from screenshot import capture_screenshot_to_tempfile
+except ImportError:
+    def capture_screenshot_to_tempfile():
+        return None
 
 # Attempt to import pyautogui globally so tests can patch it easily.
 try:
@@ -251,9 +260,15 @@ def run_step_automation(
     context = {}
     if execution_context is None:
         context.update(DEFAULT_EXECUTION_CONTEXT)
+        context['loop_stack'] = []
+        context['if_stack'] = []
+        context['variables'] = {}
         logger.info("Starting execution of step-based automation from beginning.")
     else:
         context.update(execution_context)
+        context['loop_stack'] = list(execution_context.get('loop_stack', []))
+        context['if_stack'] = list(execution_context.get('if_stack', []))
+        context['variables'] = dict(execution_context.get('variables', {}))
         logger.info(f"Resuming execution of step-based automation from step {context.get('current_step_index', 0) + 1}.")
         # Reset transient fields if resuming
         context['ask_agent_prompt'] = None
@@ -261,7 +276,6 @@ def run_step_automation(
         context['ask_agent_send_screenshot'] = False
         context['ask_agent_screenshot_path'] = None
         context['next_step_index_after_ask'] = None
-        # Keep current_step_index, loop_stack, if_stack
 
     context['status'] = 'running'
     context['error_message'] = None
@@ -324,11 +338,9 @@ def run_step_automation(
                         logger.info(f"Screenshot captured for AskAgent: {screenshot_path}")
                     except Exception as e:
                         logger.error(f"Failed to capture screenshot for AskAgent: {e}", exc_info=True)
-                        # Decide if this is a fatal error or if we can proceed without screenshot
-                        # For now, let's proceed without it but log the error.
                         context['ask_agent_screenshot_path'] = None
                 else:
-                    context['ask_agent_screenshot_path'] = None
+                    context['ask_agent_screenshot_path'] = params.get("screenshot_path", None)
 
                 logger.info(f"Pausing for AskAgent at step {i+1}: Prompt='{prompt}', Agent='{agent_name}', SendScreenshot='{send_screenshot}'")
                 return context
@@ -418,8 +430,8 @@ def run_step_automation(
                         pyautogui.press(special_key_name)
                     elif '+' in special_key_name:
                         parts = [part.strip() for part in special_key_name.split('+')]
-                        if all(part in PYAUTOGUI_SPECIAL_KEYS for part in parts):
-                             pyautogui.hotkey(*parts)
+                        if all(part in PYAUTOGUI_SPECIAL_KEYS or len(part) == 1 for part in parts):
+                            pyautogui.hotkey(*parts)
                         else:
                             context['status'] = 'error'
                             context['error_message'] = f"[Automation Error] Step {i+1} (KeyboardInput): Invalid special key or hotkey part: '{special_key_name}'"
@@ -632,9 +644,18 @@ def is_valid_step(step_dict: Dict[str, Any]) -> bool:
     elif step_type == STEP_TYPE_WAIT:
         return "duration" in params and isinstance(params["duration"], (int, float))
     elif step_type == STEP_TYPE_ASK_AGENT:
-        return "prompt" in params and isinstance(params["prompt"], str) and \
-               "agent_name" in params and isinstance(params["agent_name"], str) and \
-               "send_screenshot" in params and isinstance(params["send_screenshot"], bool)
+        if not ("prompt" in params and isinstance(params["prompt"], str)):
+            return False
+        has_agent_name = "agent_name" in params
+        has_send_screenshot = "send_screenshot" in params
+        if has_agent_name or has_send_screenshot:
+            return (
+                has_agent_name
+                and isinstance(params["agent_name"], str)
+                and has_send_screenshot
+                and isinstance(params["send_screenshot"], bool)
+            )
+        return True
     elif step_type == STEP_TYPE_LOOP_START:
         has_count = "count" in params and isinstance(params["count"], int)
         has_condition = "condition" in params and isinstance(params["condition"], str)

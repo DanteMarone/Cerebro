@@ -1,26 +1,17 @@
-import json
 import sys
 import types
-import pytest # Import pytest for parametrize if not already there
 from unittest.mock import patch, MagicMock
 
 import automation_sequences as auto
 from automation_sequences import (
     STEP_TYPE_MOUSE_CLICK,
-    STEP_TYPE_KEYBOARD_INPUT,
-    STEP_TYPE_WAIT,
-    STEP_TYPE_MOUSE_DRAG, # New import
-    MouseClickParams, # Example, if you decide to use it for test data
-    KeyboardInputParams,
-    WaitParams,
-    MouseDragParams, # New import
-    is_valid_step,      # For testing validation
-    run_step_automation # For testing execution
+    STEP_TYPE_MOUSE_DRAG,
+    is_valid_step,
+    run_step_automation,
 )
 
 
 def test_record_and_play(tmp_path, monkeypatch):
-    events = []
 
     class FakeMouseListener:
         def __init__(self, on_move=None, on_click=None):
@@ -56,9 +47,10 @@ def test_record_and_play(tmp_path, monkeypatch):
             return False
 
     fake_pynput = types.SimpleNamespace(
-        mouse=types.SimpleNamespace(Listener=FakeMouseListener),
-        keyboard=types.SimpleNamespace(Listener=FakeKeyboardListener, Key=types.SimpleNamespace(esc="esc")),
-    )
+        mouse=types.SimpleNamespace(
+            Listener=FakeMouseListener), keyboard=types.SimpleNamespace(
+            Listener=FakeKeyboardListener, Key=types.SimpleNamespace(
+                esc="esc")), )
     monkeypatch.setitem(sys.modules, "pynput", fake_pynput)
     monkeypatch.setattr(auto.time, "sleep", lambda s: None)
 
@@ -76,6 +68,7 @@ def test_record_and_play(tmp_path, monkeypatch):
         keyDown=lambda k: actions.append(("down", k)),
         keyUp=lambda k: actions.append(("up", k)),
     )
+    monkeypatch.setattr(auto, "pyautogui", fake_pg)
     monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
 
     result = auto.run_automation([{"name": "test", "events": data}], "test", step_delay=0)
@@ -100,6 +93,7 @@ def test_run_automation_jumps_to_clicks(monkeypatch):
         keyDown=lambda k: actions.append(("downkey", k)),
         keyUp=lambda k: actions.append(("upkey", k)),
     )
+    monkeypatch.setattr(auto, "pyautogui", fake_pg)
     monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
 
     monkeypatch.setattr(auto.time, "sleep", lambda s: None)
@@ -114,6 +108,7 @@ def test_run_automation_jumps_to_clicks(monkeypatch):
 
 
 def test_missing_modules(monkeypatch):
+    monkeypatch.setattr(auto, "pyautogui", None)
     monkeypatch.setitem(sys.modules, "pynput", types.ModuleType("pynput"))
     result = auto.record_automation(0)
     assert result == []
@@ -147,6 +142,7 @@ def test_run_automation_delay(monkeypatch):
         keyDown=lambda k: actions.append(("down", k)),
         keyUp=lambda k: actions.append(("up", k)),
     )
+    monkeypatch.setattr(auto, "pyautogui", fake_pg)
     monkeypatch.setitem(sys.modules, "pyautogui", fake_pg)
 
     sleeps = []
@@ -158,6 +154,7 @@ def test_run_automation_delay(monkeypatch):
 
 def test_run_automation_invalid_events(monkeypatch):
     """run_automation should handle missing or invalid events list."""
+    monkeypatch.setattr(auto, "pyautogui", types.SimpleNamespace())
     monkeypatch.setattr(auto.time, "sleep", lambda s: None)
     result = auto.run_automation([{"name": "bad", "events": None}], "bad", step_delay=0)
     assert "Invalid event list" in result
@@ -169,8 +166,10 @@ def test_run_automation_invalid_events(monkeypatch):
 def test_run_step_automation_mouse_click(mock_pyautogui):
     """Test MouseClick step execution."""
     actions = []
-    mock_pyautogui.moveTo = lambda x, y: actions.append(("moveTo", x, y))
-    mock_pyautogui.click = lambda x, y, button: actions.append(("click", x, y, button))
+    mock_pyautogui.moveTo = MagicMock(side_effect=lambda x, y: actions.append(("moveTo", x, y)))
+    mock_pyautogui.click = MagicMock(
+        side_effect=lambda x, y, button="left": actions.append(("click", x, y, button))
+    )
 
     steps_data = [
         {"type": STEP_TYPE_MOUSE_CLICK, "params": {"x": 100, "y": 150, "button": "left"}}
@@ -187,16 +186,13 @@ def test_run_step_automation_mouse_click(mock_pyautogui):
 def test_run_step_automation_mouse_drag(mock_pyautogui):
     """Test MouseDrag step execution."""
     actions = []
-    # Configure the mock pyautogui object
-    mock_pyautogui.moveTo = lambda x, y: actions.append(("moveTo", x, y))
-    # dragTo is usually mouseDown, moveTo, mouseUp. Let's simulate that or mock dragTo directly
-    # For simplicity, if dragTo is a direct pyautogui call in the implementation:
-    mock_pyautogui.dragTo = lambda x, y, duration: actions.append(("dragTo", x, y, duration))
+    mock_pyautogui.moveTo = MagicMock(side_effect=lambda x, y: actions.append(("moveTo", x, y)))
+    mock_pyautogui.dragTo = MagicMock(
+        side_effect=lambda x, y, duration=0.2: actions.append(("dragTo", x, y, duration))
+    )
 
-
-    steps_data = [
-        {"type": STEP_TYPE_MOUSE_DRAG, "params": {"start_x": 50, "start_y": 60, "end_x": 150, "end_y": 160}}
-    ]
+    steps_data = [{"type": STEP_TYPE_MOUSE_DRAG, "params": {
+        "start_x": 50, "start_y": 60, "end_x": 150, "end_y": 160}}]
     context = run_step_automation(steps_data, step_delay=0)
 
     assert context['status'] == 'completed'
@@ -205,7 +201,7 @@ def test_run_step_automation_mouse_drag(mock_pyautogui):
     # pyautogui.dragTo(end_x, end_y, duration=0.2)
     expected_actions = [
         ("moveTo", 50, 60),
-        ("dragTo", 150, 160, 0.2) # Assuming default duration 0.2
+        ("dragTo", 150, 160, 0.2)  # Assuming default duration 0.2
     ]
     assert actions == expected_actions
     mock_pyautogui.moveTo.assert_called_with(50, 60)
@@ -215,20 +211,26 @@ def test_run_step_automation_mouse_drag(mock_pyautogui):
 def test_is_valid_step_mouse_drag():
     """Test validation for MouseDrag steps."""
     # Valid case
-    valid_step = {"type": STEP_TYPE_MOUSE_DRAG, "params": {"start_x": 0, "start_y": 0, "end_x": 10, "end_y": 10}}
+    valid_step = {
+        "type": STEP_TYPE_MOUSE_DRAG,
+        "params": {
+            "start_x": 0,
+            "start_y": 0,
+            "end_x": 10,
+            "end_y": 10}}
     assert is_valid_step(valid_step) is True
 
     # Invalid cases
     invalid_params = [
-        {}, # Missing all params
-        {"start_x": 0, "start_y": 0, "end_x": 10}, # Missing end_y
-        {"start_x": 0, "start_y": 0, "end_y": 10}, # Missing end_x
-        {"start_x": 0, "end_x": 10, "end_y": 10}, # Missing start_y
-        {"start_y": 0, "end_x": 10, "end_y": 10}, # Missing start_x
-        {"start_x": "0", "start_y": 0, "end_x": 10, "end_y": 10}, # Incorrect type for start_x
-        {"start_x": 0, "start_y": "0", "end_x": 10, "end_y": 10}, # Incorrect type for start_y
-        {"start_x": 0, "start_y": 0, "end_x": "10", "end_y": 10}, # Incorrect type for end_x
-        {"start_x": 0, "start_y": 0, "end_x": 10, "end_y": "10"}, # Incorrect type for end_y
+        {},  # Missing all params
+        {"start_x": 0, "start_y": 0, "end_x": 10},  # Missing end_y
+        {"start_x": 0, "start_y": 0, "end_y": 10},  # Missing end_x
+        {"start_x": 0, "end_x": 10, "end_y": 10},  # Missing start_y
+        {"start_y": 0, "end_x": 10, "end_y": 10},  # Missing start_x
+        {"start_x": "0", "start_y": 0, "end_x": 10, "end_y": 10},  # Incorrect type for start_x
+        {"start_x": 0, "start_y": "0", "end_x": 10, "end_y": 10},  # Incorrect type for start_y
+        {"start_x": 0, "start_y": 0, "end_x": "10", "end_y": 10},  # Incorrect type for end_x
+        {"start_x": 0, "start_y": 0, "end_x": 10, "end_y": "10"},  # Incorrect type for end_y
     ]
 
     for params in invalid_params:
@@ -247,55 +249,29 @@ def test_is_valid_step_mouse_drag():
 def test_run_step_automation_mouse_drag_invalid_params(mock_pyautogui):
     """Test error handling in run_step_automation for invalid MouseDrag params."""
     # Case 1: Missing parameter (e.g., end_x)
-    # Note: is_valid_step should catch this first if called, but run_step_automation also has internal checks.
+    # Note: is_valid_step should catch this first, but run_step_automation also checks.
     # The implementation of run_step_automation calls is_valid_step first.
     # So, this test effectively also tests that is_valid_step is correctly integrated.
 
     steps_data_missing_param = [
-        {"type": STEP_TYPE_MOUSE_DRAG, "params": {"start_x": 50, "start_y": 60, "end_y": 160}} # Missing end_x
+        {"type": STEP_TYPE_MOUSE_DRAG, "params": {
+            "start_x": 50, "start_y": 60, "end_y": 160}}  # Missing end_x
     ]
     context_missing = run_step_automation(steps_data_missing_param, step_delay=0)
     assert context_missing['status'] == 'error'
-    assert "invalid or has missing parameters" in context_missing['error_message'] # From is_valid_step check
+    assert "invalid or has missing parameters" in context_missing['error_message']
 
     # Case 2: Incorrect parameter type (e.g., start_x is a string)
     # This will also be caught by the is_valid_step check within run_step_automation
-    steps_data_wrong_type = [
-        {"type": STEP_TYPE_MOUSE_DRAG, "params": {"start_x": "50", "start_y": 60, "end_x": 150, "end_y": 160}}
-    ]
+    steps_data_wrong_type = [{"type": STEP_TYPE_MOUSE_DRAG, "params": {
+        "start_x": "50", "start_y": 60, "end_x": 150, "end_y": 160}}]
     context_wrong_type = run_step_automation(steps_data_wrong_type, step_delay=0)
     assert context_wrong_type['status'] == 'error'
-    assert "invalid or has missing parameters" in context_wrong_type['error_message'] # From is_valid_step check
+    assert "invalid or has missing parameters" in context_wrong_type['error_message']
 
-
-    # Case 3: Test internal validation within the STEP_TYPE_MOUSE_DRAG block in run_step_automation
-    # This requires is_valid_step to pass, but the specific handler to fail.
-    # The current is_valid_step for MouseDrag is quite comprehensive.
-    # However, if we imagine a scenario where is_valid_step was less strict,
-    # or if a parameter was valid type but invalid value (e.g. negative, though current spec doesn't forbid).
-    # Let's assume the internal check for integer types on all coordinates within the MouseDrag handler.
-    # To specifically test the error message from *within* the MouseDrag handler block,
-    # we'd need to bypass the initial `is_valid_step` or make a step that passes `is_valid_step`
-    # but fails the internal check.
-    # The current `is_valid_step` checks for `isinstance(params["start_x"], int)`.
-    # The internal check in `run_step_automation` for `STEP_TYPE_MOUSE_DRAG` is:
-    # `if not all(isinstance(val, int) for val in [start_x, start_y, end_x, end_y]):`
-    # This is redundant if `is_valid_step` is perfect.
-    # For the sake of completeness, if we manually construct a scenario where `is_valid_step` might pass
-    # but the internal one fails (e.g., by mocking `is_valid_step` to always return True for this specific call)
-    # or if `is_valid_step` was simpler.
-
+    # Case 3: Test internal validation within STEP_TYPE_MOUSE_DRAG block
+    # For completeness, if we manually construct a scenario where is_valid_step might pass
+    # but the internal one fails (e.g., by mocking is_valid_step to return True).
     # Given the current code, the error "Start and End X, Y must be integers"
-    # from within the MouseDrag specific block in `run_step_automation`
-    # will NOT be reached if `is_valid_step` is working as expected, because `is_valid_step`
-    # already checks for `isinstance(..., int)`.
-    # So, the "invalid or has missing parameters" from the top-level check in `run_step_automation`
-    # (which calls `is_valid_step`) is the expected error message.
+    # will NOT be reached if is_valid_step is working as expected.
     # The tests above (context_missing, context_wrong_type) correctly cover this.
-
-    # If we wanted to ensure the specific error message "Start and End X, Y must be integers"
-    # could be triggered, we would need a case where `is_valid_step` returns True,
-    # but the params are still somehow wrong in a way that this specific check catches.
-    # Example: If `is_valid_step` only checked for presence, not type.
-    # But `is_valid_step` *does* check for type.
-    # So, the prior assertions are sufficient for the current code structure.

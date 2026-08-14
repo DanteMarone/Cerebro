@@ -11,7 +11,8 @@ def test_windows_notifier_threaded(monkeypatch):
             calls['threaded'] = threaded
             return True
 
-    monkeypatch.setitem(sys.modules, 'win10toast', type('m', (), {'ToastNotifier': lambda: FakeToast()}))
+    fake_toast_mod = type('m', (), {'ToastNotifier': lambda: FakeToast()})
+    monkeypatch.setitem(sys.modules, 'win10toast', fake_toast_mod)
     result = wn.run_tool({'title': 'T', 'message': 'M'})
     assert result == "Notification sent"
     assert calls.get('threaded') is True

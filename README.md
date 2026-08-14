@@ -37,54 +37,41 @@ Contextual help buttons (`?`) appear in the Agents tab next to complex settings.
 
 You can also view the documentation online here: **[Cerebro User Guide](docs/user_guide.md)**
 
-## Requirements
+## Requirements (v2)
 
-*   Python 3.7 or higher
-*   PyQt5
-*   Requests
-*   win10toast (Windows only, for notification support via the bundled `windows-notifier` plugin)
-*   SymPy (for the bundled `math-solver` plugin)
-*   pyautogui, pynput (for Automations and `desktop-automation` plugin)
-*   SpeechRecognition (for voice input)
-*   A running Ollama instance with desired language models installed (see [Ollama](https://ollama.ai/))
+*   Python 3.12 or higher
+*   Dependencies managed via hash-locked `requirements.txt` / `requirements-dev.txt`
+*   LM Studio local server (`http://127.0.0.1:1234`) and/or Google Gemini API key
 
-For a full list of dependencies for development and testing, see `requirements.txt` and `requirements-dev.txt`.
+## Getting Started (v2)
 
-## Installation
+1.  **Clone and switch to branch `v2`:**
+    ```bash
+    git checkout v2
+    ```
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\activate  # Windows
+    # source .venv/bin/activate  # macOS/Linux
+    ```
+3.  **Install dependencies:**
+    ```bash
+    pip install -r requirements-dev.txt
+    ```
+4.  **Run the application server:**
+    ```bash
+    python main.py
+    ```
+5.  **Verify health:**
+    ```bash
+    curl http://127.0.0.1:8765/api/health
+    ```
 
-For detailed installation and setup instructions, please see the **[Getting Started Guide](docs/getting_started.md)**.
+## Development & Testing
 
-1.  **Clone the repository.**
-2.  **Create a virtual environment (recommended).**
-3.  **Activate the virtual environment.**
-4.  **Install dependencies:** `pip install -r requirements.txt`
-    *   QScintilla is optional but enables syntax highlighting in the tool editor.
-5.  **(Optional)** Install Ollama and models using the helper: `python local_llm_helper.py install`
-
-## Usage
-
-1.  **Start the Ollama server.** (e.g., `ollama serve` or `python local_llm_helper.py serve`)
-2.  **Run the Cerebro application:** `python main.py`
-    *   Debug mode is enabled by default. To disable, set `DEBUG_MODE=0` (see [Configuration - Debug Mode](docs/configuration.md#understanding-debug-mode)).
-    *   Errors are saved to `cerebro.log` in the application directory.
-
-## Configuration
-
-Cerebro uses several JSON files to store configurations for agents, tools, tasks, settings, etc. For a detailed explanation of these files and their structures, please refer to the **[Configuration Guide](docs/configuration.md)**.
-
-## Fine-tuning a Model
-
-Cerebro allows you to fine-tune existing Ollama models with your own datasets using the **Finetune Tab**. For detailed instructions on preparing data and using this feature, please see the **[Fine-tuning a Model section in the User Guide](docs/user_guide.md#fine-tuning-a-model)**.
-
-## Windows Installer
-
-To create a stand-alone Windows installer, install PyInstaller and then run `build_windows_installer.bat` from a command prompt. The executable will be created in the `dist` directory. (More details: [Getting Started Guide](docs/getting_started.md))
-
-## Testing
-
-Install development dependencies and run the linter and test suite:
+Run the linter and test suite:
 ```bash
-pip install -r requirements-dev.txt
 flake8 .
 PYTHONPATH=. pytest -q
 ```

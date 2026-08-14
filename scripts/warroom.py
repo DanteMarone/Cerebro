@@ -10,7 +10,6 @@ channel as @dante. Standard library only -- no dependencies, so it runs before t
 import html
 import re
 import sys
-import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path

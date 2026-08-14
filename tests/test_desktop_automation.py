@@ -7,8 +7,9 @@ from tool_plugins import desktop_automation as da
 
 def test_launch_windows(monkeypatch):
     called = {}
-    monkeypatch.setattr(platform, "system", lambda: "Windows")
-    monkeypatch.setattr(os, "startfile", lambda path: called.setdefault("path", path), raising=False)
+    monkeypatch.setattr(
+        os, "startfile", lambda path: called.setdefault("path", path), raising=False
+    )
     result = da.run_tool({"action": "launch", "target": "calc.exe"})
     assert "Launched" in result
     assert called["path"] == "calc.exe"

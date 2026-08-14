@@ -30,7 +30,9 @@ def test_check_update(monkeypatch):
 
 def test_update_download(monkeypatch, tmp_path):
     monkeypatch.setattr(update_manager.requests, "get", fake_get)
-    result = update_manager.run_tool({"action": "update", "version": "0.2.0", "download_dir": tmp_path})
+    result = update_manager.run_tool(
+        {"action": "update", "version": "0.2.0", "download_dir": tmp_path}
+    )
     assert (tmp_path / "cerebro-0.2.0.zip").exists()
     assert "Downloaded" in result
 
