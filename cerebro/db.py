@@ -11,9 +11,38 @@ import aiosqlite
 
 from cerebro.config import settings
 
+_loop: asyncio.AbstractEventLoop | None = None
 _db: aiosqlite.Connection | None = None
 _write_queue: asyncio.Queue[tuple[str, tuple[Any, ...], asyncio.Future[Any]] | None] | None = None
 _writer_task: asyncio.Task[None] | None = None
+
+
+class WrongEventLoop(RuntimeError):
+    """The database was reached from an event loop other than the one it was connected on."""
+
+
+def _check_loop() -> None:
+    """Refuse cross-loop access instead of deadlocking.
+
+    The write queue and its consumer task belong to whichever loop called `connect()`. A write
+    enqueued from a second loop lands in a queue nobody is draining, so the caller awaits a future
+    that can never resolve: no traceback, no timeout, just a process that stops. That is exactly
+    how the Slice 1 WebSocket test hung the entire suite, and it would happen again in a cron
+    worker or a background thread with nobody watching. Fail loudly at the boundary instead.
+    """
+    if _loop is None:
+        return
+    try:
+        current = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    if current is not _loop:
+        raise WrongEventLoop(
+            "cerebro.db was connected on a different event loop than the one calling it. "
+            "The single-writer queue only drains on its own loop, so this call would hang. "
+            "Run the database and its callers on one loop -- in tests, let the app lifespan own "
+            "the connection rather than opening one in a fixture on another loop."
+        )
 
 
 async def _writer_consumer() -> None:
@@ -42,7 +71,7 @@ async def _writer_consumer() -> None:
 
 async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
     """Connect to SQLite database and start writer queue."""
-    global _db, _write_queue, _writer_task
+    global _db, _write_queue, _writer_task, _loop
     if _db is not None:
         return _db
 
@@ -56,6 +85,7 @@ async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
     await _db.execute("PRAGMA foreign_keys=ON;")
     await _db.commit()
 
+    _loop = asyncio.get_running_loop()
     _write_queue = asyncio.Queue()
     _writer_task = asyncio.create_task(_writer_consumer())
 
@@ -64,7 +94,7 @@ async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
 
 async def close() -> None:
     """Stop writer queue and close database connection."""
-    global _db, _write_queue, _writer_task
+    global _db, _write_queue, _writer_task, _loop
     if _write_queue is not None:
         await _write_queue.put(None)
         if _writer_task is not None:
@@ -75,10 +105,12 @@ async def close() -> None:
     if _db is not None:
         await _db.close()
         _db = None
+    _loop = None
 
 
 async def migrate(migrations_dir: Path | None = None) -> list[int]:
     """Apply unapplied migrations in alphabetical order. Idempotent."""
+    _check_loop()
     if _db is None:
         raise RuntimeError("Database is not connected. Call connect() first.")
 
@@ -136,6 +168,7 @@ async def migrate(migrations_dir: Path | None = None) -> list[int]:
 
 async def fetch_one(sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
     """Read helper returning a single row as a dictionary, or None."""
+    _check_loop()
     if _db is None:
         raise RuntimeError("Database is not connected. Call connect() first.")
 
@@ -148,6 +181,7 @@ async def fetch_one(sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | 
 
 async def fetch_all(sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     """Read helper returning all matching rows as dictionaries."""
+    _check_loop()
     if _db is None:
         raise RuntimeError("Database is not connected. Call connect() first.")
 
@@ -161,6 +195,7 @@ async def enqueue_write(
     params: tuple[Any, ...] = (),
 ) -> asyncio.Future[Any]:
     """Enqueue a write operation to the single-writer queue."""
+    _check_loop()
     if _write_queue is None:
         raise RuntimeError("Database is not connected or writer is not active.")
 
