@@ -47,8 +47,14 @@ async def get_channels():
 
 
 @router.post("", status_code=201)
-async def create_channel(req: CreateChannelRequest):
-    """Create a new channel, unconditionally enrolling Dante (§6.1)."""
+async def create_channel(
+    req: CreateChannelRequest,
+    principal: Principal = Depends(get_current_principal),
+):
+    """Create a new channel. Only the human principal may create channels (§6.3)."""
+    if principal.is_agent:
+        raise HTTPException(status_code=403, detail="Agent channel creation not permitted")
+
     channel_id = (req.id or _slugify(req.name)).strip()
     if not channel_id:
         raise HTTPException(status_code=400, detail="Invalid channel ID")
@@ -66,7 +72,7 @@ async def create_channel(req: CreateChannelRequest):
         created_by="dante",
     )
 
-    # Add any requested initial members (Dante is already added by create_channel)
+    # Add initial agent members (Dante is already added as owner by create_channel)
     for m_id in req.member_ids:
         if m_id and m_id != "dante":
             await store.add_channel_member(
@@ -102,8 +108,15 @@ async def get_channel_members_list(channel_id: str):
 
 
 @router.post("/{channel_id}/members", status_code=201)
-async def add_channel_member(channel_id: str, req: AddMemberRequest):
-    """Add a member to a channel."""
+async def add_channel_member(
+    channel_id: str,
+    req: AddMemberRequest,
+    principal: Principal = Depends(get_current_principal),
+):
+    """Add a member to a channel. Only the human principal may administer members."""
+    if principal.is_agent:
+        raise HTTPException(status_code=403, detail="Agent member administration not permitted")
+
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
@@ -119,8 +132,15 @@ async def add_channel_member(channel_id: str, req: AddMemberRequest):
 
 
 @router.delete("/{channel_id}/members/{member_id}")
-async def remove_channel_member(channel_id: str, member_id: str):
+async def remove_channel_member(
+    channel_id: str,
+    member_id: str,
+    principal: Principal = Depends(get_current_principal),
+):
     """Remove a member from a channel, refusing for Dante (§6.1)."""
+    if principal.is_agent:
+        raise HTTPException(status_code=403, detail="Agent member administration not permitted")
+
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
@@ -157,10 +177,22 @@ async def post_channel_message(
     request: Request,
     principal: Principal = Depends(get_current_principal),
 ):
-    """Append a new message to a channel and publish message.new event to hub."""
+    """Append a new message to a channel and publish message.new event to hub.
+
+    Enforces §6.3 channel membership: an agent may post only into channels it belongs to.
+    """
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+
+    # Enforce agent channel membership (§6.3)
+    if principal.is_agent:
+        members = await store.get_channel_members(channel_id)
+        if not any(m["member_id"] == principal.id for m in members):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Agent '{principal.id}' is not a member of channel '{channel_id}'",
+            )
 
     content = req.content.strip()
     if not content:

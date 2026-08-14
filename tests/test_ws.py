@@ -152,6 +152,11 @@ async def test_websocket_inbound_message_with_agent_token_authors_as_agent(test_
         name="agent-test",
         team_id="personal-assistant",
     )
+    await store.add_channel_member(
+        channel_id="test-chan-agent",
+        member_id="claude",
+        member_kind="agent",
+    )
 
     payload = json.dumps(
         {

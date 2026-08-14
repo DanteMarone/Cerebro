@@ -98,6 +98,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     content = (payload.get("content") or "").strip()
 
                     if channel_id and content:
+                        # Enforce agent channel membership (§6.3)
+                        if principal.is_agent:
+                            members = await store.get_channel_members(channel_id)
+                            if not any(m["member_id"] == principal.id for m in members):
+                                logger.warning(
+                                    f"Agent {principal.id} denied post to "
+                                    f"non-member channel {channel_id}"
+                                )
+                                continue
+
                         msg_id = await store.append_message(
                             channel_id=channel_id,
                             author_id=principal.id,

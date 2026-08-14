@@ -36,6 +36,7 @@ def test_real_websocket_route_authors_agent_as_itself(monkeypatch, tmp_path):
     token = app.state.token_store.issue("codex")
 
     with TestClient(app) as client:
+        client.get("/")
         created = client.post(
             "/api/channels",
             json={
@@ -93,6 +94,7 @@ def test_real_websocket_anonymous_write_is_refused(monkeypatch, tmp_path):
     _configure_lifespan(monkeypatch, tmp_path)
 
     with TestClient(app) as client:
+        client.get("/")
         created = client.post(
             "/api/channels",
             json={
@@ -102,6 +104,7 @@ def test_real_websocket_anonymous_write_is_refused(monkeypatch, tmp_path):
         )
         assert created.status_code == 201
 
+        client.cookies.clear()
         with client.websocket_connect("/ws") as websocket:
             websocket.send_json(
                 {

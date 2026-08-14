@@ -20,6 +20,7 @@ async def test_channel_api_keeps_dante_in_every_room(test_db: Settings):
     app.state.hub = Hub()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/")
         created = await client.post(
             "/api/channels",
             json={
@@ -54,6 +55,7 @@ async def test_agent_message_authorship_is_assigned_and_visible_to_dante(
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/")
         created = await client.post(
             "/api/channels",
             json={
@@ -99,6 +101,7 @@ async def test_revoked_and_malformed_credentials_never_become_dante(
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/")
         created = await client.post(
             "/api/channels",
             json={
@@ -138,6 +141,7 @@ async def test_human_message_requires_a_positive_valid_session(test_db: Settings
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/")
         created = await client.post(
             "/api/channels",
             json={
@@ -146,6 +150,8 @@ async def test_human_message_requires_a_positive_valid_session(test_db: Settings
             },
         )
         assert created.status_code == 201
+        # Clear session to test anonymous
+        client.cookies.clear()
 
         anonymous = await client.post(
             "/api/channels/part-c-session-proof/messages",
@@ -176,3 +182,82 @@ async def test_human_message_requires_a_positive_valid_session(test_db: Settings
         assert [message["body"] for message in history.json()["messages"]] == [
             "Dante typed this"
         ]
+
+
+@pytest.mark.asyncio
+async def test_channel_mutations_require_a_positive_human_session(test_db: Settings):
+    """Anonymous callers cannot create channels or mutate membership as if they were Dante."""
+    app.state.hub = Hub()
+    app.state.session_store = SessionStore(test_db.data_dir / ".session.token")
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as anonymous:
+        denied_create = await anonymous.post(
+            "/api/channels",
+            json={"id": "anonymous-channel", "name": "Anonymous channel"},
+        )
+        assert denied_create.status_code == 401
+
+    async with AsyncClient(transport=transport, base_url="http://test") as human:
+        opened = await human.get("/")
+        assert opened.status_code == 200
+        created = await human.post(
+            "/api/channels",
+            json={"id": "session-channel", "name": "Session channel"},
+        )
+        assert created.status_code == 201
+
+    async with AsyncClient(transport=transport, base_url="http://test") as anonymous:
+        denied_add = await anonymous.post(
+            "/api/channels/session-channel/members",
+            json={"member_id": "codex"},
+        )
+        denied_remove = await anonymous.delete(
+            "/api/channels/session-channel/members/dante"
+        )
+        assert denied_add.status_code == 401
+        assert denied_remove.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_agent_can_post_only_in_channels_where_it_is_a_member(
+    test_db: Settings,
+):
+    """A valid token proves identity, not authority over every channel."""
+    app.state.hub = Hub()
+    app.state.session_store = SessionStore(test_db.data_dir / ".session.token")
+    token_store = TokenStore(test_db.data_dir / ".secrets.env")
+    app.state.token_store = token_store
+    token = token_store.issue("codex")
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as human:
+        await human.get("/")
+        created = await human.post(
+            "/api/channels",
+            json={"id": "membership-proof", "name": "Membership proof"},
+        )
+        assert created.status_code == 201
+
+        async with AsyncClient(transport=transport, base_url="http://test") as agent:
+            denied = await agent.post(
+                "/api/channels/membership-proof/messages",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"content": "not a member"},
+            )
+            assert denied.status_code == 403
+
+        added = await human.post(
+            "/api/channels/membership-proof/members",
+            json={"member_id": "codex"},
+        )
+        assert added.status_code == 201
+
+        async with AsyncClient(transport=transport, base_url="http://test") as agent:
+            allowed = await agent.post(
+                "/api/channels/membership-proof/messages",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"content": "member now"},
+            )
+            assert allowed.status_code == 200
+            assert allowed.json()["author_id"] == "codex"
