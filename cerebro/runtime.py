@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
 
+from cerebro import usage
+from cerebro.config import settings
 from cerebro.context import ContextBuilder
 from cerebro.hub import Hub
 from cerebro.models import (
@@ -277,6 +279,10 @@ class AgentRuntime:
                         {"agent_id": agent.id, "channel_id": channel_id,
                          "input": delta.input, "output": delta.output},
                     )
+                    # Until now this number was published and dropped. The hub event is for live
+                    # display; this is the durable half, and it cannot raise. See
+                    # usage.record_turn_usage for why it swallows its own failures.
+                    await usage.record_turn_usage(agent.id, delta.input, delta.output)
 
             if produced:
                 text_parts.append(produced)
@@ -321,9 +327,21 @@ class AgentRuntime:
         return "".join(text_parts).strip()
 
     def _log_thinking(self, agent: Agent, text: str) -> None:
-        """Write reasoning to the agent's own log rather than the shared channel."""
+        """Write reasoning to the agent's own log rather than the shared channel.
+
+        The fallback home is anchored to `settings.agents_path`, not to a relative `agents/`. A
+        CWD-relative fallback meant the test suite, run from the repo root with an agent that has no
+        home_path, appended fixtures to the *live* agent's log: 47 copies of the string "thinking
+        hard" from tests/test_runtime.py ended up in Jarvis's reasoning log, and were sitting there
+        the first time somebody read that log to explain why Jarvis was failing. `cerebro/tools.py`
+        already anchors agent homes to an explicit root; this brings the runtime in line with it.
+        """
         try:
-            home = Path(agent.home_path) if agent.home_path else Path("agents") / agent.id
+            home = (
+                Path(agent.home_path)
+                if agent.home_path
+                else Path(settings.agents_path) / agent.id
+            )
             logs = home / "logs"
             logs.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now(timezone.utc)

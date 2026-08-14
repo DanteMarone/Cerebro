@@ -1,6 +1,8 @@
 """The agent turn loop: streaming, persistence ordering, tool rounds and failure handling."""
 
 import json
+from pathlib import Path
+
 import pytest
 
 from cerebro.hub import Hub
@@ -41,6 +43,56 @@ class MemoryStore:
 
 
 AGENT = Agent(id="jarvis", name="jarvis", provider="lmstudio")
+
+
+@pytest.fixture(autouse=True)
+def _agent_homes_stay_in_tmp(tmp_path, monkeypatch):
+    """Keep this file's agents out of the real `agents/` directory.
+
+    AGENT deliberately has no home_path, which is the shape that leaked: the runtime used to fall
+    back to a CWD-relative `agents/<id>`, so running this suite from the repo root appended fixture
+    text to the live Jarvis's reasoning log. The runtime now anchors to settings.agents_path, and
+    this pins that root to tmp so a regression cannot quietly reach the real workspace again.
+    """
+    _pin_agents_root(monkeypatch, tmp_path)
+
+
+def _pin_agents_root(monkeypatch, tmp_path):
+    """Point the runtime's settings at a throwaway agents root.
+
+    Settings is a frozen dataclass, so the whole object is replaced in the runtime's namespace
+    rather than one field being reassigned.
+    """
+    import dataclasses
+
+    from cerebro.config import settings
+
+    monkeypatch.setattr(
+        "cerebro.runtime.settings",
+        dataclasses.replace(settings, agents_path=tmp_path / "agents"),
+    )
+
+
+def test_reasoning_is_logged_under_the_configured_agents_root(tmp_path, monkeypatch):
+    """The regression itself: a homeless agent must not write outside the configured root.
+
+    Runs from the repo CWD with an agent whose home_path is unset -- exactly the shape that put 47
+    fixture strings into the live Jarvis's reasoning log -- and asserts the real tree is untouched.
+    """
+    _pin_agents_root(monkeypatch, tmp_path)
+    assert AGENT.home_path is None, "the regression depends on this agent having no home"
+    real_agents = Path("agents") / AGENT.id / "logs"
+    before = set(real_agents.glob("*.log")) if real_agents.exists() else set()
+
+    hub, runtime = build(FakeProvider([]))
+    runtime._log_thinking(AGENT, "secret deliberation")
+
+    written = list((tmp_path / "agents" / AGENT.id / "logs").glob("*.log"))
+    assert written, "reasoning should land under settings.agents_path"
+    assert "secret deliberation" in written[0].read_text(encoding="utf-8")
+
+    after = set(real_agents.glob("*.log")) if real_agents.exists() else set()
+    assert after == before, "the real agents/ directory must be untouched"
 
 
 def build(provider, store=None, guard=None, executor=None, tools=None):

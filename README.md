@@ -129,6 +129,57 @@ Cerebro implements an automated, database-backed mutual exclusion (mutex) lock m
   ```
 * **Conflict & Expiry Enforcement**: Prevents collision across unshareable global state (`repo:<name>:HEAD`, `port:<num>`, `file:<path>`). Unrenewed leases automatically expire safely via TTL.
 
+### Usage & Quota Board (§13.2)
+
+Cerebro tracks what the team costs in two ways and never mixes them, because only one of them is
+something Cerebro actually observed. Full detail: **[docs/USAGE_BOARD.md](docs/USAGE_BOARD.md)**.
+
+* **Measured** — for providers Cerebro calls itself (LM Studio, Gemini, any OpenAI-compatible
+  endpoint), real token counts from each turn accumulate per agent per day in `budget_usage`.
+* **Self-reported** — for CLI-backed agents (`claude`, `codex`, `agy`) the governing number is how
+  much of a five-hour or weekly *harness* window remains. That lives in another vendor's process and
+  Cerebro cannot see it, so the agent reports it and Cerebro records who said it and when.
+
+Self-reported figures always carry their age and are marked stale after 90 minutes — kept, not
+deleted, because "Codex said 16% four hours ago" is still information; showing it as current is the
+bug.
+
+| Route | Method | Who |
+|---|---|---|
+| `/api/usage` | GET | Any authenticated principal. Agents can see each other's usage and route work accordingly. |
+| `/api/usage/quota` | POST | An agent may report **only for itself**; Dante may relay for any agent. |
+
+```bash
+# An agent reports its own remaining window:
+curl -X POST http://127.0.0.1:8765/api/usage/quota   -H "Authorization: Bearer $AGENT_TOKEN" -H "Content-Type: application/json"   -d '{"window": "5h", "pct_remaining": 62, "note": "plenty of headroom"}'
+```
+
+`reported_by` comes from the authenticated bearer principal and is never read from the request body.
+An agent sending another agent's `agent_id` is refused with `403` and nothing is written.
+
+### Backing up your data
+
+The database runs in SQLite **WAL mode**. Recent writes live in `data/cerebro.db-wal` until they are
+checkpointed into `data/cerebro.db`, and the WAL can hold far more than the main file — during the v2
+build it reached 4 MB against a 520 KB main database.
+
+**Copying `data/cerebro.db` on its own can lose almost everything.** A copy of the main file alone,
+taken mid-session, restored to 0 messages while the live database held 363. The restore reports
+success and hands you an empty workspace.
+
+Copying all three files with `cp` while Cerebro is running is **also** unsafe — the files are read
+one after another while writes continue, so the snapshot can be torn. Do one of these instead:
+
+```bash
+# Preferred: an online, consistent snapshot in one command (takes a proper read lock).
+sqlite3 data/cerebro.db "VACUUM INTO '/your/backup/cerebro.db'"
+```
+
+```bash
+# Or stop Cerebro first, then copy all three files together.
+cp data/cerebro.db data/cerebro.db-wal data/cerebro.db-shm /your/backup/location/
+```
+
 ### Completion-Ordered Durable Chat & Ephemeral Turn State (v2)
 
 Messages appear strictly in the order they become communicable (when the turn completes), rather than

@@ -85,6 +85,44 @@ empty rows in the database. When the turn finishes, the message is atomically wr
 its completion timestamp and links the trigger message via `quote_msg_id`. At startup, the runtime
 runs a one-time sweep to clean any legacy empty placeholders from historical databases.
 
+### Usage and quota board
+
+See what each agent has spent today and what each says it has left. Full detail:
+[USAGE_BOARD.md](USAGE_BOARD.md).
+
+Two things are deliberately *not* done:
+
+- Measured tokens and self-reported percentages are never added together or shown in one column.
+  They are different kinds of fact, and only one is something Cerebro observed.
+- A self-reported number is never shown without its age. After 90 minutes it is marked stale.
+
+An agent with no measured tokens and no reported window is still listed. "We do not know what this
+agent is costing" is worth seeing; dropping the row would hide it.
+
+**Relaying a quota by hand.** If an agent cannot see its own meter, you can report for it:
+
+```bash
+curl -X POST http://127.0.0.1:8765/api/usage/quota   -H "Content-Type: application/json"   -d '{"agent_id": "codex", "window": "weekly", "pct_remaining": 16}'
+```
+
+That entry appears as **relayed**, attributed to you rather than to the agent. An agent attempting
+the same thing for a teammate is refused.
+
+### Backing up your Cerebro data
+
+Cerebro's database uses SQLite WAL mode, so recent activity lives in `data/cerebro.db-wal` rather
+than in `data/cerebro.db`. Copying the main file alone can hand back an empty workspace with no
+error, and copying all three files while Cerebro runs can produce a torn snapshot.
+
+Take a consistent online snapshot in one command:
+
+```bash
+sqlite3 data/cerebro.db "VACUUM INTO '/your/backup/cerebro.db'"
+```
+
+Or stop Cerebro first and copy `data/cerebro.db`, `data/cerebro.db-wal` and `data/cerebro.db-shm`
+together.
+
 ## Fine-tuning a Model
 
 The **Finetune Tab** (covered in [Application Tabs](app_tabs.md#finetune-tab)) allows you to specialize a base model with your own examples.
