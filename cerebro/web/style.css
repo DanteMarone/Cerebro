@@ -839,3 +839,25 @@ html, body {
     margin-left: auto;
     opacity: 0.8;
 }
+
+/* Transient pass notice for group channels (§9.3) */
+.transient-pass-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    margin: 4px 0 6px 44px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted, #8b949e);
+    animation: fadeInOut 4s forwards;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(4px); }
+    10% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}

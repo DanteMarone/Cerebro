@@ -442,6 +442,32 @@ async def test_an_empty_answer_with_an_error_or_unknown_finish_still_errors():
     assert len(store.messages) == 1
 
 
+async def test_an_empty_answer_in_a_dm_is_an_error_not_a_silent_completion():
+    """In a direct message (DM), silence is not allowed and must produce an error row (§7)."""
+    provider = FakeProvider([Done(reason="stop")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
+
+    reply = await runtime.run_turn(AGENT, "dm-dante-jarvis")
+
+    assert reply.kind == "error"
+    assert "silence is not allowed in DMs" in reply.body
+    assert len(store.messages) == 1
+
+
+async def test_a_pass_reply_in_a_dm_is_an_error_not_a_pass():
+    """In a direct message (DM), PASS is forbidden and must produce an error row (§7)."""
+    provider = FakeProvider([TextDelta(text="PASS"), Done(reason="stop")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
+
+    reply = await runtime.run_turn(AGENT, "dm-dante-jarvis")
+
+    assert reply.kind == "error"
+    assert "said PASS in a direct message" in reply.body
+    assert len(store.messages) == 1
+
+
 async def test_reasoning_never_reaches_the_channel(tmp_path):
     """Thinking is private (Dante): the room sees collaboration, not an inner monologue."""
     provider = FakeProvider([

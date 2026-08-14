@@ -59,6 +59,9 @@ function App() {
     // Deployment freshness: is this server running the code that is on disk?
     const [health, setHealth] = useState(null);
 
+    // Transient silence/pass notices for group channels (§9.3)
+    const [passedNotices, setPassedNotices] = useState({});
+
     const streamRef = useRef(null);
     const wsRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -322,13 +325,32 @@ function App() {
                             }
                         }
                     } else if (type === "turn.cancelled" || type === "turn.discarded") {
-                        const { channel_id, turn_id } = payload;
+                        const { channel_id, turn_id, agent_id } = payload;
                         if (channel_id && turn_id) {
                             setActiveTurns(prev => {
                                 const ch = { ...(prev[channel_id] || {}) };
                                 delete ch[turn_id];
                                 return { ...prev, [channel_id]: ch };
                             });
+                        }
+                        if (type === "turn.discarded" && channel_id && !channel_id.startsWith("dm-")) {
+                            const noticeId = `${turn_id || Date.now()}-${agent_id || "agent"}`;
+                            const notice = {
+                                id: noticeId,
+                                agent_id: agent_id || "agent",
+                                text: `@${agent_id || "agent"} considered this and passed`,
+                                at: Date.now()
+                            };
+                            setPassedNotices(prev => ({
+                                ...prev,
+                                [channel_id]: [...(prev[channel_id] || []).filter(n => Date.now() - n.at < 4000), notice]
+                            }));
+                            setTimeout(() => {
+                                setPassedNotices(prev => ({
+                                    ...prev,
+                                    [channel_id]: (prev[channel_id] || []).filter(n => n.id !== noticeId)
+                                }));
+                            }, 4000);
                         }
                     } else if (type === "error") {
                         const { channel_id, turn_id } = payload;
@@ -828,6 +850,13 @@ function App() {
                                 ])
                             ])
                         ])
+                    ]);
+                }),
+
+                ...(passedNotices[activeChannelId] || []).map(notice => {
+                    return h("div", { key: notice.id, class: "transient-pass-notice" }, [
+                        h("span", { class: "pass-icon" }, "⏭"),
+                        h("span", null, notice.text)
                     ]);
                 })
             ]),

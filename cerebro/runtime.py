@@ -203,8 +203,17 @@ class AgentRuntime:
             raise
 
         body = completion.text
+        is_dm = channel_id.startswith("dm-")
+        if not is_dm and hasattr(self.store, "get_channel"):
+            try:
+                ch = await self.store.get_channel(channel_id)
+                if ch and ch.get("kind") == "dm":
+                    is_dm = True
+            except Exception:
+                pass
+
         if not body.strip():
-            if completion.finish_reason == "stop" and not completion.pending_calls:
+            if not is_dm and completion.finish_reason == "stop" and not completion.pending_calls:
                 logger.info("Agent %s completed turn %s silently (finish: stop)", agent.id, turn_id)
                 await self._status(agent, channel_id, "idle", turn_id=turn_id)
                 await self.hub.publish(
@@ -219,7 +228,9 @@ class AgentRuntime:
                 return None
 
             reason = "produced no answer"
-            if completion.finish_reason == "length":
+            if is_dm and completion.finish_reason == "stop":
+                reason = "produced no answer in a direct message (silence is not allowed in DMs)"
+            elif completion.finish_reason == "length":
                 reason = (
                     "ran out of tokens before answering — it spent its budget reasoning. "
                     "Raise max_tokens for this agent."
@@ -229,6 +240,11 @@ class AgentRuntime:
             return await self._fail(agent, channel_id, turn_id, depth, quote_msg_id, reason)
 
         if is_pass(body):
+            if is_dm:
+                return await self._fail(
+                    agent, channel_id, turn_id, depth, quote_msg_id,
+                    "said PASS in a direct message (silence is not allowed in DMs)",
+                )
             await self._status(agent, channel_id, "idle", turn_id=turn_id)
             await self.hub.publish(
                 "turn.discarded",
