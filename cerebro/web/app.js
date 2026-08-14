@@ -331,7 +331,8 @@ function App() {
                     const isUser = msg.author_id === 'dante';
                     const delta = streamingDeltas[msg.id];
                     const thinking = thinkingDeltas[msg.id];
-                    const content = delta ? (msg.content + delta) : (msg.content || msg.body);
+                    const base = msg.body ?? msg.content ?? '';
+                    const content = delta ? (base + delta) : base;
                     const timeStr = msg.created_at ? msg.created_at.slice(11, 16) : '';
 
                     return h("div", { key: msg.id, class: "message-row" }, [

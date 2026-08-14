@@ -66,7 +66,7 @@ async def post_channel_message(
 
     msg_id = await store.append_message(
         channel_id=channel_id,
-        author_id=req.author_id,
+        author_id="dante",
         content=content,
         msg_type=req.type,
         turn_id=req.turn_id,
