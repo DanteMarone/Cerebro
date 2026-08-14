@@ -14,7 +14,8 @@
   "tools_enabled": [
     "cerebro-core:*"
   ],
-  "delegation_enabled": true,
+  "delegation_enabled": false,
   "cron_enabled": false,
-  "enabled": true
+  "enabled": true,
+  "trust": "standard"
 }

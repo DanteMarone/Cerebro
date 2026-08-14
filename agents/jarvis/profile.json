@@ -11,8 +11,16 @@
     "max_tokens": 1024
   },
   "tools_enabled": [
-    "cerebro-core:*"
+    "cerebro-core:scratchpad_*",
+    "cerebro-core:memory_*",
+    "cerebro-core:task_*",
+    "cerebro-core:list_agents",
+    "cerebro-core:post_message",
+    "cerebro-core:create_channel",
+    "cerebro-core:fs_read",
+    "cerebro-core:fs_list"
   ],
   "delegation_enabled": false,
-  "enabled": true
+  "enabled": true,
+  "trust": "sandboxed"
 }

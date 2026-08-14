@@ -536,6 +536,48 @@ least resistance and to enforce it for the handful of resources where forgetting
 
 ---
 
+### 8.8 Trust tiers — the blast radius belongs to the local agents (MUST)
+
+§8 was written as though every agent posed the same risk. Dante corrected that on 2026-08-14:
+
+> I'm fine with you having your own tools. What I DON'T want is for one of the local agents to have
+> your own tools. The local agents have not proven themselves to not totally fuck up my system. So
+> my main goal there was to narrow the local agent blast radius.
+
+That is a better threat model than the one I specified, and it lines up with an awkward truth I had
+already recorded in §9.3 without following through on: **Cerebro cannot sandbox a `cli_agent`
+anyway.** When it spawns `claude -p` or `agy`, that process arrives with its own harness — file
+access, shell, network — and Cerebro's allowlist, journal and deny-list wrap none of it. Every
+guard in §8 applies only to tools called *through* Cerebro.
+
+Which is precisely the set Dante wants constrained. The guards are meaningful exactly where he
+wants them and meaningless exactly where he doesn't care. So the design gets simpler, not harder.
+
+**`trust` is a field on the agent profile**, not a property of the provider — Dante rates agents
+individually, and a capable backend is not the same as a trusted operator.
+
+| Tier | Who | Tools through Cerebro | Enforcement |
+| :--- | :--- | :--- | :--- |
+| `full` | `cli_agent` members Dante names — currently Claude, Codex | Everything. Their real capability comes from their own harness regardless. | Honesty about what Cerebro does not control. Bound it by what you let them into, not by allowlists. |
+| `standard` | `cli_agent` members not yet trusted — currently Antigravity | Everything Cerebro offers, but no `delegate_coding_task` and no `publish_tool`. | Cerebro-side allowlist. Same caveat: its own harness is outside our reach. |
+| `sandboxed` | **every local-model agent**, default for anything new | Read/write **only** inside its own `agents/{id}/` and the team workspace. No `run_command`, no `delegate_coding_task`, no `publish_tool`, no filesystem access outside those roots, no network tools. | Real, because every tool it has runs through us. |
+
+Rules:
+
+- **`sandboxed` is the default.** A newly created agent gets it whether or not anyone remembers to
+  set it. A weak local model that hallucinates a `rm -rf` should hit a wall it cannot reason past.
+- Raising an agent's tier is Dante's decision, made in the profile, never an agent's own — §8.3
+  already forbids an agent writing its own `profile.json`, and that rule now protects this too.
+- The deny-list in §8.3 applies to every tier. It is the floor, not the ceiling.
+- A `cli_agent` at any tier carries the badge from §9.3 and stays off cron by default. Dante being
+  in the room is the real control there, and we should not pretend otherwise.
+
+**What this changes immediately:** `agents/jarvis/profile.json` grants `cerebro-core:*`, which
+includes `run_command` and `fs_write`. That is the single most dangerous grant in the system today,
+held by the least capable model on the team. It becomes `sandboxed` with an explicit tool list.
+
+---
+
 ## 9. Provider layer
 
 ```python

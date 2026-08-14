@@ -16,5 +16,6 @@
   ],
   "delegation_enabled": true,
   "cron_enabled": false,
-  "enabled": true
+  "enabled": true,
+  "trust": "full"
 }
