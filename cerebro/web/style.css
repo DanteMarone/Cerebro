@@ -809,3 +809,33 @@ html, body {
     background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
     opacity: 0.8;
 }
+
+/* Deployment staleness banner.
+ *
+ * Deliberately loud and full-width. The failure it reports is invisible by construction: the app
+ * looks completely healthy while running code that is hours old, and the only symptom is bugs you
+ * already fixed reappearing. A subtle indicator would reproduce the original problem.
+ */
+
+.stale-banner {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--warning-bg, #7a4b12);
+    color: var(--warning-fg, #ffe9c7);
+    font-size: 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.stale-banner .stale-detail {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    opacity: 0.9;
+}
+
+.stale-banner .stale-hint {
+    margin-left: auto;
+    opacity: 0.8;
+}

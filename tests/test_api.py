@@ -7,8 +7,14 @@ from version import __version__
 
 
 @pytest.mark.asyncio
-async def test_health_check_endpoint():
-    """Verify /api/health returns status ok, db True, and version."""
+async def test_health_check_endpoint(test_db):
+    """Verify /api/health returns status ok, db True, and version.
+
+    Takes `test_db` because `db` is now the result of an actual query rather than the literal True.
+    Without a database connected this endpoint correctly reports degraded -- and the previous
+    version of this test asserted `db is True` while never connecting one, which is the same shape
+    as the failures this endpoint now exists to expose.
+    """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/health")

@@ -143,6 +143,20 @@ git config cerebro.agent <your-agent-id>
 It asks `GET /api/leases/check` rather than reimplementing the matching rules, covers directory
 leases, requires holding both ends of a rename, and fails closed when it cannot verify.
 
+### Deployment (landing is not shipping)
+
+Python changes need a service restart; static assets do not. See
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+
+```bash
+python scripts/deploy.py --check     # is the running service current?
+python scripts/deploy.py             # backup, verify, restart, health-check
+```
+
+`/api/health` reports `running_commit`, `repo_commit`, `stale` and `schema_version`. The running
+commit is captured once at process start, never re-read -- a process can only honestly report the
+code it loaded. The UI shows a banner while the service is stale.
+
 ### Usage & Quota Board (ยง13.2)
 
 Cerebro tracks what the team costs in two ways and never mixes them, because only one of them is
@@ -185,7 +199,12 @@ Copying all three files with `cp` while Cerebro is running is **also** unsafe โ€
 one after another while writes continue, so the snapshot can be torn. Do one of these instead:
 
 ```bash
-# Preferred: an online, consistent snapshot in one command (takes a proper read lock).
+# Preferred: backup + verify, service untouched. Uses SQLite's own backup API.
+python scripts/deploy.py --no-restart
+```
+
+```bash
+# Alternative, if you have the sqlite3 CLI (it is NOT installed on this machine):
 sqlite3 data/cerebro.db "VACUUM INTO '/your/backup/cerebro.db'"
 ```
 

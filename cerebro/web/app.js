@@ -56,6 +56,9 @@ function App() {
     // Usage board state (§13.2)
     const [usage, setUsage] = useState({ agents: [] });
 
+    // Deployment freshness: is this server running the code that is on disk?
+    const [health, setHealth] = useState(null);
+
     const streamRef = useRef(null);
     const wsRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -131,6 +134,23 @@ function App() {
         const timer = setInterval(loadUsage, 30000);
         return () => clearInterval(timer);
     }, [loadUsage]);
+
+    // Staleness is only useful if it is noticed. Three fixes once sat landed-but-not-running for
+    // half an hour while the room read as though they had shipped.
+    const loadHealth = useCallback(async () => {
+        try {
+            const res = await fetch("/api/health");
+            if (res.ok) setHealth(await res.json());
+        } catch (err) {
+            console.debug("Failed to load health:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadHealth();
+        const timer = setInterval(loadHealth, 30000);
+        return () => clearInterval(timer);
+    }, [loadHealth]);
 
     useEffect(() => {
         loadChannelsAndAgents();
@@ -577,6 +597,17 @@ function App() {
     const nonMemberAgents = agents.filter(ag => !channelMembers.some(m => m.member_id === ag.id));
 
     return h("div", { id: "app" }, [
+        // Deployment banner. Rendered only when the server can actually tell -- an unknown commit
+        // says nothing rather than guessing, because a false "up to date" is worse than silence.
+        health && health.stale
+            ? h("div", { class: "stale-banner", "data-stale-banner": "true" }, [
+                h("strong", null, "This server is running older code than the repository."),
+                h("span", { class: "stale-detail" },
+                    ` running ${health.running_commit} · repo at ${health.repo_commit}`),
+                h("span", { class: "stale-hint" }, "Restart with scripts/deploy.py to pick it up."),
+              ])
+            : null,
+
         // Sidebar
         h("aside", { class: "sidebar" }, [
             h("div", { class: "sidebar-header" }, [
