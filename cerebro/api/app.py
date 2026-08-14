@@ -3,12 +3,15 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from cerebro import db, agents_loader
-from cerebro.auth import Principal, TokenStore, parse_bearer, principal_for
+from cerebro.auth import (
+    Principal,
+    get_current_principal,
+)
 from cerebro.api import routes_agents, routes_channels, ws
 from cerebro.config import settings
 from cerebro.hub import Hub
@@ -16,25 +19,6 @@ from cerebro.service import RuntimeService
 from version import __version__
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-
-
-def get_token_store() -> TokenStore:
-    return TokenStore(settings.data_dir / ".secrets.env")
-
-
-async def get_current_principal(
-    authorization: str | None = Header(default=None),
-) -> Principal:
-    """Resolve who is speaking, per §6.2 and §6.3.
-
-    No Authorization header is the local human — we bind to 127.0.0.1 and there is one person
-    here. A bearer token is an agent speaking as itself. An unrecognised token is a 401 and never
-    a quiet downgrade to Dante's identity: that would turn a typo into an impersonation.
-    """
-    try:
-        return principal_for(parse_bearer(authorization), get_token_store())
-    except PermissionError:
-        raise HTTPException(status_code=401, detail="unrecognised agent token")
 
 
 @asynccontextmanager

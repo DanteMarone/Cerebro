@@ -22,6 +22,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
+from fastapi import Header, HTTPException, Request
 
 TOKEN_PREFIX = "CEREBRO_AGENT_TOKEN_"
 TOKEN_BYTES = 32
@@ -154,3 +155,29 @@ def parse_bearer(header: str | None) -> str | None:
     if scheme.lower() != "bearer" or not value.strip():
         return None
     return value.strip()
+
+
+def get_token_store() -> TokenStore:
+    from cerebro.config import settings
+    return TokenStore(settings.data_dir / ".secrets.env")
+
+
+async def get_current_principal(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> Principal:
+    """Resolve who is speaking, per §6.2 and §6.3.
+
+    No Authorization header is the local human. A bearer token is an agent speaking as itself.
+    An unrecognised token or malformed header raises 401 and never quietly downgrades to Dante.
+    """
+    if authorization is not None:
+        token = parse_bearer(authorization)
+        if token is None:
+            raise HTTPException(status_code=401, detail="malformed Authorization header")
+        token_store = getattr(request.app.state, "token_store", None) or get_token_store()
+        try:
+            return principal_for(token, token_store)
+        except PermissionError:
+            raise HTTPException(status_code=401, detail="unrecognised agent token")
+    return HUMAN

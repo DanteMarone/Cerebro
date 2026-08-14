@@ -5,6 +5,7 @@ import json
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from cerebro import store
+from cerebro.auth import HUMAN, get_token_store, parse_bearer, principal_for
 from cerebro.hub import Hub
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,25 @@ router = APIRouter(tags=["websocket"])
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Handle bi-directional WebSocket connection."""
+    """Handle bi-directional WebSocket connection with principal resolution."""
+    # Resolve principal on connect and keep for the life of the socket (§6.3)
+    headers = getattr(websocket, "headers", None) or {}
+    query_params = getattr(websocket, "query_params", None) or {}
+    auth_header = headers.get("authorization") or query_params.get("token")
+    if auth_header is not None:
+        token = parse_bearer(auth_header) if " " in auth_header else auth_header
+        if not token:
+            await websocket.close(code=4401, reason="malformed authorization")
+            return
+        token_store = getattr(websocket.app.state, "token_store", None) or get_token_store()
+        try:
+            principal = principal_for(token, token_store)
+        except PermissionError:
+            await websocket.close(code=4401, reason="unrecognised agent token")
+            return
+    else:
+        principal = HUMAN
+
     await websocket.accept()
     hub: Hub | None = getattr(websocket.app.state, "hub", None)
     if hub is None:
@@ -39,7 +58,7 @@ async def websocket_endpoint(websocket: WebSocket):
             logger.debug(f"Outbound WebSocket error: {exc}")
 
     async def inbound_pump():
-        """Receive user messages from WebSocket client and publish to hub."""
+        """Receive user/agent messages from WebSocket client and publish to hub."""
         try:
             while True:
                 data_text = await websocket.receive_text()
@@ -58,7 +77,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     if channel_id and content:
                         msg_id = await store.append_message(
                             channel_id=channel_id,
-                            author_id="dante",
+                            author_id=principal.id,
+                            author_kind=principal.author_kind,
                             content=content,
                         )
                         message = await store.get_message(msg_id)

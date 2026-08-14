@@ -2,9 +2,10 @@
 
 import re
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from cerebro import store
+from cerebro.auth import Principal, get_current_principal
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
@@ -154,6 +155,7 @@ async def post_channel_message(
     channel_id: str,
     req: CreateMessageRequest,
     request: Request,
+    principal: Principal = Depends(get_current_principal),
 ):
     """Append a new message to a channel and publish message.new event to hub."""
     channel = await store.get_channel(channel_id)
@@ -166,7 +168,8 @@ async def post_channel_message(
 
     msg_id = await store.append_message(
         channel_id=channel_id,
-        author_id="dante",
+        author_id=principal.id,
+        author_kind=principal.author_kind,
         content=content,
         msg_type=req.type,
         turn_id=req.turn_id,
