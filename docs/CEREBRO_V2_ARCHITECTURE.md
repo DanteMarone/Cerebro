@@ -635,6 +635,10 @@ Implementation notes:
 
 - One subprocess per turn. The channel context packet goes in on stdin; stdout streams back as
   `TextDelta`. Non-zero exit becomes an error message in the channel, not a crash.
+- Backends such as Codex that expose a final-answer file may keep stdout silent and write progress
+  to stderr. Cerebro drains both streams concurrently under the turn timeout, discards their
+  diagnostics on success, and publishes only the final-answer file. This prevents a full stderr
+  pipe from deadlocking the child or leaking work logs and private reasoning into the channel.
 - **These agents bring their own tools.** Cerebro's `tools_enabled` allowlist does not constrain
   them, and its journal and deny-list do not wrap what they do — they act through their own
   harness with their own permissions. That is a real and deliberate hole in the §8 guarantees, and

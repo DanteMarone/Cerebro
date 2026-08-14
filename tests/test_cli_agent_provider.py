@@ -165,6 +165,31 @@ async def test_output_file_backends_ignore_stdout_and_use_the_file(tmp_path, mon
     assert "NOISE" not in text
 
 
+async def test_output_file_backend_drains_stderr_while_waiting(monkeypatch):
+    """A harness must not deadlock when its progress stream fills the stderr pipe."""
+    from cerebro.providers import cli_agent
+
+    monkeypatch.setitem(cli_agent.OUTPUT_FILE_FLAG, "fakecodexstderr", "--out")
+    harness = fake_harness(
+        "import sys;"
+        "sys.stdin.read();"
+        "flag = sys.argv[sys.argv.index('--out') + 1];"
+        "sys.stderr.write('progress\\n' * 50000);"
+        "open(flag, 'w', encoding='utf-8').write('reply after progress')"
+    )
+    prov = CliAgentProvider(
+        self_id="fake",
+        backend="fakecodexstderr",
+        command=harness,
+        timeout_s=0.5,
+    )
+
+    deltas = await collect(prov)
+    text = "".join(d.text for d in deltas if isinstance(d, TextDelta))
+
+    assert text == "reply after progress"
+
+
 async def test_an_empty_reply_file_is_an_error_not_an_empty_message(tmp_path, monkeypatch):
     """An empty message in the channel tells Dante nothing about what went wrong."""
     from cerebro.providers import cli_agent

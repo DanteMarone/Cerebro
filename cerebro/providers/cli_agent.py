@@ -167,7 +167,49 @@ class CliAgentProvider:
     async def _pump(
         self, proc, prompt: str, answer_path: "Path | None" = None
     ) -> AsyncIterator[Delta]:
-        assert proc.stdin is not None and proc.stdout is not None
+        assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+
+        if answer_path is not None:
+            try:
+                try:
+                    _, stderr_bytes = await asyncio.wait_for(
+                        proc.communicate(prompt.encode("utf-8")),
+                        timeout=self.timeout_s,
+                    )
+                except asyncio.TimeoutError as exc:
+                    await self._terminate(proc)
+                    raise ProviderError(
+                        f"agent '{self.self_id}' did not finish within "
+                        f"{self.timeout_s:.0f}s and was stopped."
+                    ) from exc
+
+                code = proc.returncode
+                if code != 0:
+                    stderr = stderr_bytes.decode("utf-8", "replace").strip()
+                    tail = stderr.splitlines()[-5:] if stderr else []
+                    raise ProviderError(
+                        f"agent '{self.self_id}' exited {code}"
+                        + (": " + " / ".join(tail) if tail else " with no diagnostics.")
+                    )
+
+                try:
+                    answer = answer_path.read_text(
+                        encoding="utf-8",
+                        errors="replace",
+                    ).strip()
+                except OSError as exc:
+                    raise ProviderError(
+                        f"agent '{self.self_id}' finished but wrote no reply file: {exc}"
+                    ) from exc
+                if not answer:
+                    raise ProviderError(
+                        f"agent '{self.self_id}' exited cleanly but its reply was empty."
+                    )
+                yield TextDelta(text=answer)
+                yield Done(reason="stop")
+                return
+            finally:
+                answer_path.unlink(missing_ok=True)
 
         proc.stdin.write(prompt.encode("utf-8"))
         await proc.stdin.drain()
@@ -201,22 +243,6 @@ class CliAgentProvider:
                 f"agent '{self.self_id}' exited {code}"
                 + (": " + " / ".join(tail) if tail else " with no diagnostics.")
             )
-
-        if answer_path is not None:
-            try:
-                answer = answer_path.read_text(encoding="utf-8", errors="replace").strip()
-            except OSError as exc:
-                raise ProviderError(
-                    f"agent '{self.self_id}' finished but wrote no reply file: {exc}"
-                ) from exc
-            finally:
-                answer_path.unlink(missing_ok=True)
-            if not answer:
-                raise ProviderError(
-                    f"agent '{self.self_id}' exited cleanly but its reply was empty."
-                )
-            yield TextDelta(text=answer)
-            produced = True
 
         if not produced:
             raise ProviderError(f"agent '{self.self_id}' exited cleanly without producing a reply.")
