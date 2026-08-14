@@ -1,8 +1,10 @@
 """Typed asynchronous persistence helpers for Cerebro v2 over db.py."""
 
+from datetime import datetime, timedelta, timezone
 import json
 from typing import Any
 from cerebro import db
+from cerebro.models import Lease, LeaseConflictError
 
 VALID_MESSAGE_KINDS = {"chat", "system", "tool", "event", "error"}
 
@@ -339,3 +341,149 @@ async def list_messages(
         """
         rows = await db.fetch_all(sql, (channel_id, limit))
     return [_normalize_message_row(r) for r in rows if r]
+
+
+# --- Leases (§8.7) ---
+
+async def acquire_lease(
+    resource: str,
+    holder_id: str,
+    holder_kind: str = "agent",
+    ttl_s: int = 600,
+    reason: str = "",
+    channel_id: str | None = None,
+    is_owner: bool = False,
+) -> Lease:
+    """Atomically acquire a lease on a resource with conflict detection and TTL expiration."""
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(seconds=ttl_s)).isoformat()
+
+    existing = await db.fetch_one("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    if existing:
+        if existing["expires_at"] > now:
+            # Active lease held by someone else
+            if existing["holder_id"] != holder_id and not is_owner:
+                raise LeaseConflictError(
+                    resource=resource,
+                    holder_id=existing["holder_id"],
+                    expires_at=existing["expires_at"],
+                    reason=existing.get("reason", ""),
+                )
+        sql = """
+        UPDATE leases
+        SET holder_id = ?, holder_kind = ?, channel_id = ?, reason = ?,
+            acquired_at = ?, expires_at = ?
+        WHERE resource = ?;
+        """
+        await _execute_write(
+            sql,
+            (holder_id, holder_kind, channel_id, reason, now, expires_at, resource),
+        )
+    else:
+        sql = """
+        INSERT INTO leases (
+            resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?);
+        """
+        await _execute_write(
+            sql,
+            (resource, holder_id, holder_kind, channel_id, reason, now, expires_at),
+        )
+
+    return Lease(
+        resource=resource,
+        holder_id=holder_id,
+        holder_kind=holder_kind,
+        channel_id=channel_id,
+        reason=reason,
+        acquired_at=now,
+        expires_at=expires_at,
+    )
+
+
+async def release_lease(resource: str, holder_id: str, is_owner: bool = False) -> bool:
+    """Release a lease. Only the active holder or owner may release."""
+    existing = await db.fetch_one("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    if not existing:
+        return False
+    if existing["holder_id"] != holder_id and not is_owner:
+        raise LeaseConflictError(
+            resource=resource,
+            holder_id=existing["holder_id"],
+            expires_at=existing["expires_at"],
+            reason=existing.get("reason", ""),
+        )
+    await _execute_write("DELETE FROM leases WHERE resource = ?;", (resource,))
+    return True
+
+
+async def renew_lease(
+    resource: str,
+    holder_id: str,
+    ttl_s: int = 600,
+    is_owner: bool = False,
+) -> Lease:
+    """Extend the expiration time of an existing active lease."""
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    existing = await db.fetch_one("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    if not existing or existing["expires_at"] <= now:
+        raise LeaseConflictError(
+            resource=resource,
+            holder_id="",
+            expires_at="",
+            reason="Lease does not exist or has expired",
+        )
+    if existing["holder_id"] != holder_id and not is_owner:
+        raise LeaseConflictError(
+            resource=resource,
+            holder_id=existing["holder_id"],
+            expires_at=existing["expires_at"],
+            reason=existing.get("reason", ""),
+        )
+    expires_at = (now_dt + timedelta(seconds=ttl_s)).isoformat()
+    sql = "UPDATE leases SET expires_at = ? WHERE resource = ?;"
+    await _execute_write(sql, (expires_at, resource))
+    return Lease(
+        resource=resource,
+        holder_id=existing["holder_id"],
+        holder_kind=existing["holder_kind"],
+        channel_id=existing.get("channel_id"),
+        reason=existing.get("reason", ""),
+        acquired_at=existing["acquired_at"],
+        expires_at=expires_at,
+    )
+
+
+async def list_leases(include_expired: bool = False) -> list[Lease]:
+    """List all active leases, or all including expired if requested."""
+    now = datetime.now(timezone.utc).isoformat()
+    if include_expired:
+        rows = await db.fetch_all("SELECT * FROM leases ORDER BY acquired_at ASC;")
+    else:
+        sql = "SELECT * FROM leases WHERE expires_at > ? ORDER BY acquired_at ASC;"
+        rows = await db.fetch_all(sql, (now,))
+    return [Lease(**r) for r in rows if r]
+
+
+async def get_lease(resource: str, include_expired: bool = False) -> Lease | None:
+    """Retrieve an active lease on a specific resource."""
+    now = datetime.now(timezone.utc).isoformat()
+    row = await db.fetch_one("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    if not row:
+        return None
+    if not include_expired and row["expires_at"] <= now:
+        return None
+    return Lease(**row)
+
+
+async def sweep_expired_leases() -> list[str]:
+    """Delete all expired leases from the database and return the cleared resources."""
+    now = datetime.now(timezone.utc).isoformat()
+    expired = await db.fetch_all("SELECT resource FROM leases WHERE expires_at <= ?;", (now,))
+    if not expired:
+        return []
+    resources = [r["resource"] for r in expired]
+    await _execute_write("DELETE FROM leases WHERE expires_at <= ?;", (now,))
+    return resources

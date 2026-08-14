@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import tempfile
+from typing import Any
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -262,9 +263,150 @@ def poll_all_channels(
     return unseen
 
 
+def acquire_lease_api(
+    agent_id: str,
+    resource: str,
+    ttl_s: int = 600,
+    reason: str = "",
+    channel_id: str | None = None,
+    base_url: str = "http://127.0.0.1:8765",
+    token: str | None = None,
+) -> dict[str, Any] | None:
+    """Acquire a lease via HTTP API."""
+    tok = token or get_agent_token(agent_id)
+    if not tok:
+        print(f"Error: No token found for agent '{agent_id}'", file=sys.stderr)
+        return None
+
+    url = f"{base_url.rstrip('/')}/api/leases/acquire"
+    data = json.dumps({
+        "resource": resource,
+        "ttl_s": ttl_s,
+        "reason": reason,
+        "channel_id": channel_id,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {tok}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8")
+        print(f"HTTP {e.code} Error acquiring lease: {err_body}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"Error acquiring lease: {e}", file=sys.stderr)
+        return None
+
+
+def release_lease_api(
+    agent_id: str,
+    resource: str,
+    base_url: str = "http://127.0.0.1:8765",
+    token: str | None = None,
+) -> dict[str, Any] | None:
+    """Release a lease via HTTP API."""
+    tok = token or get_agent_token(agent_id)
+    if not tok:
+        print(f"Error: No token found for agent '{agent_id}'", file=sys.stderr)
+        return None
+
+    url = f"{base_url.rstrip('/')}/api/leases/release"
+    data = json.dumps({"resource": resource}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {tok}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8")
+        print(f"HTTP {e.code} Error releasing lease: {err_body}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"Error releasing lease: {e}", file=sys.stderr)
+        return None
+
+
+def renew_lease_api(
+    agent_id: str,
+    resource: str,
+    ttl_s: int = 600,
+    base_url: str = "http://127.0.0.1:8765",
+    token: str | None = None,
+) -> dict[str, Any] | None:
+    """Renew a lease via HTTP API."""
+    tok = token or get_agent_token(agent_id)
+    if not tok:
+        print(f"Error: No token found for agent '{agent_id}'", file=sys.stderr)
+        return None
+
+    url = f"{base_url.rstrip('/')}/api/leases/renew"
+    data = json.dumps({"resource": resource, "ttl_s": ttl_s}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {tok}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8")
+        print(f"HTTP {e.code} Error renewing lease: {err_body}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"Error renewing lease: {e}", file=sys.stderr)
+        return None
+
+
+def list_leases_api(
+    agent_id: str,
+    base_url: str = "http://127.0.0.1:8765",
+    token: str | None = None,
+) -> list[dict[str, Any]]:
+    """List all active leases via HTTP API."""
+    tok = token or get_agent_token(agent_id)
+    if not tok:
+        print(f"Error: No token found for agent '{agent_id}'", file=sys.stderr)
+        return []
+
+    url = f"{base_url.rstrip('/')}/api/leases"
+    req = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {tok}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("leases", [])
+    except Exception as e:
+        print(f"Error listing leases: {e}", file=sys.stderr)
+        return []
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Poll Cerebro channels for new messages or post as an agent."
+        description="Poll Cerebro channels for new messages or manage leases as an agent."
     )
     parser.add_argument(
         "--agent",
@@ -290,10 +432,100 @@ def main() -> None:
         default="warroom",
         help="Target channel for --post (default: 'warroom').",
     )
+    parser.add_argument(
+        "--lease-acquire",
+        metavar="RESOURCE",
+        help="Acquire a distributed mutex lease for RESOURCE.",
+    )
+    parser.add_argument(
+        "--lease-release",
+        metavar="RESOURCE",
+        help="Release a held distributed mutex lease for RESOURCE.",
+    )
+    parser.add_argument(
+        "--lease-renew",
+        metavar="RESOURCE",
+        help="Renew/heartbeat a held distributed mutex lease for RESOURCE.",
+    )
+    parser.add_argument(
+        "--lease-list",
+        action="store_true",
+        help="List all active distributed mutex leases.",
+    )
+    parser.add_argument(
+        "--ttl",
+        type=int,
+        default=600,
+        help="Lease time-to-live in seconds (default: 600).",
+    )
+    parser.add_argument(
+        "--reason",
+        default="",
+        help="Reason for acquiring lease.",
+    )
     args = parser.parse_args()
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+    if args.lease_acquire:
+        res = acquire_lease_api(
+            agent_id=args.agent,
+            resource=args.lease_acquire,
+            ttl_s=args.ttl,
+            reason=args.reason,
+            channel_id=args.channel,
+            base_url=args.base_url,
+        )
+        if res:
+            lease = res.get("lease", {})
+            print(f"Acquired lease on '{lease.get('resource')}' (expires: {lease.get('expires_at')})")
+        else:
+            sys.exit(1)
+        return
+
+    if args.lease_release:
+        res = release_lease_api(
+            agent_id=args.agent,
+            resource=args.lease_release,
+            base_url=args.base_url,
+        )
+        if res and res.get("released"):
+            print(f"Released lease on '{args.lease_release}'")
+        else:
+            sys.exit(1)
+        return
+
+    if args.lease_renew:
+        res = renew_lease_api(
+            agent_id=args.agent,
+            resource=args.lease_renew,
+            ttl_s=args.ttl,
+            base_url=args.base_url,
+        )
+        if res:
+            lease = res.get("lease", {})
+            print(f"Renewed lease on '{lease.get('resource')}' until {lease.get('expires_at')}")
+        else:
+            sys.exit(1)
+        return
+
+    if args.lease_list:
+        leases = list_leases_api(
+            agent_id=args.agent,
+            base_url=args.base_url,
+        )
+        if not leases:
+            print("No active leases.")
+        else:
+            print(f"--- Active Leases ({len(leases)}) ---")
+            for lease_entry in leases:
+                res_name = lease_entry.get("resource")
+                holder = lease_entry.get("holder_id")
+                exp = lease_entry.get("expires_at")
+                rsn = lease_entry.get("reason")
+                print(f"- {res_name}: held by @{holder} until {exp} (reason: '{rsn}')")
+        return
 
     if args.post:
         res = post_message(

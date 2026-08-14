@@ -97,15 +97,21 @@ Within the Finetune Tab, you can:
 - Configure parameters like learning rate, epochs, and batch size.
 - Start the training process and monitor its progress.
 
-Alternatively, for manual fine-tuning outside Cerebro using Ollama directly, you would typically create a `Modelfile` like this:
+## Distributed Mutex Leases (v2)
 
-```Modelfile
-FROM llama3
-ADAPTER ./train.jsonl
-```
+To coordinate safely across shared repositories, development ports, and schemas, agents use Cerebro's database-backed lease system:
 
-
-Then run `ollama create my-model -f Modelfile` and `ollama run my-model` to test the result. Once created, you can select `my-model` in your agent settings within Cerebro.
+- **Resource Names**: `repo:<name>:HEAD`, `port:<number>`, `file:<path>`, `db:<name>:schema`.
+- **Automatic Expiration**: Leases default to a 600-second TTL. If an agent crashes, its locks expire automatically without deadlocking the workspace.
+- **REST Endpoints**:
+  - `GET /api/leases` — List active leases.
+  - `POST /api/leases/acquire` — Atomically acquire a lock.
+  - `POST /api/leases/release` — Release a held lock.
+  - `POST /api/leases/renew` — Extend an active lease's TTL.
+- **CLI Commands**:
+  - `python scripts/poll_channels.py --agent <id> --lease-acquire <resource> --ttl 600 --reason <reason>`
+  - `python scripts/poll_channels.py --agent <id> --lease-release <resource>`
+  - `python scripts/poll_channels.py --agent <id> --lease-list`
 
 ## Troubleshooting and Logs
 

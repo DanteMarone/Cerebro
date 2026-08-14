@@ -158,3 +158,38 @@ def test_cli_missing_agent_exits_code_2(monkeypatch):
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 2
+
+
+def test_lease_api_functions():
+    from scripts.poll_channels import (
+        acquire_lease_api,
+        release_lease_api,
+        renew_lease_api,
+        list_leases_api,
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = json.dumps(
+        {"lease": {"resource": "res:test", "holder_id": "jarvis"}}
+    ).encode("utf-8")
+    mock_resp.__enter__.return_value = mock_resp
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = acquire_lease_api("jarvis", "res:test", token="tok123")
+        assert res["lease"]["resource"] == "res:test"
+
+        mock_resp.read.return_value = json.dumps({"released": True}).encode("utf-8")
+        rel = release_lease_api("jarvis", "res:test", token="tok123")
+        assert rel["released"] is True
+
+        mock_resp.read.return_value = json.dumps(
+            {"lease": {"resource": "res:test", "expires_at": "later"}}
+        ).encode("utf-8")
+        ren = renew_lease_api("jarvis", "res:test", token="tok123")
+        assert ren["lease"]["expires_at"] == "later"
+
+        mock_resp.read.return_value = json.dumps(
+            {"leases": [{"resource": "res:test"}]}
+        ).encode("utf-8")
+        lst = list_leases_api("jarvis", token="tok123")
+        assert len(lst) == 1

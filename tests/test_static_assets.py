@@ -69,3 +69,20 @@ def test_stylesheet_contains_turn_activity_styles():
     css_source = client().get("/static/style.css").text
     assert ".turn-activity-row" in css_source
     assert ".thinking-spinner" in css_source
+
+
+def test_app_js_implements_leases_contract():
+    """app.js must load and render active distributed mutex leases (§8.7)."""
+    app_source = client().get("/static/app.js").text
+    assert "leases" in app_source
+    assert "loadLeases" in app_source
+    assert "data-lease-resource" in app_source
+    assert "lease.acquired" in app_source
+
+
+def test_stylesheet_contains_lease_styles():
+    """style.css must contain styling for the distributed mutex leases sidebar panel."""
+    css_source = client().get("/static/style.css").text
+    assert ".leases-section" in css_source
+    assert ".lease-item" in css_source
+    assert ".lease-holder-pill" in css_source

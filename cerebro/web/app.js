@@ -35,6 +35,9 @@ function App() {
     // Member addition state
     const [addingMember, setAddingMember] = useState(false);
 
+    // Leases state (§8.7)
+    const [leases, setLeases] = useState([]);
+
     const streamRef = useRef(null);
     const wsRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -80,9 +83,23 @@ function App() {
         }
     }, [activeChannelId]);
 
+    // Fetch active distributed mutex leases (§8.7)
+    const loadLeases = useCallback(async () => {
+        try {
+            const res = await fetch("/api/leases");
+            if (res.ok) {
+                const data = await res.json();
+                setLeases(data.leases || []);
+            }
+        } catch (err) {
+            console.debug("Failed to load leases:", err);
+        }
+    }, []);
+
     useEffect(() => {
         loadChannelsAndAgents();
-    }, [loadChannelsAndAgents]);
+        loadLeases();
+    }, [loadChannelsAndAgents, loadLeases]);
 
     // Fetch members for the active channel
     const loadActiveMembers = useCallback(async (channelId) => {
@@ -266,6 +283,8 @@ function App() {
                                 return { ...prev, [channel_id]: ch };
                             });
                         }
+                    } else if (type === "lease.acquired" || type === "lease.released" || type === "lease.expired") {
+                        loadLeases();
                     } else if (type === "agent.thinking") {
                         const { message_id, text } = payload;
                         if (message_id != null && text) {
@@ -596,6 +615,27 @@ function App() {
                             h("span", null, ag.display_name || ag.name)
                         ])
                     )
+                ]),
+
+                // Active Leases Section (§8.7)
+                h("div", { class: "sidebar-section leases-section" }, [
+                    h("div", { class: "sidebar-section-header" }, [
+                        h("span", null, `Active Leases (${leases.length})`)
+                    ]),
+                    leases.length === 0
+                        ? h("div", { class: "nav-item-empty", style: "padding: 4px 12px; font-size: 11px; color: var(--text-muted);" }, "No active locks")
+                        : leases.map(l =>
+                            h("div", {
+                                key: l.resource,
+                                class: "nav-item lease-item",
+                                "data-lease-resource": l.resource,
+                                title: `${l.resource}\nHeld by: @${l.holder_id}\nExpires: ${l.expires_at}\nReason: ${l.reason || 'None'}`
+                            }, [
+                                h("span", { class: "nav-icon" }, "🔒"),
+                                h("span", { class: "lease-resource-label", style: "font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" }, l.resource),
+                                h("span", { class: "lease-holder-pill", style: "margin-left: auto; font-size: 10px; opacity: 0.8;" }, `@${l.holder_id}`)
+                            ])
+                        )
                 ])
             ])
         ]),

@@ -108,6 +108,27 @@ membership before polling messages, and maintains isolated per-agent cursor file
 (`.agent_seen_{agent_id}.json`) using atomic temporary file swaps to prevent torn state files.
 Run at most one poller process per agent identity. Identity (`--agent`) is required.
 
+### Distributed Mutex Leases (§8.7)
+
+Cerebro implements an automated, database-backed mutual exclusion (mutex) lock manager:
+* **Endpoints**: `/api/leases`, `/api/leases/acquire`, `/api/leases/release`, `/api/leases/renew`.
+* **Events**: Real-time WebSocket event broadcasts (`lease.acquired`, `lease.released`, `lease.expired`).
+* **CLI Management**:
+  ```powershell
+  # Acquire a lease on a shared resource:
+  python scripts/poll_channels.py --agent antigravity --lease-acquire "repo:Cerebro:HEAD" --ttl 600 --reason "merging slice"
+
+  # Renew an active lease:
+  python scripts/poll_channels.py --agent antigravity --lease-renew "repo:Cerebro:HEAD" --ttl 600
+
+  # Release an active lease:
+  python scripts/poll_channels.py --agent antigravity --lease-release "repo:Cerebro:HEAD"
+
+  # List active leases:
+  python scripts/poll_channels.py --agent antigravity --lease-list
+  ```
+* **Conflict & Expiry Enforcement**: Prevents collision across unshareable global state (`repo:<name>:HEAD`, `port:<num>`, `file:<path>`). Unrenewed leases automatically expire safely via TTL.
+
 ### Completion-Ordered Durable Chat & Ephemeral Turn State (v2)
 
 Messages appear strictly in the order they become communicable (when the turn completes), rather than

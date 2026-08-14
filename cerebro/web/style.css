@@ -697,3 +697,21 @@ html, body {
     100% { transform: rotate(360deg); }
 }
 
+/* Distributed Mutex Leases Panel (§8.7) */
+.leases-section {
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.lease-item {
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.lease-holder-pill {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent-color);
+}

@@ -505,14 +505,16 @@ Antigravity was mid-write; nothing was lost, but nothing about the file layout h
 
 **Leases (MUST)**. `cerebro-core` exposes:
 
-| Tool | Signature | Behaviour |
+| Tool / Endpoint | Signature / Route | Behaviour |
 |---|---|---|
-| `acquire_lease` | `(resource, ttl_s=600, reason)` | Blocks briefly, then fails with the current holder's name and reason. |
-| `release_lease` | `(resource)` | |
-| `list_leases` | `()` | Also rendered live in the right-hand UI panel. |
+| `acquire_lease` | `POST /api/leases/acquire` | Atomically acquires lock with TTL, fails with 409 Conflict if held. |
+| `release_lease` | `POST /api/leases/release` | Releases held lock; fails with 409 if called by non-holder. |
+| `renew_lease` | `POST /api/leases/renew` | Extends TTL for active holder. |
+| `list_leases` | `GET /api/leases` | Lists unexpired leases; rendered live in the UI sidebar. |
 
 Resource names are conventional strings: `repo:<name>:HEAD`, `db:<name>:schema`,
-`port:<number>`, `lmstudio:loaded-model`.
+`port:<number>`, `file:<path>`, `work:<area>`. Holder identities are derived strictly
+from the authenticated Bearer token principal (with Dante owner override permissions).
 
 Rules:
 

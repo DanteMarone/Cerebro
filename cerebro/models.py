@@ -181,3 +181,29 @@ Delta = Annotated[
     Union[TextDelta, ReasoningDelta, ToolCallDelta, Usage, Done],
     Field(discriminator="type"),
 ]
+
+
+# --- Leases (§8.7) ---
+
+class Lease(BaseModel):
+    resource: str
+    holder_id: str
+    holder_kind: str = "agent"  # 'agent' | 'user'
+    channel_id: str | None = None
+    reason: str = ""
+    acquired_at: str
+    expires_at: str
+
+
+class LeaseConflictError(Exception):
+    """Raised when an attempt to acquire or mutate a lease conflicts with another holder."""
+
+    def __init__(self, resource: str, holder_id: str, expires_at: str, reason: str = ""):
+        self.resource = resource
+        self.holder_id = holder_id
+        self.expires_at = expires_at
+        self.reason = reason
+        super().__init__(
+            f"Resource '{resource}' is currently held by '{holder_id}' until {expires_at} "
+            f"(reason: '{reason}')"
+        )

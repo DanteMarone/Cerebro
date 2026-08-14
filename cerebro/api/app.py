@@ -13,7 +13,7 @@ from cerebro.auth import (
     TokenStore,
     get_session_store,
 )
-from cerebro.api import routes_agents, routes_channels, ws
+from cerebro.api import leases, routes_agents, routes_channels, ws
 from cerebro.config import settings
 from cerebro.hub import Hub
 from cerebro.service import RuntimeService
@@ -52,6 +52,7 @@ app = FastAPI(
 # Include API and WebSocket Routers
 app.include_router(routes_agents.router)
 app.include_router(routes_channels.router)
+app.include_router(leases.router)
 app.include_router(ws.router)
 
 # Mount Web Assets if directory exists
