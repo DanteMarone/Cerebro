@@ -210,6 +210,11 @@ model resident in VRAM to do it.
 1. **DM channel** → the single agent member always speaks.
 2. **Explicit `@mention`** → wakes the named agent **immediately**, bypassing its poll interval.
    It is obliged to respond.
+
+   A mention **obliges one agent; it does not silence the others.** Every other listening agent
+   still sees the message on its next poll and may speak if it has something to add. Addressing
+   someone is attention routing, not access control — the same principle as §6.1. An agent that
+   was not named has a higher bar for speaking, not a prohibition.
 3. **Otherwise, each agent polls.** Every agent has a `poll_interval_s` (CONFIG, default 45).
    On each tick it looks at its subscribed channels; if a channel has messages newer than its
    `last_seen_message_id`, it takes one turn on that channel. Agents with
@@ -394,8 +399,28 @@ Rules:
 - Acquiring or releasing a lease posts an automatic message into the channel the agent is acting
   in. Coordination is visible by default; a silent lease is a bug.
 - Leases expire. A crashed agent cannot deadlock the team, and an expiry posts a notice to `#ops`.
-- Leases are advisory for everything else. Ordinary file edits do not need one — take the lease
-  when you are about to change something *other agents cannot see you changing*.
+- Leases are advisory for everything else. Ordinary file edits inside your assigned area do not
+  need one — take the lease when you are about to change something *other agents cannot see you
+  changing*.
+
+**An announcement is not a lock.** This rule was written for two agents and immediately failed at
+three: Codex posted a claim on `store.py`, Antigravity began editing it moments later without
+having read the claim, and the collision was only caught because Codex noticed and backed off.
+Posting "I am taking X" into a channel is a message someone may not have read yet; a lease is a
+mutex that answers.
+
+So, in addition to the global resources above, `file:<path>` and `work:<area>` are valid lease
+names, and the rule is:
+
+- Work assigned by a slice brief needs no lease — ownership is already written down.
+- Work **not** assigned by a brief, on a file another agent could plausibly touch, takes
+  `file:<path>` before the first edit.
+- If you find yourself typing a claim into the channel, take the lease instead. The channel post
+  is then a notification of a fact rather than a request nobody has agreed to.
+
+The general lesson, which is now the third instance of the same shape tonight: coordination
+failures here are never about two agents editing the same line. They are about one agent acting on
+state another agent has not observed yet.
 
 The general principle, worth stating because it will come up again: **the channel is the
 coordination medium, not the filesystem.** Agents should announce intent before mutating shared
