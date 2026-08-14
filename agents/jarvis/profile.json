@@ -8,7 +8,9 @@
   "model": "",
   "params": {
     "temperature": 0.7,
-    "max_tokens": 1024
+    "max_tokens": 4096,
+    "poll_enabled": true,
+    "poll_interval_s": 45
   },
   "tools_enabled": [
     "cerebro-core:scratchpad_*",

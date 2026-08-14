@@ -20,10 +20,20 @@ MCP executor into `tool_executor` without touching this file.
 
 import asyncio
 import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
 
 from cerebro.hub import Hub
-from cerebro.models import Agent, Message, ReasoningDelta, TextDelta, ToolCallDelta, Usage
+from cerebro.models import (
+    Agent,
+    Done,
+    Message,
+    ReasoningDelta,
+    TextDelta,
+    ToolCallDelta,
+    Usage,
+)
 from cerebro.providers.base import Params, Provider, ToolSpec
 from cerebro.providers.lmstudio import ProviderError, ProviderUnavailable
 from cerebro.turnguard import TurnGuard, new_turn_id
@@ -88,6 +98,7 @@ class AgentRuntime:
         self.tools_for = tools_for or (lambda agent: [])
         self.history_window = history_window
         self.max_tool_iterations = max_tool_iterations
+        self._last_finish: str | None = None
         self._limits = {
             name: asyncio.Semaphore(n)
             for name, n in (concurrency or {"lmstudio": 2, "gemini": 4}).items()
@@ -155,6 +166,21 @@ class AgentRuntime:
             except Exception as exc:  # noqa: BLE001 - an agent must never take the process down
                 return await self._fail(agent, channel_id, reply, f"unexpected error — {exc!r}")
 
+        if not body.strip():
+            # An agent that produced nothing has not "said nothing" -- something went wrong, and
+            # an empty row in the channel tells Dante only that the product is broken. The usual
+            # cause is a reasoning model spending its whole budget thinking: qwen3.6-27b emitted
+            # 200 reasoning deltas, zero content, and finished on `length`.
+            reason = "produced no answer"
+            if self._last_finish == "length":
+                reason = (
+                    "ran out of tokens before answering — it spent its budget reasoning. "
+                    "Raise max_tokens for this agent."
+                )
+            elif self._last_finish:
+                reason = f"produced no answer (finished: {self._last_finish})"
+            return await self._fail(agent, channel_id, reply, reason)
+
         if is_pass(body):
             # §6: deciding and speaking are the same call. An agent with nothing to add replies
             # PASS, and PASS is discarded rather than persisted -- otherwise every poll of every
@@ -188,6 +214,7 @@ class AgentRuntime:
         params = _params_for(agent)
         tools = self.tools_for(agent)
         text_parts: list[str] = []
+        thinking: list[str] = []
 
         for _ in range(self.max_tool_iterations):
             await self._status(agent, channel_id, "thinking")
@@ -202,18 +229,21 @@ class AgentRuntime:
                         {"channel_id": channel_id, "message_id": reply.id, "text": delta.text},
                     )
                 elif isinstance(delta, ReasoningDelta):
-                    # Shown live so the user sees work happening, then discarded. It is not the
-                    # answer and must never reach the message body.
-                    await self.hub.publish(
-                        "agent.thinking",
-                        {"channel_id": channel_id, "agent_id": agent.id,
-                         "message_id": reply.id, "text": delta.text},
-                    )
+                    # Thinking is private (Dante, 2026-08-14): "Only message the group what we
+                    # actually should see as a chat message for collaboration."
+                    #
+                    # So reasoning never reaches the channel. It goes to the agent's own log, where
+                    # it is available for debugging without turning a shared room into a feed of
+                    # everyone's inner monologue. The room still sees *that* the agent is thinking,
+                    # via agent.status, because presence is collaboration and thought is not.
+                    thinking.append(delta.text)
                 elif isinstance(delta, ToolCallDelta):
                     call = calls.setdefault(delta.id, {"name": delta.name, "args": ""})
                     if delta.name:
                         call["name"] = delta.name
                     call["args"] += delta.args_fragment
+                elif isinstance(delta, Done):
+                    self._last_finish = delta.reason
                 elif isinstance(delta, Usage):
                     await self.hub.publish(
                         "usage",
@@ -242,7 +272,22 @@ class AgentRuntime:
                 f"\n\n_Stopped after {self.max_tool_iterations} tool rounds without finishing._"
             )
 
+        if thinking:
+            self._log_thinking(agent, "".join(thinking))
         return "".join(text_parts).strip()
+
+    def _log_thinking(self, agent: Agent, text: str) -> None:
+        """Write reasoning to the agent's own log rather than the shared channel."""
+        try:
+            home = Path(agent.home_path) if agent.home_path else Path("agents") / agent.id
+            logs = home / "logs"
+            logs.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(timezone.utc)
+            with (logs / f"reasoning-{stamp:%Y-%m-%d}.log").open("a", encoding="utf-8") as fh:
+                fh.write(f"\n--- {stamp:%H:%M:%S} ---\n{text.strip()}\n")
+        except OSError:
+            # Losing a debug log must never cost a reply.
+            pass
 
     async def _run_tool(
         self, agent: Agent, channel_id: str, call_id: str, call: dict[str, str]

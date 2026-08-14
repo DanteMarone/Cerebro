@@ -1,5 +1,7 @@
 """The agent turn loop: streaming, persistence ordering, tool rounds and failure handling."""
 
+import json
+
 from cerebro.hub import Hub
 from cerebro.models import Agent, Done, Message, ReasoningDelta, TextDelta, ToolCallDelta
 from cerebro.providers.fake import FakeProvider
@@ -256,7 +258,14 @@ async def test_the_placeholder_row_is_not_fed_back_to_the_model():
     assert not any(m.body == "" for m in sent)
 
 
-async def test_reasoning_is_shown_live_but_never_persisted():
+async def test_reasoning_is_neither_published_nor_persisted():
+    """Superseded by Dante's call that thinking is private.
+
+    This test previously asserted the opposite -- that reasoning was streamed live into the
+    channel. He watched it happen and said the room should carry collaboration, not an inner
+    monologue. Keeping the old assertion alongside the new rule would leave two tests disagreeing
+    about what the product does.
+    """
     provider = FakeProvider([
         ReasoningDelta(text="let me think"),
         TextDelta(text="the answer"),
@@ -264,12 +273,12 @@ async def test_reasoning_is_shown_live_but_never_persisted():
     ])
     hub, runtime = build(provider)
 
-    async with hub.subscribe("agent.thinking") as sub:
+    async with hub.subscribe() as sub:
         reply = await runtime.run_turn(AGENT, "c1")
-        thoughts = await drain(sub)
+        events = await drain(sub)
 
-    assert [t.payload["text"] for t in thoughts] == ["let me think"]
     assert reply.body == "the answer"
+    assert not any(e.type == "agent.thinking" for e in events)
 
 
 async def test_message_done_uses_the_same_envelope_as_message_new():
@@ -319,3 +328,69 @@ async def test_pass_matching_is_strict():
     assert not is_pass("PASS - nothing to add")
     assert not is_pass("I'll pass on this one")
     assert not is_pass("")
+
+
+async def test_an_empty_answer_becomes_an_explained_error_not_a_blank_message():
+    """A reasoning model can burn its whole budget thinking and never answer.
+
+    qwen3.6-27b did exactly that: 200 reasoning deltas, zero content, finish reason `length`.
+    The blank row that produced told Dante only that the product was broken.
+    """
+    provider = FakeProvider([ReasoningDelta(text="thinking hard"), Done(reason="length")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
+
+    reply = await runtime.run_turn(AGENT, "c1")
+
+    assert reply.kind == "error"
+    assert "ran out of tokens" in reply.body
+    assert "max_tokens" in reply.body
+
+
+async def test_an_empty_answer_with_a_normal_finish_still_errors():
+    provider = FakeProvider([Done(reason="stop")])
+    hub, runtime = build(provider)
+
+    reply = await runtime.run_turn(AGENT, "c1")
+
+    assert reply.kind == "error"
+    assert "no answer" in reply.body
+
+
+async def test_reasoning_never_reaches_the_channel(tmp_path):
+    """Thinking is private (Dante): the room sees collaboration, not an inner monologue."""
+    provider = FakeProvider([
+        ReasoningDelta(text="let me work through this at length"),
+        TextDelta(text="here is the answer"),
+        Done(reason="stop"),
+    ])
+    hub, runtime = build(provider)
+    agent = Agent(id="jarvis", name="jarvis", provider="lmstudio",
+                  home_path=str(tmp_path / "jarvis"))
+
+    async with hub.subscribe() as sub:
+        reply = await runtime.run_turn(agent, "c1")
+        events = await drain(sub)
+
+    assert reply.body == "here is the answer"
+    assert not any(e.type == "agent.thinking" for e in events), "reasoning was published"
+    for event in events:
+        leaked = "work through this" in json.dumps(event.payload)
+        assert not leaked, f"reasoning leaked into {event.type}"
+
+
+async def test_reasoning_is_written_to_the_agents_own_log(tmp_path):
+    provider = FakeProvider([
+        ReasoningDelta(text="private deliberation"),
+        TextDelta(text="answer"),
+        Done(reason="stop"),
+    ])
+    _, runtime = build(provider)
+    home = tmp_path / "jarvis"
+    agent = Agent(id="jarvis", name="jarvis", provider="lmstudio", home_path=str(home))
+
+    await runtime.run_turn(agent, "c1")
+
+    logs = list((home / "logs").glob("reasoning-*.log"))
+    assert logs, "no reasoning log written"
+    assert "private deliberation" in logs[0].read_text(encoding="utf-8")
