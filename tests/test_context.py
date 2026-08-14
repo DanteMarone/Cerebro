@@ -132,3 +132,29 @@ def test_system_sections_come_before_history(tmp_path):
 
     kinds = [m.kind for m in packet]
     assert kinds.index("chat") > kinds.index("system")
+
+
+def test_the_packet_has_exactly_one_system_message(tmp_path):
+    """Consecutive system turns are not safe across chat templates.
+
+    The first version of the packet emitted one system message per section. Against qwen3.6-27b
+    that produced nothing at all -- no content, no reasoning, an immediate `stop` -- while the
+    same model answered a single-system-message prompt happily. Nothing errored; Jarvis simply
+    went mute in production, and every unit test still passed because FakeProvider does not care
+    how many system messages it receives.
+    """
+    agent = agent_with_home(tmp_path)
+    (Path(agent.home_path) / "scratchpad.md").write_text("notes", encoding="utf-8")
+    (Path(agent.home_path) / "memory" / "a.md").write_text("a fact", encoding="utf-8")
+
+    packet = builder(tmp_path, operating_manual="rules").build(
+        agent, "prompt", CHANNEL, MEMBERS, history(3)
+    )
+
+    systems = [m for m in packet if m.author_kind == "system"]
+    assert len(systems) == 1, f"{len(systems)} system messages; chat templates expect one"
+
+    # And it must still carry every section.
+    text = systems[0].body
+    for expected in ("Jarvis", "rules", "#warroom", "notes", "a fact"):
+        assert expected in text

@@ -150,15 +150,24 @@ class ContextBuilder:
         history_budget = self.budget_tokens - sum(s.cost for s in sections)
         kept = _fit_history(history, max(history_budget, 0))
 
+        # One system message, not one per section.
+        #
+        # The first version of this emitted a separate system-role message per section. Against
+        # qwen3.6-27b that produced *nothing at all* -- zero content, zero reasoning, finish
+        # `stop` -- while the same model answered a single-system-message prompt happily. Chat
+        # templates are not obliged to handle consecutive system turns, and when they mishandle
+        # them they do it silently. One message is what every template expects.
+        preamble = "\n\n".join(
+            f"## {section.name.title()}\n\n{section.body}" for section in sections
+        )
         packet = [
             Message(
                 channel_id=channel.get("id", ""),
                 author_id="system",
                 author_kind="system",
                 kind="system",
-                body=f"## {section.name.title()}\n\n{section.body}",
+                body=preamble,
             )
-            for section in sections
         ]
         return packet + kept
 
