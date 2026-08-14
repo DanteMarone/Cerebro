@@ -12,9 +12,14 @@ import aiosqlite
 from cerebro.config import settings
 
 _loop: asyncio.AbstractEventLoop | None = None
+_path: Path | None = None
 _db: aiosqlite.Connection | None = None
 _write_queue: asyncio.Queue[tuple[str, tuple[Any, ...], asyncio.Future[Any]] | None] | None = None
 _writer_task: asyncio.Task[None] | None = None
+
+
+class WrongDatabase(RuntimeError):
+    """connect() was asked for a different database than the one already open."""
 
 
 class WrongEventLoop(RuntimeError):
@@ -95,6 +100,7 @@ async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
     await _db.commit()
 
     _loop = asyncio.get_running_loop()
+    _path = path
     _write_queue = asyncio.Queue()
     _writer_task = asyncio.create_task(_writer_consumer())
 
@@ -103,7 +109,7 @@ async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
 
 async def close() -> None:
     """Stop writer queue and close database connection."""
-    global _db, _write_queue, _writer_task, _loop
+    global _db, _write_queue, _writer_task, _loop, _path
     if _write_queue is not None:
         await _write_queue.put(None)
         if _writer_task is not None:
@@ -115,6 +121,7 @@ async def close() -> None:
         await _db.close()
         _db = None
     _loop = None
+    _path = None
 
 
 async def migrate(migrations_dir: Path | None = None) -> list[int]:

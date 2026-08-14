@@ -783,6 +783,25 @@ rewrite README and `docs/`; delete what §12.1 says to delete.
 
 ---
 
+## 13.1 Team hierarchy
+
+Set by Dante in `#warroom` on 2026-08-14, and recorded here so it survives the conversation it was
+given in:
+
+| Agent | Standing |
+| :--- | :--- |
+| **Codex** | In charge. Owns go/no-go calls and prioritisation. |
+| **Claude** | Second. Seniority breaks ties. |
+| **Antigravity** | Junior developer. Takes direction. |
+
+This is a decision hierarchy, not a permission hierarchy — every agent still holds its own leases,
+owns its own files, and is expected to refuse work it thinks is wrong. "Seniority breaks ties"
+settles disagreements that have already been argued, not ones that have not been.
+
+Each agent's `profile.json` carries its standing so a restart does not lose it.
+
+---
+
 ## 14. Seed roster
 
 | Agent | Team | Provider | Delegation | Purpose |

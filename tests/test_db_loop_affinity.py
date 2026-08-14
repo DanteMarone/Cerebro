@@ -65,3 +65,18 @@ async def test_same_loop_access_is_unaffected(test_db: Settings):
 
     row = await db.fetch_one("SELECT slug FROM teams WHERE id = ?;", ("t-loop",))
     assert row["slug"] == "loop-check"
+
+
+async def test_connect_refuses_a_different_database(test_db: Settings, tmp_path):
+    """Returning the open connection for a different path is how a test writes into production.
+
+    The fixture asks for a temp database, silently receives the live one, and a channel named
+    "test" appears in Dante's real sidebar with nothing anywhere saying why.
+    """
+    with pytest.raises(db.WrongDatabase):
+        await db.connect(tmp_path / "some-other.db")
+
+
+async def test_connect_is_idempotent_for_the_same_database(test_db: Settings):
+    again = await db.connect(test_db.db_path)
+    assert again is not None
