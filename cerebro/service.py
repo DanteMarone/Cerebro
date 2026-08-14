@@ -151,6 +151,13 @@ class RuntimeService:
         45 seconds for exactly this reason.
         """
         result = await self.runtime.run_turn(agent, channel_id, depth=1)
+
+        if result is not None and result.id is not None:
+            # An agent's own reply is a new message in the channel, so without this the next tick
+            # sees "news" and wakes it to respond to itself -- forever, and on a paid backend that
+            # is a bill. Jarvis did exactly this: it answered, then immediately woke again.
+            self.poller.mark_seen(agent.id, channel_id, result.id)
+
         if result is not None and result.kind == "error":
             raise RuntimeError(f"{agent.id} turn failed: {result.body[:200]}")
 

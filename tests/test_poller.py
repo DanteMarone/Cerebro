@@ -298,3 +298,27 @@ async def test_orphaned_placeholders_are_swept_on_start(test_db):
     assert good in remaining, "a real agent reply must survive"
     assert empty not in remaining, "the orphaned placeholder should be gone"
     assert human in remaining, "only agent placeholders are swept, never the human's rows"
+
+
+async def test_an_agent_does_not_wake_itself_with_its_own_reply(clock):
+    """Jarvis answered, then immediately woke again to respond to itself.
+
+    An agent's own message is a new message in the channel. Without advancing its cursor past its
+    own reply, every answer is news to the agent that wrote it -- forever, and on a paid backend
+    that is a bill rather than an annoyance.
+    """
+    world = World([CLAUDE], {"claude": ["warroom"]}, {"warroom": 10})
+    poller = build(world, clock, default_interval_s=10)
+    await poller.tick()
+
+    async def replies(agent, channel_id):
+        world.latest[channel_id] += 1                      # the agent's own reply lands
+        poller.mark_seen(agent.id, channel_id, world.latest[channel_id])
+
+    world.turn_hook = replies
+    world.latest["warroom"] = 11                           # a human speaks
+    clock.advance(20)
+    assert await poller.tick() == 1
+
+    clock.advance(20)
+    assert await poller.tick() == 0, "the agent woke itself with its own reply"
