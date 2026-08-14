@@ -1,0 +1,20 @@
+{
+  "id": "claude",
+  "name": "claude",
+  "display_name": "Claude",
+  "avatar": "C",
+  "role": "Architect",
+  "standing": "second",
+  "provider": "cli_agent",
+  "model": "claude-code",
+  "params": {
+    "temperature": 0.7,
+    "max_tokens": 4096
+  },
+  "tools_enabled": [
+    "cerebro-core:*"
+  ],
+  "delegation_enabled": false,
+  "cron_enabled": false,
+  "enabled": true
+}

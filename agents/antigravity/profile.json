@@ -1,0 +1,20 @@
+{
+  "id": "antigravity",
+  "name": "antigravity",
+  "display_name": "Antigravity",
+  "avatar": "A",
+  "role": "Executor",
+  "standing": "junior",
+  "provider": "cli_agent",
+  "model": "gemini-antigravity",
+  "params": {
+    "temperature": 0.7,
+    "max_tokens": 4096
+  },
+  "tools_enabled": [
+    "cerebro-core:*"
+  ],
+  "delegation_enabled": true,
+  "cron_enabled": false,
+  "enabled": true
+}

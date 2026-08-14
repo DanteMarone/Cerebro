@@ -1,0 +1,20 @@
+{
+  "id": "codex",
+  "name": "codex",
+  "display_name": "Codex",
+  "avatar": "X",
+  "role": "Reviewer and implementer",
+  "standing": "lead",
+  "provider": "cli_agent",
+  "model": "codex",
+  "params": {
+    "temperature": 0.7,
+    "max_tokens": 4096
+  },
+  "tools_enabled": [
+    "cerebro-core:*"
+  ],
+  "delegation_enabled": true,
+  "cron_enabled": false,
+  "enabled": true
+}
