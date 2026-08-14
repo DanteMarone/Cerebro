@@ -13,11 +13,12 @@ import asyncio
 import json
 import logging
 
-from cerebro import store
+from cerebro import db, store
 from cerebro.config import settings
 from cerebro.hub import Hub
 from cerebro.models import Agent
 from cerebro.persistence import StoreAdapter
+from cerebro.poller import ChannelPoller
 from cerebro.providers.cli_agent import CliAgentProvider
 from cerebro.providers.lmstudio import LMStudioProvider
 from cerebro.runtime import AgentRuntime
@@ -80,8 +81,41 @@ def _provider_for(agent: Agent):
     raise NotImplementedError(f"provider {agent.provider!r} arrives in a later slice")
 
 
+async def _polling_agents() -> list[Agent]:
+    """Agents that have opted in to being woken.
+
+    Opt-in rather than opt-out, and false by default. Switching four agents on at once would have
+    every one of them answer every message in every channel they belong to, which is a message
+    storm and a token bill before anyone has watched a single agent wake, answer and stop. Turn
+    them on one at a time.
+    """
+    rows = await store.list_agents()
+    agents = []
+    for row in rows:
+        if not row.get("enabled"):
+            continue
+        agent = Agent(**{k: v for k, v in row.items() if k in Agent.model_fields})
+        if _agent_params(agent).get("poll_enabled") is True:
+            agents.append(agent)
+    return agents
+
+
+async def _channels_for(agent_id: str) -> list[str]:
+    rows = await db.fetch_all(
+        "SELECT channel_id FROM channel_members WHERE member_id = ?;", (agent_id,)
+    )
+    return [r["channel_id"] for r in rows]
+
+
+async def _latest_message_id(channel_id: str) -> int:
+    row = await db.fetch_one(
+        "SELECT MAX(id) AS latest FROM messages WHERE channel_id = ?;", (channel_id,)
+    )
+    return int((row or {}).get("latest") or 0)
+
+
 class RuntimeService:
-    """Watches the hub and runs an agent turn when a human speaks."""
+    """Watches the hub and runs an agent turn when a human speaks, and wakes agents on a timer."""
 
     def __init__(self, hub: Hub, runtime: AgentRuntime | None = None) -> None:
         self.hub = hub
@@ -89,12 +123,24 @@ class RuntimeService:
         self._sub = None
         self._pump: asyncio.Task | None = None
         self._turns: set[asyncio.Task] = set()
+        self.poller = ChannelPoller(
+            list_agents=_polling_agents,
+            channels_for=_channels_for,
+            latest_message_id=_latest_message_id,
+            run_turn=self._poll_turn,
+        )
+
+    async def _poll_turn(self, agent: Agent, channel_id: str) -> None:
+        """A poll-produced turn is an ordinary turn: same caps, same guard, same attribution."""
+        await self.runtime.run_turn(agent, channel_id, depth=1)
 
     async def start(self) -> None:
         self._sub = self.hub.subscribe("message.new")
         self._pump = asyncio.create_task(self._run())
+        await self.poller.start()
 
     async def stop(self) -> None:
+        await self.poller.stop()
         for task in tuple(self._turns):
             task.cancel()
         if self._pump:
