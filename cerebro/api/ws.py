@@ -54,12 +54,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 if msg_type in ("message.send", "message.new"):
                     channel_id = payload.get("channel_id")
                     content = (payload.get("content") or "").strip()
-                    author_id = payload.get("author_id", "dante")
 
                     if channel_id and content:
                         msg_id = await store.append_message(
                             channel_id=channel_id,
-                            author_id=author_id,
+                            author_id="dante",
                             content=content,
                         )
                         message = await store.get_message(msg_id)
