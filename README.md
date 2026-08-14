@@ -1,5 +1,11 @@
 # Cerebro: A Multi-Agent AI Chat Application
 
+> **Cerebro v2 is in design.** The current PyQt5 + Ollama application described below is what
+> ships on `main` today. The next major version — a local, Slack-shaped agentic workspace on
+> LM Studio and Gemini, with MCP tools, per-agent memory and autonomous scheduling — is specified
+> in **[Cerebro v2 Architecture & Build Plan](docs/CEREBRO_V2_ARCHITECTURE.md)**
+> (vision: [v2 Spec](docs/CEREBRO_V2_SPEC.md)). It will be built on the `v2` branch.
+
 Cerebro is a desktop chat application built with PyQt5 that allows you to interact with multiple AI agents powered by the Ollama API. It provides a flexible and extensible framework for creating and managing AI agents with different roles, capabilities, and personalities.
 
 **Full documentation is available within the application under the 'Docs' tab or online in the [User Guide](docs/user_guide.md).**
