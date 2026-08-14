@@ -52,6 +52,18 @@ def _normalize_message_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
         d["content"] = d["body"]
     if "content" in d and "body" not in d:
         d["body"] = d["content"]
+    try:
+        metadata = json.loads(d.get("meta_json") or "{}")
+    except (TypeError, ValueError):
+        metadata = {}
+    source = metadata.get("source") if isinstance(metadata, dict) else None
+    if (
+        isinstance(metadata, dict)
+        and metadata.get("imported")
+        and isinstance(source, dict)
+        and source.get("author")
+    ):
+        d["display_author_id"] = source["author"]
     return d
 
 
@@ -230,6 +242,7 @@ async def append_message(
     parent_id: int | None = None,
     depth: int = 0,
     meta_json: str | None = None,
+    created_at: str | None = None,
 ) -> int:
     """Append a message to a channel and return its generated ID."""
     qid = quote_msg_id if quote_msg_id is not None else parent_id
@@ -240,7 +253,7 @@ async def append_message(
         turn_id, depth, created_at, meta_json
     ) VALUES (
         ?, ?, ?, ?, ?, ?,
-        ?, ?, datetime('now'), ?
+        ?, ?, COALESCE(?, datetime('now')), ?
     );
     """
     row_id = await _execute_write(
@@ -254,6 +267,7 @@ async def append_message(
             qid,
             turn_id,
             depth,
+            created_at,
             meta_json or "{}",
         ),
     )

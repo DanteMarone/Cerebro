@@ -59,7 +59,7 @@ function App() {
         try {
             const url = afterId 
                 ? `/api/channels/${channelId}/messages?after=${afterId}`
-                : `/api/channels/${channelId}/messages`;
+                : `/api/channels/${channelId}/messages?limit=200`;
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();

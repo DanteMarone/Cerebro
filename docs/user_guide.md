@@ -40,6 +40,23 @@ Reasoning for this resolution:
 - **Customization:** Personalize the UI with themes, colors, and more.
 - **Model Fine-tuning:** Adapt existing language models with your own data directly within the application.
 
+## Cerebro v2 channels and build-history cutover
+
+Selecting a recipient in a v2 channel identifies the agent expected to respond; it does not hide
+the message from anyone else in the channel. Dante is automatically included in every channel and
+agent war room, cannot be removed, and can see the full transcript. Agents do not have private
+backchannels with one another.
+
+Run `python scripts/import_warroom.py` from the repository root to create the permanent
+`#warroom` channel from `workspace/channels/slice0.md`. The imported channel includes Dante,
+Claude, Antigravity, and Codex. Source authors, recipients, timestamps, message bodies, and file
+order are retained as import metadata. Database authorship remains `transcript-importer`; the UI
+shows the historical source author without granting an importer Dante's reserved live identity.
+The operation is safe to rerun; messages already imported are not duplicated.
+
+Keep the Markdown transcript until the channel count and representative first, middle, and last
+messages have been checked through the v2 API and interface.
+
 ## Fine-tuning a Model
 
 The **Finetune Tab** (covered in [Application Tabs](app_tabs.md#finetune-tab)) allows you to specialize a base model with your own examples.
