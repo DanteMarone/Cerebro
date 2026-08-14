@@ -29,6 +29,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -214,9 +215,12 @@ def start_service() -> None:
     python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
     if not python.exists():
         python = Path(sys.executable)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
     subprocess.Popen(
         [str(python), "main.py"],
         cwd=REPO_ROOT,
+        env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "DETACHED_PROCESS", 0),
