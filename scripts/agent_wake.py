@@ -9,8 +9,10 @@ them answer every message in every channel they belong to — a message storm an
 before anyone has watched a single agent wake, answer and stop. Turn them on one at a time and
 watch the first one.
 
-Changes take effect on the next server restart, because the seeder reads these profiles at
-startup.
+Writes both the profile (the durable record) and the live `agents` row, because the seeder only
+reads profiles when the database is empty. Until agents_loader reconciles profiles on every boot,
+writing only the file means writing to something nothing reads -- which is exactly how a "woken"
+agent stayed asleep.
 """
 
 import json
@@ -59,9 +61,42 @@ def set_polling(agent_id: str, enabled: bool) -> int:
     params["poll_enabled"] = enabled
     params.setdefault("poll_interval_s", 45)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    live = _update_live_row(agent_id, params)
     print(f"{agent_id} polling {'ENABLED' if enabled else 'disabled'} "
-          f"(every {params['poll_interval_s']}s). Restart Cerebro to apply.")
+          f"(every {params['poll_interval_s']}s).")
+    print("  profile:  written")
+    print(f"  database: {live}")
     return 0
+
+
+def _update_live_row(agent_id: str, params: dict) -> str:
+    """Update the `agents` row the poller actually reads.
+
+    The seeder only reads profiles when the database is empty, so writing the file alone writes to
+    something nothing reads. That is precisely how an agent reported as woken stayed asleep.
+    """
+    import sqlite3
+
+    if not settings.db_path.exists():
+        return "no database yet — it will seed from the profile"
+    conn = sqlite3.connect(settings.db_path)
+    try:
+        row = conn.execute("SELECT params_json FROM agents WHERE id = ?;", (agent_id,)).fetchone()
+        if row is None:
+            return f"no row for '{agent_id}'"
+        try:
+            existing = json.loads(row[0] or "{}")
+        except json.JSONDecodeError:
+            existing = {}
+        existing.update(params)
+        conn.execute(
+            "UPDATE agents SET params_json = ? WHERE id = ?;", (json.dumps(existing), agent_id)
+        )
+        conn.commit()
+        return "updated — restart Cerebro to apply"
+    finally:
+        conn.close()
 
 
 def main(argv: list[str]) -> int:

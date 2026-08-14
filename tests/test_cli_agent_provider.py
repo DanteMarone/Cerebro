@@ -116,3 +116,29 @@ def test_prompt_labels_the_agents_own_messages():
 def test_unknown_backend_is_rejected_at_construction():
     with pytest.raises(ValueError, match="unknown cli_agent backend"):
         CliAgentProvider(self_id="claude", backend="nonsense")
+
+
+@pytest.mark.parametrize("backend", sorted(["claude", "codex", "agy"]))
+def test_every_seeded_agents_backend_is_registered(backend):
+    """Waking Codex failed on a backend name nobody had registered. Cheap to make, slow to find."""
+    from cerebro.providers.cli_agent import BACKENDS
+
+    assert backend in BACKENDS, f"{backend} is not a known cli_agent backend"
+
+
+def test_seeded_profiles_only_name_backends_that_exist():
+    """The profiles on disk and the backend table must not drift apart."""
+    import json
+    from pathlib import Path
+
+    from cerebro.providers.cli_agent import BACKENDS
+
+    root = Path(__file__).resolve().parent.parent / "agents"
+    for profile in root.glob("*/profile.json"):
+        data = json.loads(profile.read_text(encoding="utf-8"))
+        if data.get("provider") != "cli_agent":
+            continue
+        backend = (data.get("params") or {}).get("backend")
+        if backend is None:
+            continue
+        assert backend in BACKENDS, f"{profile.parent.name} names unknown backend {backend!r}"

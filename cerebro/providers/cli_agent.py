@@ -20,6 +20,7 @@ silently is indistinguishable from one that had nothing to say.
 """
 
 import asyncio
+import os
 import shutil
 from typing import AsyncIterator
 
@@ -34,6 +35,11 @@ CHUNK = 512
 # which is far past any platform command-line limit and would leak into process listings.
 BACKENDS: dict[str, list[str]] = {
     "claude": ["claude", "-p"],
+    # `codex exec` is the non-interactive form, and a `-` prompt makes it read stdin. Confirmed
+    # from `codex exec --help` rather than assumed: the first attempt to wake Codex failed on a
+    # backend name that was never registered, which is a cheap mistake to make and a slow one to
+    # find.
+    "codex": ["codex", "exec", "-"],
     "agy": ["agy"],
 }
 
@@ -79,12 +85,28 @@ class CliAgentProvider:
             raise ValueError(f"unknown cli_agent backend {backend!r}")
 
     def _resolve(self) -> list[str]:
+        """Turn a backend name into an argv the OS will actually execute.
+
+        `claude`, `codex` and `agy` are npm/global shims. On Windows `shutil.which` resolves them
+        to a `.CMD`, and `CreateProcess` — which `create_subprocess_exec` uses — cannot run a batch
+        file directly: it fails with WinError 2, "cannot find the file specified", while pointing
+        at a file that plainly exists. Batch files have to go through the command interpreter.
+
+        The prompt still arrives on stdin, so nothing user-controlled is ever parsed by `cmd`.
+        """
         argv = list(self._command)
-        if shutil.which(argv[0]) is None:
+        resolved = shutil.which(argv[0])
+        if resolved is None:
             raise ProviderUnavailable(
                 f"'{argv[0]}' is not on PATH, so agent '{self.self_id}' cannot be invoked. "
                 f"Install it or change the agent's backend."
             )
+
+        if os.name == "nt" and resolved.lower().endswith((".cmd", ".bat")):
+            comspec = os.environ.get("COMSPEC", "cmd.exe")
+            return [comspec, "/c", resolved, *argv[1:]]
+
+        argv[0] = resolved
         return argv
 
     async def stream(
