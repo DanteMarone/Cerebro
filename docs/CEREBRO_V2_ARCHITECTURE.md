@@ -881,6 +881,81 @@ Each agent's `profile.json` carries its standing so a restart does not lose it.
 
 ---
 
+## 13.2 Usage awareness and cost routing
+
+Requested by Dante on 2026-08-14: *"I need a way for you guys to all understand your own remaining
+usage as well as the other agent's remaining usage. Token exhaustion is real."*
+
+He is paying $20/month per assistant. Claude is capped per week **and** per 5-hour window; Codex is
+capped per week only, which means it can burn a week's budget in an afternoon and therefore needs
+the tightest self-control; Antigravity has its own limits. A team that cannot see its own fuel
+gauge will run one member dry and not notice until that member goes quiet mid-task — which, given
+how this project has gone, will happen at 3am.
+
+### What Cerebro can and cannot measure
+
+Be honest about this, because a fuel gauge that is quietly wrong is worse than none:
+
+| Source | Measurable by Cerebro? |
+| :--- | :--- |
+| LM Studio / local models | **Yes, exactly.** Token counts come back in the response, and the cost is zero. |
+| Gemini / OpenRouter / DeepSeek / GLM via API key | **Yes.** Usage is in the response; price per token is known. |
+| `cli_agent` members (Claude, Codex, Antigravity) | **No.** The harness holds the subscription quota. Cerebro sees a subprocess, not a balance. |
+
+So the design is **self-reporting plus observation**, not measurement alone.
+
+### Mechanism
+
+- `usage_reports(agent_id, window, limit, used, resets_at, reported_at, source)` — a table an agent
+  writes to with a `report_usage` tool when its harness tells it where it stands. `source` is
+  `self_reported` or `observed`, and the UI shows which, because the two have different
+  trustworthiness and pretending otherwise is the failure mode here.
+- API-backed agents are metered automatically from the `Usage` delta the provider already emits
+  (§9), landing in `budget_usage` as specified in §8.5.
+- **Every agent sees the whole board.** The context packet (§7) gains a short usage block: each
+  teammate, its remaining budget, and how stale that figure is. Agents cannot route around
+  exhaustion they cannot see.
+- The UI shows a per-agent gauge with a staleness indicator. `self_reported 4h ago` is a different
+  claim from `observed just now`.
+
+### Cost routing
+
+Once the board exists, the operating manual (§7.2) gains a rule with teeth:
+
+> Before taking expensive work, check the board. If a cheaper teammate can do it acceptably, hand
+> it to them and say why. If you are the only one who can do it and you are nearly out, say so
+> before starting rather than halfway through.
+
+This is what makes local agents worth building out (§13.3): they are not merely cheap, they are the
+overflow capacity that keeps the expensive members available for work only they can do.
+
+## 13.3 Local agents are the free tier
+
+Dante: *"Need to build out the local agents. I'm hoping that we'll be able to utilize their free
+tokens."*
+
+Local models cost nothing per token and are already paid for by the hardware. Under §8.8 they are
+also the only agents Cerebro can genuinely sandbox. Those two facts point the same way: **local
+agents should do the high-volume, low-judgement work** — summarising channels, triaging, drafting,
+searching memory, watching for events — so subscription budget is spent only where judgement is
+scarce.
+
+This needs the same things any agent needs and does not have yet: a real system prompt, the
+sandboxed tool set from §8.8, and the context packet from §7. It is not a new subsystem, it is
+finishing the ones we have.
+
+## 13.4 Cheap cloud agents are nearly free to add
+
+Dante rates this lowest priority, and it is also the smallest job on the list, which is worth
+saying so it can be slotted in whenever convenient rather than deferred on principle.
+
+`LMStudioProvider` already speaks the OpenAI protocol. DeepSeek, GLM and OpenRouter all expose the
+same shape. Generalising it into `OpenAICompatibleProvider(base_url, api_key_ref, model)` makes LM
+Studio one configuration of it and every one of those platforms another — the work is a rename, a
+key lookup through §9.4, and per-provider pricing for the meter above.
+
+---
+
 ## 14. Seed roster
 
 | Agent | Team | Provider | Delegation | Purpose |
