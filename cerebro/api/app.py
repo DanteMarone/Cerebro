@@ -1,15 +1,19 @@
-"""FastAPI application for Cerebro v2."""
-
+from pathlib import Path
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncIterator
 
 from fastapi import Depends, FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-from cerebro import db
+from cerebro import db, agents_loader
+from cerebro.api import routes_agents, routes_channels, ws
 from cerebro.config import settings
+from cerebro.hub import Hub
 from version import __version__
+
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 @dataclass(frozen=True)
@@ -31,7 +35,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings.ensure_dirs()
     await db.connect()
     await db.migrate()
+    _app.state.hub = Hub()
+    await agents_loader.bootstrap_seed_data()
     yield
+    if hasattr(_app.state, "hub") and _app.state.hub:
+        await _app.state.hub.aclose()
     await db.close()
 
 
@@ -40,6 +48,15 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+# Include API and WebSocket Routers
+app.include_router(routes_agents.router)
+app.include_router(routes_channels.router)
+app.include_router(ws.router)
+
+# Mount Web Assets if directory exists
+if WEB_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
 @app.get("/api/health")
@@ -53,15 +70,18 @@ async def health_check(_principal: Principal = Depends(get_current_principal)) -
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(_principal: Principal = Depends(get_current_principal)) -> str:
-    """Root placeholder page."""
+async def index(_principal: Principal = Depends(get_current_principal)):
+    """Serve the Cerebro v2 web single page app or fallback placeholder."""
+    index_file = WEB_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
     return (
         "<!DOCTYPE html>"
         "<html>"
         "<head><title>Cerebro v2</title></head>"
         "<body>"
         "<h1>Cerebro v2</h1>"
-        "<p>Agentic headquarters skeleton running. Ready for Slice 1.</p>"
+        "<p>Agentic headquarters skeleton running.</p>"
         "</body>"
         "</html>"
     )
