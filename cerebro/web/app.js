@@ -3,15 +3,13 @@
  * Built with pure Preact Hyperscript (Zero-build, zero parser overhead, 100% reliable)
  */
 
-// Resolved by the import map in index.html to the verified upstream artifacts in vendor/.
-// Do not point these at a hand-written bundle: see vendor/VENDOR.md.
-import { h, render } from "preact";
-import { useState, useEffect, useRef, useCallback } from "preact/hooks";
+import { h, render, useState, useEffect, useRef, useCallback } from "./vendor/preact.module.js";
 
 function App() {
     const [channels, setChannels] = useState([]);
     const [agents, setAgents] = useState([]);
-    const [activeChannelId, setActiveChannelId] = useState("dm-dante-jarvis");
+    const [activeChannelId, setActiveChannelId] = useState("warroom");
+    const [channelMembers, setChannelMembers] = useState([]);
     const [messages, setMessages] = useState({});
     const [streamingDeltas, setStreamingDeltas] = useState({});
     const [thinkingDeltas, setThinkingDeltas] = useState({});
@@ -20,6 +18,13 @@ function App() {
     const [sending, setSending] = useState(false);
     const [isPinned, setIsPinned] = useState(true);
 
+    // Modal state for channel creation
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newChanName, setNewChanName] = useState("");
+    const [newChanTopic, setNewChanTopic] = useState("");
+    const [selectedAgents, setSelectedAgents] = useState([]);
+    const [creatingChannel, setCreatingChannel] = useState(false);
+
     const streamRef = useRef(null);
     const wsRef = useRef(null);
     const reconnectTimerRef = useRef(null);
@@ -27,30 +32,44 @@ function App() {
     const currentDraft = drafts[activeChannelId] || "";
 
     // Fetch initial channels and agents
-    useEffect(() => {
-        async function loadInitialData() {
-            try {
-                const [channelsRes, agentsRes] = await Promise.all([
-                    fetch("/api/channels"),
-                    fetch("/api/agents")
-                ]);
-                if (channelsRes.ok && agentsRes.ok) {
-                    const channelsData = await channelsRes.json();
-                    const agentsData = await agentsRes.json();
-                    setChannels(channelsData.channels || []);
-                    setAgents(agentsData.agents || []);
-                    if (channelsData.channels?.length > 0) {
-                        const hasDm = channelsData.channels.some(c => c.id === "dm-dante-jarvis");
-                        if (!hasDm) {
-                            setActiveChannelId(channelsData.channels[0].id);
-                        }
-                    }
+    const loadChannelsAndAgents = useCallback(async () => {
+        try {
+            const [channelsRes, agentsRes] = await Promise.all([
+                fetch("/api/channels"),
+                fetch("/api/agents")
+            ]);
+            if (channelsRes.ok && agentsRes.ok) {
+                const channelsData = await channelsRes.json();
+                const agentsData = await agentsRes.json();
+                const chList = channelsData.channels || [];
+                setChannels(chList);
+                setAgents(agentsData.agents || []);
+                if (chList.length > 0 && !chList.some(c => c.id === activeChannelId)) {
+                    const warRoom = chList.find(c => c.id === "warroom");
+                    setActiveChannelId(warRoom ? "warroom" : chList[0].id);
                 }
-            } catch (err) {
-                console.error("Failed to load initial data:", err);
             }
+        } catch (err) {
+            console.error("Failed to load initial data:", err);
         }
-        loadInitialData();
+    }, [activeChannelId]);
+
+    useEffect(() => {
+        loadChannelsAndAgents();
+    }, [loadChannelsAndAgents]);
+
+    // Fetch members for the active channel
+    const loadActiveMembers = useCallback(async (channelId) => {
+        if (!channelId) return;
+        try {
+            const res = await fetch(`/api/channels/${channelId}/members`);
+            if (res.ok) {
+                const data = await res.json();
+                setChannelMembers(data.members || []);
+            }
+        } catch (err) {
+            console.error(`Failed to load members for ${channelId}:`, err);
+        }
     }, []);
 
     // Load message history when active channel changes
@@ -59,7 +78,7 @@ function App() {
         try {
             const url = afterId 
                 ? `/api/channels/${channelId}/messages?after=${afterId}`
-                : `/api/channels/${channelId}/messages?limit=200`;
+                : `/api/channels/${channelId}/messages`;
             const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
@@ -81,6 +100,7 @@ function App() {
 
     useEffect(() => {
         loadChannelMessages(activeChannelId);
+        loadActiveMembers(activeChannelId);
         setIsPinned(true);
         if (streamRef.current) {
             setTimeout(() => {
@@ -89,7 +109,7 @@ function App() {
                 }
             }, 50);
         }
-    }, [activeChannelId, loadChannelMessages]);
+    }, [activeChannelId, loadChannelMessages, loadActiveMembers]);
 
     // WebSocket connection and event handling
     useEffect(() => {
@@ -148,11 +168,7 @@ function App() {
                             }));
                         }
                     } else if (type === "message.done") {
-                        // The runtime publishes {channel_id, message}, the same envelope as
-                        // message.new. Reading payload.id here left the guard below always false,
-                        // so the handler never ran: the thinking block never cleared and the live
-                        // stream was never replaced by the authoritative persisted row.
-                        const msg = payload.message;
+                        const msg = payload.message || payload;
                         if (msg && msg.id != null) {
                             const channelId = msg.channel_id;
                             setStreamingDeltas(prev => {
@@ -258,6 +274,53 @@ function App() {
         }
     };
 
+    const handleCreateChannel = async (e) => {
+        e.preventDefault();
+        const name = newChanName.trim();
+        if (!name || creatingChannel) return;
+
+        setCreatingChannel(true);
+        try {
+            const res = await fetch("/api/channels", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: name,
+                    topic: newChanTopic.trim(),
+                    member_ids: selectedAgents,
+                    kind: "topic"
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const created = data.channel;
+                await loadChannelsAndAgents();
+                setShowCreateModal(false);
+                setNewChanName("");
+                setNewChanTopic("");
+                setSelectedAgents([]);
+                if (created && created.id) {
+                    setActiveChannelId(created.id);
+                }
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to create channel");
+            }
+        } catch (err) {
+            console.error("Channel creation error:", err);
+            alert("Error creating channel");
+        } finally {
+            setCreatingChannel(false);
+        }
+    };
+
+    const toggleAgentSelection = (agentId) => {
+        setSelectedAgents(prev => 
+            prev.includes(agentId) ? prev.filter(id => id !== agentId) : [...prev, agentId]
+        );
+    };
+
     const activeChannel = channels.find(c => c.id === activeChannelId) || {
         id: activeChannelId,
         name: activeChannelId,
@@ -277,8 +340,11 @@ function App() {
                 ]),
             ]),
             h("div", { class: "sidebar-content" }, [
+                // Direct Messages
                 h("div", { class: "sidebar-section" }, [
-                    h("div", { class: "sidebar-section-title" }, "Direct Messages"),
+                    h("div", { class: "sidebar-section-header" }, [
+                        h("span", null, "Direct Messages")
+                    ]),
                     ...channels.filter(c => c.type === 'dm' || c.kind === 'dm').map(ch =>
                         h("div", {
                             key: ch.id,
@@ -290,8 +356,17 @@ function App() {
                         ])
                     )
                 ]),
+
+                // Channels (with + button)
                 h("div", { class: "sidebar-section" }, [
-                    h("div", { class: "sidebar-section-title" }, "Channels"),
+                    h("div", { class: "sidebar-section-header" }, [
+                        h("span", null, "Channels"),
+                        h("button", {
+                            class: "section-add-btn",
+                            title: "Create Channel",
+                            onClick: () => setShowCreateModal(true)
+                        }, "+")
+                    ]),
                     ...channels.filter(c => c.type !== 'dm' && c.kind !== 'dm').map(ch =>
                         h("div", {
                             key: ch.id,
@@ -303,8 +378,12 @@ function App() {
                         ])
                     )
                 ]),
+
+                // Agent Roster
                 h("div", { class: "sidebar-section" }, [
-                    h("div", { class: "sidebar-section-title" }, `Agents (${agents.length})`),
+                    h("div", { class: "sidebar-section-header" }, [
+                        h("span", null, `Agents (${agents.length})`)
+                    ]),
                     ...agents.map(ag =>
                         h("div", { key: ag.id, class: "nav-item", style: "cursor: default; opacity: 0.9;" }, [
                             h("span", { class: "nav-icon" }, ag.avatar || "🤖"),
@@ -315,12 +394,17 @@ function App() {
             ])
         ]),
 
-        // Main Chat
+        // Main Chat Area
         h("main", { class: "chat-container", style: "position: relative;" }, [
             h("header", { class: "chat-header" }, [
                 h("div", { class: "chat-header-title" }, [
                     h("span", null, (activeChannel.type === 'dm' || activeChannel.kind === 'dm') ? `👤 @${activeChannel.name}` : `#${activeChannel.name}`),
                     activeChannel.topic ? h("span", { class: "chat-header-topic" }, `— ${activeChannel.topic}`) : null
+                ]),
+                h("div", { class: "chat-header-actions" }, [
+                    channelMembers.length > 0 ? h("div", { class: "member-pill" }, [
+                        h("span", null, `👥 ${channelMembers.length} members`)
+                    ]) : null
                 ])
             ]),
 
@@ -332,8 +416,8 @@ function App() {
                 ]) : null,
 
                 ...currentMessages.map(msg => {
-                    const displayAuthorId = msg.display_author_id || msg.author_id;
-                    const isUser = displayAuthorId === 'dante';
+                    const author = msg.display_author_id || msg.author_id;
+                    const isUser = author === 'dante';
                     const delta = streamingDeltas[msg.id];
                     const thinking = thinkingDeltas[msg.id];
                     const base = msg.body ?? msg.content ?? '';
@@ -342,13 +426,11 @@ function App() {
 
                     return h("div", { key: msg.id, class: "message-row" }, [
                         h("div", { class: `message-avatar ${isUser ? 'user' : ''}` },
-                            isUser ? 'D' : (displayAuthorId?.[0]?.toUpperCase() || 'J')
+                            isUser ? 'D' : (author?.[0]?.toUpperCase() || 'J')
                         ),
                         h("div", { class: "message-body" }, [
                             h("div", { class: "message-meta" }, [
-                                h("span", { class: "message-author" },
-                                    isUser ? 'Dante' : displayAuthorId
-                                ),
+                                h("span", { class: "message-author" }, isUser ? 'Dante' : author),
                                 h("span", { class: "message-time" }, timeStr)
                             ]),
                             thinking ? h("div", { class: "thinking-block" }, [
@@ -402,7 +484,66 @@ function App() {
                     ])
                 ])
             ])
-        ])
+        ]),
+
+        // Create Channel Modal Dialog
+        showCreateModal ? h("div", { class: "modal-backdrop", onClick: (e) => {
+            if (e.target === e.currentTarget) setShowCreateModal(false);
+        }}, [
+            h("div", { class: "modal-dialog" }, [
+                h("div", { class: "modal-header" }, [
+                    h("h2", null, "Create Channel"),
+                    h("button", { class: "modal-close-btn", onClick: () => setShowCreateModal(false) }, "✕")
+                ]),
+                h("div", { class: "modal-body" }, [
+                    h("div", { class: "form-group" }, [
+                        h("label", { class: "form-label" }, "Channel Name"),
+                        h("input", {
+                            class: "form-input",
+                            type: "text",
+                            placeholder: "e.g. general, feature-planning",
+                            value: newChanName,
+                            onInput: (e) => setNewChanName(e.target.value),
+                            autofocus: true
+                        })
+                    ]),
+                    h("div", { class: "form-group" }, [
+                        h("label", { class: "form-label" }, "Topic (Optional)"),
+                        h("input", {
+                            class: "form-input",
+                            type: "text",
+                            placeholder: "What is this channel about?",
+                            value: newChanTopic,
+                            onInput: (e) => setNewChanTopic(e.target.value)
+                        })
+                    ]),
+                    h("div", { class: "form-group" }, [
+                        h("label", { class: "form-label" }, "Add Agents to Channel"),
+                        h("div", { class: "agent-checkbox-grid" }, [
+                            ...agents.map(ag => h("label", { key: ag.id, class: "agent-checkbox-item" }, [
+                                h("input", {
+                                    type: "checkbox",
+                                    checked: selectedAgents.includes(ag.id),
+                                    onChange: () => toggleAgentSelection(ag.id)
+                                }),
+                                h("span", null, `${ag.avatar || '🤖'} ${ag.name}`)
+                            ]))
+                        ])
+                    ]),
+                    h("p", { style: "font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.2rem;" },
+                        "🔒 You (@dante) are automatically enrolled as the channel owner."
+                    )
+                ]),
+                h("div", { class: "modal-footer" }, [
+                    h("button", { class: "btn-secondary", onClick: () => setShowCreateModal(false) }, "Cancel"),
+                    h("button", {
+                        class: "btn-primary",
+                        disabled: !newChanName.trim() || creatingChannel,
+                        onClick: handleCreateChannel
+                    }, creatingChannel ? "Creating..." : "Create Channel")
+                ])
+            ])
+        ]) : null
     ]);
 }
 

@@ -162,14 +162,16 @@ async def create_channel(
     team_id: str = "personal-assistant",
     topic: str = "",
     created_by: str = "dante",
+    kind: str | None = None,
 ) -> dict[str, Any]:
     """Create a new channel and guarantee Dante is an owner member."""
+    actual_kind = kind if kind is not None else channel_type
     sql = """
     INSERT OR IGNORE INTO channels (id, team_id, kind, name, topic, created_by, created_at)
     VALUES (?, ?, ?, ?, ?, ?, datetime('now'));
     """
     await _execute_write(
-        sql, (channel_id, team_id, channel_type, name, topic, created_by)
+        sql, (channel_id, team_id, actual_kind, name, topic, created_by)
     )
     # Enforce §6.1 invariant: Dante is always a member of every channel
     await add_channel_member(
@@ -178,12 +180,12 @@ async def create_channel(
         member_kind="user",
         listen_mode="active",
     )
-    channel = await get_channel(channel_id)
-    return channel or {
+    ch = await get_channel(channel_id)
+    return ch or {
         "id": channel_id,
         "team_id": team_id,
-        "kind": channel_type,
-        "type": channel_type,
+        "kind": actual_kind,
+        "type": actual_kind,
         "name": name,
         "topic": topic,
         "created_by": created_by,
