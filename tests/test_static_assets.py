@@ -86,3 +86,26 @@ def test_stylesheet_contains_lease_styles():
     assert ".leases-section" in css_source
     assert ".lease-item" in css_source
     assert ".lease-holder-pill" in css_source
+
+
+def test_app_js_implements_usage_board_contract():
+    """app.js must render the usage board with the provenance attributes intact (§13.2).
+
+    These are the hooks the live DOM evidence queries. A cheap source assertion is not proof the
+    panel works -- that came from a real browser against a seeded server -- but it fails loudly if
+    somebody removes the attributes the panel's honesty depends on.
+    """
+    app_source = client().get("/static/app.js").text
+    assert "loadUsage" in app_source
+    assert "data-usage-agent" in app_source
+    assert "data-usage-window" in app_source
+    assert "data-stale" in app_source, "staleness must remain machine-readable, not just styled"
+    assert "usage-relayed" in app_source, "a relayed report must stay distinguishable"
+
+
+def test_stylesheet_distinguishes_stale_and_measured_usage():
+    """A self-reported figure must never render like a measurement (§13.2)."""
+    css_source = client().get("/static/style.css").text
+    assert ".usage-section" in css_source
+    assert ".usage-measured" in css_source
+    assert ".usage-window.is-stale" in css_source

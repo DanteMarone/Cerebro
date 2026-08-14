@@ -6,6 +6,21 @@
 import { h, render } from "./vendor/preact.module.js";
 import { useState, useEffect, useRef, useCallback } from "./vendor/hooks.module.js";
 
+function formatTokens(n) {
+    if (n === null || n === undefined) return "-";
+    if (n < 1000) return String(n);
+    if (n < 1000000) return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`;
+    return `${(n / 1000000).toFixed(1)}M`;
+}
+
+function formatAge(seconds) {
+    if (seconds === null || seconds === undefined) return "age unknown";
+    if (seconds < 60) return "just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+}
+
 function App() {
     const [channels, setChannels] = useState([]);
     const [agents, setAgents] = useState([]);
@@ -37,6 +52,9 @@ function App() {
 
     // Leases state (§8.7)
     const [leases, setLeases] = useState([]);
+
+    // Usage board state (§13.2)
+    const [usage, setUsage] = useState({ agents: [] });
 
     const streamRef = useRef(null);
     const wsRef = useRef(null);
@@ -95,6 +113,24 @@ function App() {
             console.debug("Failed to load leases:", err);
         }
     }, []);
+
+    // Fetch the usage board (§13.2)
+    const loadUsage = useCallback(async () => {
+        try {
+            const res = await fetch("/api/usage");
+            if (res.ok) {
+                setUsage(await res.json());
+            }
+        } catch (err) {
+            console.debug("Failed to load usage:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadUsage();
+        const timer = setInterval(loadUsage, 30000);
+        return () => clearInterval(timer);
+    }, [loadUsage]);
 
     useEffect(() => {
         loadChannelsAndAgents();
@@ -634,6 +670,55 @@ function App() {
                                 h("span", { class: "nav-icon" }, "🔒"),
                                 h("span", { class: "lease-resource-label", style: "font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" }, l.resource),
                                 h("span", { class: "lease-holder-pill", style: "margin-left: auto; font-size: 10px; opacity: 0.8;" }, `@${l.holder_id}`)
+                            ])
+                        )
+                ]),
+
+                // Usage & Quota Board (§13.2)
+                //
+                // Measured tokens and self-reported windows are rendered as visibly different
+                // things. They are not commensurable: one is something Cerebro observed, the other
+                // is an agent's word about a meter Cerebro cannot see. A stale self-report says so
+                // rather than sitting next to a measured number looking equally solid.
+                h("div", { class: "sidebar-section usage-section" }, [
+                    h("div", { class: "sidebar-section-header" }, [
+                        h("span", null, `Usage (${usage.agents ? usage.agents.length : 0})`)
+                    ]),
+                    (!usage.agents || usage.agents.length === 0)
+                        ? h("div", { class: "nav-item-empty", style: "padding: 4px 12px; font-size: 11px; color: var(--text-muted);" }, "Nothing reported yet")
+                        : usage.agents.map(a =>
+                            h("div", {
+                                key: a.agent_id,
+                                class: "usage-item",
+                                "data-usage-agent": a.agent_id
+                            }, [
+                                h("div", { class: "usage-agent-row" }, [
+                                    h("span", { class: "usage-agent-name" }, `@${a.agent_id}`),
+                                    a.measured
+                                        ? h("span", {
+                                            class: "usage-measured",
+                                            title: `${a.measured.calls} calls, ${a.measured.input_tokens} in / ${a.measured.output_tokens} out (measured by Cerebro)`
+                                          }, `${formatTokens(a.measured.total_tokens)} tok`)
+                                        : h("span", { class: "usage-unmeasured", title: "Cerebro does not call this agent's provider, so it cannot measure its tokens" }, "not measured")
+                                ]),
+                                ...(a.windows || []).map(w =>
+                                    h("div", {
+                                        key: w.window,
+                                        class: `usage-window${w.stale ? " is-stale" : ""}`,
+                                        "data-usage-window": w.window,
+                                        "data-stale": w.stale ? "true" : "false",
+                                        title: `Self-reported by @${w.reported_by}${w.relayed ? " (relayed)" : ""} at ${w.reported_at}${w.note ? " — " + w.note : ""}`
+                                    }, [
+                                        h("span", { class: "usage-window-name" }, w.window),
+                                        h("span", { class: "usage-window-value" },
+                                            w.pct_remaining === null || w.pct_remaining === undefined
+                                                ? "unknown"
+                                                : `${Math.round(w.pct_remaining)}% left`),
+                                        h("span", { class: "usage-window-age" },
+                                            w.stale ? `stale · ${formatAge(w.age_seconds)}` : formatAge(w.age_seconds)),
+                                        w.relayed ? h("span", { class: "usage-relayed", title: `Relayed by @${w.reported_by}` }, "relayed") : null
+                                    ])
+                                )
                             ])
                         )
                 ])

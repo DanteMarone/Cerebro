@@ -715,3 +715,97 @@ html, body {
     border-radius: 4px;
     color: var(--accent-color);
 }
+
+/* Usage & Quota Board (§13.2)
+ *
+ * The visual job here is to stop a self-reported percentage from reading like a measurement.
+ * Measured tokens are set in the normal monospace figure style; a self-reported window is indented,
+ * dimmer, and always carries its age. A stale one is dimmed further and labelled, because the
+ * failure mode this panel exists to prevent is somebody acting on a four-hour-old number.
+ */
+
+.usage-section {
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    padding-top: 6px;
+    margin-top: 4px;
+}
+
+.usage-item {
+    padding: 4px 12px 6px;
+}
+
+.usage-agent-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.usage-agent-name {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.usage-measured {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.usage-unmeasured {
+    margin-left: auto;
+    font-size: 10px;
+    font-style: italic;
+    color: var(--text-muted);
+    opacity: 0.75;
+}
+
+.usage-window {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-left: 10px;
+    padding-top: 2px;
+    font-size: 10px;
+    color: var(--text-muted);
+    border-left: 2px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    padding-left: 6px;
+}
+
+.usage-window-name {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.8;
+}
+
+.usage-window-value {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.usage-window-age {
+    margin-left: auto;
+    opacity: 0.7;
+}
+
+.usage-window.is-stale {
+    opacity: 0.55;
+}
+
+.usage-window.is-stale .usage-window-value {
+    text-decoration: line-through wavy;
+    text-decoration-thickness: from-font;
+}
+
+.usage-relayed {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+    opacity: 0.8;
+}
