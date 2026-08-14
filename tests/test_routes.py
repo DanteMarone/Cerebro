@@ -15,6 +15,10 @@ async def test_routes_agents_and_channels(test_db: Settings):
     await agents_loader.bootstrap_seed_data()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Obtain positive session from UI load on loopback (§6.3)
+        init_res = await client.get("/")
+        assert init_res.status_code == 200
+
         # Check agents endpoint
         res = await client.get("/api/agents")
         assert res.status_code == 200
@@ -31,10 +35,6 @@ async def test_routes_agents_and_channels(test_db: Settings):
         assert res.status_code == 200
         channels = res.json()["channels"]
         assert any(c["id"] == "dm-dante-jarvis" for c in channels)
-
-        # Obtain positive session from UI load on loopback (§6.3)
-        init_res = await client.get("/")
-        assert init_res.status_code == 200
 
         # Post a message to dm-dante-jarvis
         res = await client.post(

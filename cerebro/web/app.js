@@ -15,20 +15,33 @@ function App() {
     const [streamingDeltas, setStreamingDeltas] = useState({});
     const [thinkingDeltas, setThinkingDeltas] = useState({});
     const [drafts, setDrafts] = useState({});
+    const [unreadCounts, setUnreadCounts] = useState({});
     const [connected, setConnected] = useState(false);
     const [sending, setSending] = useState(false);
     const [isPinned, setIsPinned] = useState(true);
 
-    // Modal state for channel creation
+    // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showDmModal, setShowDmModal] = useState(false);
+    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+
+    // Channel creation state
     const [newChanName, setNewChanName] = useState("");
     const [newChanTopic, setNewChanTopic] = useState("");
     const [selectedAgents, setSelectedAgents] = useState([]);
     const [creatingChannel, setCreatingChannel] = useState(false);
 
+    // Member addition state
+    const [addingMember, setAddingMember] = useState(false);
+
     const streamRef = useRef(null);
     const wsRef = useRef(null);
     const reconnectTimerRef = useRef(null);
+    const activeChannelIdRef = useRef(activeChannelId);
+
+    useEffect(() => {
+        activeChannelIdRef.current = activeChannelId;
+    }, [activeChannelId]);
 
     const currentDraft = drafts[activeChannelId] || "";
 
@@ -45,6 +58,17 @@ function App() {
                 const chList = channelsData.channels || [];
                 setChannels(chList);
                 setAgents(agentsData.agents || []);
+
+                const serverUnreads = {};
+                chList.forEach(ch => {
+                    if (ch.id !== activeChannelIdRef.current) {
+                        serverUnreads[ch.id] = ch.unread_count || 0;
+                    } else {
+                        serverUnreads[ch.id] = 0;
+                    }
+                });
+                setUnreadCounts(prev => ({ ...serverUnreads, ...prev }));
+
                 if (chList.length > 0 && !chList.some(c => c.id === activeChannelId)) {
                     const warRoom = chList.find(c => c.id === "warroom");
                     setActiveChannelId(warRoom ? "warroom" : chList[0].id);
@@ -99,6 +123,31 @@ function App() {
         }
     }, []);
 
+    // Advance read cursor on the server
+    const markChannelRead = useCallback(async (channelId, maxMessageId) => {
+        if (!channelId || maxMessageId == null) return;
+        try {
+            await fetch(`/api/channels/${channelId}/read`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message_id: maxMessageId })
+            });
+        } catch (err) {
+            console.debug("Failed to update read cursor:", err);
+        }
+    }, []);
+
+    // Channel selection handler: resets unread count and marks read on server
+    const selectChannel = (channelId) => {
+        setActiveChannelId(channelId);
+        setUnreadCounts(prev => ({ ...prev, [channelId]: 0 }));
+        const list = messages[channelId] || [];
+        if (list.length > 0) {
+            const maxId = Math.max(...list.map(m => m.id));
+            markChannelRead(channelId, maxId);
+        }
+    };
+
     useEffect(() => {
         loadChannelMessages(activeChannelId);
         loadActiveMembers(activeChannelId);
@@ -111,6 +160,15 @@ function App() {
             }, 50);
         }
     }, [activeChannelId, loadChannelMessages, loadActiveMembers]);
+
+    // Mark active channel messages as read whenever messages update
+    useEffect(() => {
+        const list = messages[activeChannelId] || [];
+        if (list.length > 0) {
+            const maxId = Math.max(...list.map(m => m.id));
+            markChannelRead(activeChannelId, maxId);
+        }
+    }, [activeChannelId, messages, markChannelRead]);
 
     // WebSocket connection and event handling
     useEffect(() => {
@@ -151,6 +209,14 @@ function App() {
                                 if (list.some(m => m.id === msg.id)) return prev;
                                 return { ...prev, [channelId]: [...list, msg] };
                             });
+
+                            // Increment unread count if message is on an inactive channel
+                            if (channelId !== activeChannelIdRef.current) {
+                                setUnreadCounts(prev => ({
+                                    ...prev,
+                                    [channelId]: (prev[channelId] || 0) + 1
+                                }));
+                            }
                         }
                     } else if (type === "agent.thinking") {
                         const { message_id, text } = payload;
@@ -197,10 +263,15 @@ function App() {
                             }
                         }
                     } else if (type === "channel.new" || type === "channel.update") {
-                        // A channel created while the page is open -- by Dante in another tab, or
-                        // by an agent opening a room (§6.4) -- was previously invisible until F5,
-                        // because the sidebar was only ever populated once on mount.
                         loadChannelsAndAgents();
+                        if (payload.channel && payload.channel.id === activeChannelIdRef.current) {
+                            loadActiveMembers(activeChannelIdRef.current);
+                        }
+                    } else if (type === "channel.read") {
+                        const { channel_id, member_id } = payload;
+                        if (member_id === "dante" && channel_id === activeChannelIdRef.current) {
+                            setUnreadCounts(prev => ({ ...prev, [channel_id]: 0 }));
+                        }
                     }
                 } catch (err) {
                     console.debug("Failed to parse WS message:", err);
@@ -225,7 +296,7 @@ function App() {
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             if (wsRef.current) wsRef.current.close();
         };
-    }, [activeChannelId, loadChannelMessages, loadChannelsAndAgents]);
+    }, [activeChannelId, loadChannelMessages, loadChannelsAndAgents, loadActiveMembers]);
 
     const handleScroll = () => {
         if (!streamRef.current) return;
@@ -307,7 +378,7 @@ function App() {
                 setNewChanTopic("");
                 setSelectedAgents([]);
                 if (created && created.id) {
-                    setActiveChannelId(created.id);
+                    selectChannel(created.id);
                 }
             } else {
                 const err = await res.json();
@@ -318,6 +389,71 @@ function App() {
             alert("Error creating channel");
         } finally {
             setCreatingChannel(false);
+        }
+    };
+
+    const handleStartDm = async (agent) => {
+        const dmChannelId = `dm-dante-${agent.id}`;
+        const existing = channels.find(c => c.id === dmChannelId);
+        if (existing) {
+            selectChannel(dmChannelId);
+            setShowDmModal(false);
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/channels", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: agent.display_name || agent.name,
+                    id: dmChannelId,
+                    kind: "dm",
+                    topic: `Direct Message with ${agent.display_name || agent.name}`,
+                    member_ids: [agent.id]
+                })
+            });
+
+            if (res.ok) {
+                await loadChannelsAndAgents();
+                selectChannel(dmChannelId);
+                setShowDmModal(false);
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to start Direct Message");
+            }
+        } catch (err) {
+            console.error("Failed to start DM:", err);
+            alert("Error starting Direct Message");
+        }
+    };
+
+    const handleAddMember = async (agentId) => {
+        if (!activeChannelId || addingMember) return;
+        setAddingMember(true);
+        try {
+            const res = await fetch(`/api/channels/${activeChannelId}/members`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    member_id: agentId,
+                    member_kind: "agent",
+                    listen_mode: "auto"
+                })
+            });
+
+            if (res.ok) {
+                await loadActiveMembers(activeChannelId);
+                setShowAddMemberModal(false);
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to add member to channel");
+            }
+        } catch (err) {
+            console.error("Failed to add member:", err);
+            alert("Error adding member");
+        } finally {
+            setAddingMember(false);
         }
     };
 
@@ -334,6 +470,7 @@ function App() {
     };
 
     const currentMessages = messages[activeChannelId] || [];
+    const nonMemberAgents = agents.filter(ag => !channelMembers.some(m => m.member_id === ag.id));
 
     return h("div", { id: "app" }, [
         // Sidebar
@@ -346,21 +483,28 @@ function App() {
                 ]),
             ]),
             h("div", { class: "sidebar-content" }, [
-                // Direct Messages
+                // Direct Messages (with + button)
                 h("div", { class: "sidebar-section" }, [
                     h("div", { class: "sidebar-section-header" }, [
-                        h("span", null, "Direct Messages")
+                        h("span", null, "Direct Messages"),
+                        h("button", {
+                            class: "section-add-btn",
+                            title: "New Direct Message",
+                            onClick: () => setShowDmModal(true)
+                        }, "+")
                     ]),
-                    ...channels.filter(c => c.type === 'dm' || c.kind === 'dm').map(ch =>
-                        h("div", {
+                    ...channels.filter(c => c.type === 'dm' || c.kind === 'dm').map(ch => {
+                        const unread = unreadCounts[ch.id] || 0;
+                        return h("div", {
                             key: ch.id,
                             class: `nav-item ${ch.id === activeChannelId ? 'active' : ''}`,
-                            onClick: () => setActiveChannelId(ch.id)
+                            onClick: () => selectChannel(ch.id)
                         }, [
                             h("span", { class: "nav-icon" }, "👤"),
-                            h("span", null, ch.name)
-                        ])
-                    )
+                            h("span", null, ch.name),
+                            unread > 0 ? h("span", { class: "unread-badge" }, unread) : null
+                        ]);
+                    })
                 ]),
 
                 // Channels (with + button)
@@ -373,16 +517,18 @@ function App() {
                             onClick: () => setShowCreateModal(true)
                         }, "+")
                     ]),
-                    ...channels.filter(c => c.type !== 'dm' && c.kind !== 'dm').map(ch =>
-                        h("div", {
+                    ...channels.filter(c => c.type !== 'dm' && c.kind !== 'dm').map(ch => {
+                        const unread = unreadCounts[ch.id] || 0;
+                        return h("div", {
                             key: ch.id,
                             class: `nav-item ${ch.id === activeChannelId ? 'active' : ''}`,
-                            onClick: () => setActiveChannelId(ch.id)
+                            onClick: () => selectChannel(ch.id)
                         }, [
                             h("span", { class: "nav-icon" }, "#"),
-                            h("span", null, ch.name)
-                        ])
-                    )
+                            h("span", null, ch.name),
+                            unread > 0 ? h("span", { class: "unread-badge" }, unread) : null
+                        ]);
+                    })
                 ]),
 
                 // Agent Roster
@@ -391,7 +537,12 @@ function App() {
                         h("span", null, `Agents (${agents.length})`)
                     ]),
                     ...agents.map(ag =>
-                        h("div", { key: ag.id, class: "nav-item", style: "cursor: default; opacity: 0.9;" }, [
+                        h("div", {
+                            key: ag.id,
+                            class: "nav-item",
+                            title: `Start DM with ${ag.display_name || ag.name}`,
+                            onClick: () => handleStartDm(ag)
+                        }, [
                             h("span", { class: "nav-icon" }, ag.avatar || "🤖"),
                             h("span", null, ag.display_name || ag.name)
                         ])
@@ -410,7 +561,12 @@ function App() {
                 h("div", { class: "chat-header-actions" }, [
                     channelMembers.length > 0 ? h("div", { class: "member-pill" }, [
                         h("span", null, `👥 ${channelMembers.length} members`)
-                    ]) : null
+                    ]) : null,
+                    h("button", {
+                        class: "header-action-btn",
+                        title: "Add Agent to Channel",
+                        onClick: () => setShowAddMemberModal(true)
+                    }, "+ Add Agent")
                 ])
             ]),
 
@@ -491,6 +647,78 @@ function App() {
                 ])
             ])
         ]),
+
+        // New DM Modal Dialog
+        showDmModal ? h("div", { class: "modal-backdrop", onClick: (e) => {
+            if (e.target === e.currentTarget) setShowDmModal(false);
+        }}, [
+            h("div", { class: "modal-dialog" }, [
+                h("div", { class: "modal-header" }, [
+                    h("h2", null, "New Direct Message"),
+                    h("button", { class: "modal-close-btn", onClick: () => setShowDmModal(false) }, "✕")
+                ]),
+                h("div", { class: "modal-body" }, [
+                    h("p", { style: "font-size: 0.85rem; color: var(--text-secondary);" },
+                        "Select an agent to open or start a direct message conversation:"
+                    ),
+                    h("div", { class: "agent-select-list" }, [
+                        ...agents.map(ag => h("div", {
+                            key: ag.id,
+                            class: "agent-select-item",
+                            onClick: () => handleStartDm(ag)
+                        }, [
+                            h("span", { style: "font-size: 1.5rem;" }, ag.avatar || "🤖"),
+                            h("div", { class: "agent-select-info" }, [
+                                h("span", { class: "agent-select-name" }, ag.display_name || ag.name),
+                                h("span", { class: "agent-select-role" }, `${ag.role || 'Agent'} · ${ag.model || 'local'}`)
+                            ])
+                        ]))
+                    ])
+                ]),
+                h("div", { class: "modal-footer" }, [
+                    h("button", { class: "btn-secondary", onClick: () => setShowDmModal(false) }, "Close")
+                ])
+            ])
+        ]) : null,
+
+        // Add Member Modal Dialog
+        showAddMemberModal ? h("div", { class: "modal-backdrop", onClick: (e) => {
+            if (e.target === e.currentTarget) setShowAddMemberModal(false);
+        }}, [
+            h("div", { class: "modal-dialog" }, [
+                h("div", { class: "modal-header" }, [
+                    h("h2", null, `Add Agent to #${activeChannel.name}`),
+                    h("button", { class: "modal-close-btn", onClick: () => setShowAddMemberModal(false) }, "✕")
+                ]),
+                h("div", { class: "modal-body" }, [
+                    nonMemberAgents.length === 0
+                        ? h("p", { style: "font-size: 0.9rem; color: var(--text-secondary); text-align: center;" },
+                            "All available agents are already members of this channel."
+                        )
+                        : h("div", { class: "agent-select-list" }, [
+                            ...nonMemberAgents.map(ag => h("div", {
+                                key: ag.id,
+                                class: "agent-select-item",
+                                onClick: () => handleAddMember(ag.id)
+                            }, [
+                                h("span", { style: "font-size: 1.5rem;" }, ag.avatar || "🤖"),
+                                h("div", { class: "agent-select-info" }, [
+                                    h("span", { class: "agent-select-name" }, ag.display_name || ag.name),
+                                    h("span", { class: "agent-select-role" }, `${ag.role || 'Agent'} · ${ag.model || 'local'}`)
+                                ]),
+                                h("button", {
+                                    class: "btn-primary",
+                                    style: "margin-left: auto; padding: 0.3rem 0.7rem; font-size: 0.8rem;",
+                                    disabled: addingMember
+                                }, "Add")
+                            ]))
+                        ])
+                ]),
+                h("div", { class: "modal-footer" }, [
+                    h("button", { class: "btn-secondary", onClick: () => setShowAddMemberModal(false) }, "Close")
+                ])
+            ])
+        ]) : null,
 
         // Create Channel Modal Dialog
         showCreateModal ? h("div", { class: "modal-backdrop", onClick: (e) => {

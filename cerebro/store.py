@@ -233,6 +233,36 @@ async def get_channel_members(channel_id: str) -> list[dict[str, Any]]:
     return result
 
 
+async def update_read_cursor(
+    channel_id: str,
+    member_id: str,
+    message_id: int,
+) -> None:
+    """Update a member's last read message pointer in a channel (§6)."""
+    sql = """
+    UPDATE channel_members
+    SET last_read_message_id = MAX(COALESCE(last_read_message_id, 0), ?)
+    WHERE channel_id = ? AND member_id = ?;
+    """
+    await _execute_write(sql, (message_id, channel_id, member_id))
+
+
+async def get_unread_count(channel_id: str, member_id: str) -> int:
+    """Return the count of messages in channel_id with id > member's last_read_message_id."""
+    sql = """
+    SELECT COUNT(*) as count
+    FROM messages
+    WHERE channel_id = ?
+      AND id > (
+          SELECT COALESCE(last_read_message_id, 0)
+          FROM channel_members
+          WHERE channel_id = ? AND member_id = ?
+      );
+    """
+    row = await db.fetch_one(sql, (channel_id, channel_id, member_id))
+    return int(row["count"]) if row and row.get("count") is not None else 0
+
+
 async def append_message(
     channel_id: str,
     author_id: str,

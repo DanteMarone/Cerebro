@@ -61,7 +61,7 @@ async def test_migration_idempotent(test_db: Settings):
 @pytest.mark.asyncio
 async def test_migration_failure_atomic_rollback(tmp_path, test_db: Settings):
     """Assert a failed migration rolls back completely without recording in schema_version."""
-    bad_migration = tmp_path / "002_broken.sql"
+    bad_migration = tmp_path / "999_broken.sql"
     bad_migration.write_text(
         "CREATE TABLE broken_test (id TEXT PRIMARY KEY);\n"
         "SYNTAX ERROR INVALID SQL;\n",
@@ -77,9 +77,9 @@ async def test_migration_failure_atomic_rollback(tmp_path, test_db: Settings):
     )
     assert table is None
 
-    # Assert schema_version 2 was not recorded
+    # Assert schema_version 999 was not recorded
     version_row = await db.fetch_one(
-        "SELECT * FROM schema_version WHERE version = 2;"
+        "SELECT * FROM schema_version WHERE version = 999;"
     )
     assert version_row is None
 

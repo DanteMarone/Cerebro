@@ -40,10 +40,31 @@ def _slugify(text: str) -> str:
 
 
 @router.get("")
-async def get_channels():
-    """List all available channels."""
+async def get_channels(principal: Principal = Depends(get_current_principal)):
+    """List all available channels for the principal.
+
+    - Human (Dante): sees all channels (§6.1).
+    - Agent: sees only channels it is enrolled in as a member.
+    - Includes unread_count per channel for the caller (§6).
+    - Unauthenticated: refused with 401.
+    """
     channels = await store.list_channels()
-    return {"channels": channels}
+    if principal.is_agent:
+        visible = []
+        for ch in channels:
+            members = await store.get_channel_members(ch["id"])
+            if any(m["member_id"] == principal.id for m in members):
+                ch_copy = dict(ch)
+                ch_copy["unread_count"] = await store.get_unread_count(ch["id"], principal.id)
+                visible.append(ch_copy)
+        return {"channels": visible}
+
+    result = []
+    for ch in channels:
+        ch_copy = dict(ch)
+        ch_copy["unread_count"] = await store.get_unread_count(ch["id"], principal.id)
+        result.append(ch_copy)
+    return {"channels": result}
 
 
 @router.post("", status_code=201)
@@ -67,8 +88,8 @@ async def create_channel(
         raise HTTPException(
             status_code=403,
             detail=(
-                f"Agent '{principal.id}' must include itself in a channel it creates. "
-                "Creating a room you are not in is not permitted (§6.4)."
+                f"Agent '{principal.id}' must include itself in 'member_ids' when creating "
+                "a channel (§6.4)."
             ),
         )
 
@@ -80,13 +101,18 @@ async def create_channel(
     if existing:
         raise HTTPException(status_code=409, detail=f"Channel '{channel_id}' already exists")
 
+    if principal.is_agent:
+        created_by = principal.id
+    else:
+        created_by = "dante"
+
     await store.create_channel(
         channel_id=channel_id,
         name=req.name.strip(),
         team_id=req.team_id,
         kind=req.kind,
         topic=req.topic or "",
-        created_by=principal.id,
+        created_by=created_by,
     )
 
     # Add initial agent members (Dante is already added as owner by create_channel)
@@ -112,22 +138,52 @@ async def create_channel(
 
 
 @router.get("/{channel_id}")
-async def get_channel_by_id(channel_id: str):
-    """Retrieve details for a single channel."""
+async def get_channel_by_id(
+    channel_id: str,
+    principal: Principal = Depends(get_current_principal),
+):
+    """Retrieve details for a single channel.
+
+    - Dante: sees all channels.
+    - Agent: sees only channels it belongs to (403 otherwise).
+    - Unauthenticated: refused with 401.
+    """
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
     members = await store.get_channel_members(channel_id)
+    if principal.is_agent and not any(
+        m["member_id"] == principal.id for m in members
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Agent '{principal.id}' is not a member of channel '{channel_id}'",
+        )
     return {"channel": channel, "members": members}
 
 
 @router.get("/{channel_id}/members")
-async def get_channel_members_list(channel_id: str):
-    """Retrieve roster of members for a channel."""
+async def get_channel_members_list(
+    channel_id: str,
+    principal: Principal = Depends(get_current_principal),
+):
+    """Retrieve roster of members for a channel.
+
+    - Dante: sees all channel rosters.
+    - Agent: sees only rosters for channels it belongs to (403 otherwise).
+    - Unauthenticated: refused with 401.
+    """
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
     members = await store.get_channel_members(channel_id)
+    if principal.is_agent and not any(
+        m["member_id"] == principal.id for m in members
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Agent '{principal.id}' is not a member of channel '{channel_id}'",
+        )
     return {"channel_id": channel_id, "members": members}
 
 
@@ -204,11 +260,26 @@ async def get_channel_messages(
         None, description="Return messages with ID greater than this value"
     ),
     limit: int = Query(50, ge=1, le=200),
+    principal: Principal = Depends(get_current_principal),
 ):
-    """Retrieve message history for a channel, optionally after a message ID."""
+    """Retrieve message history for a channel, optionally after a message ID.
+
+    - Dante: sees all channel histories.
+    - Agent: sees only messages in channels it belongs to (403 otherwise).
+    - Unauthenticated: refused with 401.
+    """
     channel = await store.get_channel(channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+
+    if principal.is_agent:
+        members = await store.get_channel_members(channel_id)
+        if not any(m["member_id"] == principal.id for m in members):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Agent '{principal.id}' is not a member of channel '{channel_id}'",
+            )
+
     messages = await store.list_messages(channel_id, after_id=after, limit=limit)
     return {"messages": messages}
 
@@ -258,3 +329,44 @@ async def post_channel_message(
         await hub.publish("message.new", {"channel_id": channel_id, "message": message})
 
     return message
+
+
+class UpdateReadCursorRequest(BaseModel):
+    message_id: int = Field(..., ge=0)
+
+
+@router.patch("/{channel_id}/read")
+async def update_channel_read_cursor(
+    channel_id: str,
+    req: UpdateReadCursorRequest,
+    request: Request,
+    principal: Principal = Depends(get_current_principal),
+):
+    """Advance the caller's read cursor for a channel (§6)."""
+    channel = await store.get_channel(channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+
+    members = await store.get_channel_members(channel_id)
+    if principal.is_agent and not any(m["member_id"] == principal.id for m in members):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Agent '{principal.id}' is not a member of channel '{channel_id}'",
+        )
+
+    await store.update_read_cursor(channel_id, principal.id, req.message_id)
+
+    hub: Any = getattr(request.app.state, "hub", None)
+    if hub is not None:
+        await hub.publish("channel.read", {
+            "channel_id": channel_id,
+            "member_id": principal.id,
+            "message_id": req.message_id,
+        })
+
+    return {
+        "ok": True,
+        "channel_id": channel_id,
+        "member_id": principal.id,
+        "last_read_message_id": req.message_id,
+    }

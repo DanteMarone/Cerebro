@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS channel_members (
     member_kind TEXT,
     listen_mode TEXT DEFAULT 'active',
     joined_at TEXT,
+    last_read_message_id INTEGER DEFAULT 0,
     PRIMARY KEY(channel_id, member_id)
 );
 

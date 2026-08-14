@@ -118,6 +118,7 @@ def test_real_websocket_anonymous_write_is_refused(monkeypatch, tmp_path):
                 }
             )
 
+        client.get("/")
         history = client.get("/api/channels/ws-anonymous-proof/messages")
         assert history.status_code == 200
         assert history.json()["messages"] == []

@@ -178,3 +178,171 @@ async def test_agent_message_post_requires_membership(test_db: Settings):
         msg = res.json()
         assert msg["author_id"] == "claude"
         assert msg["author_kind"] == "agent"
+
+
+@pytest.mark.asyncio
+async def test_agent_message_read_requires_membership(test_db: Settings):
+    """Test that an agent can only read messages from channels where it is enrolled."""
+    app.state.hub = Hub()
+    token_store = TokenStore(test_db.data_dir / ".secrets.env")
+    token_claude = token_store.issue("claude")
+    token_antigravity = token_store.issue("antigravity")
+
+    # Create channel with only Claude and Dante
+    await store.create_channel(
+        channel_id="claude-secret-room",
+        name="Claude Secret Room",
+        team_id="personal-assistant",
+    )
+    await store.add_channel_member(
+        channel_id="claude-secret-room",
+        member_id="claude",
+        member_kind="agent",
+    )
+    await store.append_message(
+        channel_id="claude-secret-room",
+        author_id="claude",
+        author_kind="agent",
+        content="Confidential discussion with Dante",
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Antigravity is not a member -> GET /messages must be refused with 403
+        denied = await client.get(
+            "/api/channels/claude-secret-room/messages",
+            headers={"Authorization": f"Bearer {token_antigravity}"},
+        )
+        assert denied.status_code == 403
+        assert "not a member" in denied.json()["detail"]
+
+        # Antigravity is not a member -> GET /channel and GET /members also refused with 403
+        denied_ch = await client.get(
+            "/api/channels/claude-secret-room",
+            headers={"Authorization": f"Bearer {token_antigravity}"},
+        )
+        assert denied_ch.status_code == 403
+
+        denied_members = await client.get(
+            "/api/channels/claude-secret-room/members",
+            headers={"Authorization": f"Bearer {token_antigravity}"},
+        )
+        assert denied_members.status_code == 403
+
+        # Claude is a member -> GET succeeds
+        allowed = await client.get(
+            "/api/channels/claude-secret-room/messages",
+            headers={"Authorization": f"Bearer {token_claude}"},
+        )
+        assert allowed.status_code == 200
+        messages = allowed.json()["messages"]
+        assert len(messages) == 1
+        assert messages[0]["content"] == "Confidential discussion with Dante"
+
+
+@pytest.mark.asyncio
+async def test_channel_read_anonymous_refused_with_401(test_db: Settings):
+    """Test that reading channels or messages anonymously is refused with 401."""
+    app.state.hub = Hub()
+    await store.create_channel(
+        channel_id="anon-read-test",
+        name="Anon Read Test",
+        team_id="personal-assistant",
+    )
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Without session cookie or bearer token -> all 401
+        res_list = await client.get("/api/channels")
+        assert res_list.status_code == 401
+
+        res_ch = await client.get("/api/channels/anon-read-test")
+        assert res_ch.status_code == 401
+
+        res_members = await client.get("/api/channels/anon-read-test/members")
+        assert res_members.status_code == 401
+
+        res_msgs = await client.get("/api/channels/anon-read-test/messages")
+        assert res_msgs.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_channels_list_filtered_for_agents(test_db: Settings):
+    """Test that GET /api/channels filters out channels the agent is not a member of."""
+    app.state.hub = Hub()
+    token_store = TokenStore(test_db.data_dir / ".secrets.env")
+    token_claude = token_store.issue("claude")
+    token_antigravity = token_store.issue("antigravity")
+
+    await store.create_channel(channel_id="claude-only", name="Claude Only", team_id="t1")
+    await store.add_channel_member("claude-only", "claude", "agent")
+
+    await store.create_channel(channel_id="ag-only", name="AG Only", team_id="t1")
+    await store.add_channel_member("ag-only", "antigravity", "agent")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Claude sees claude-only, not ag-only
+        res_c = await client.get(
+            "/api/channels", headers={"Authorization": f"Bearer {token_claude}"}
+        )
+        assert res_c.status_code == 200
+        c_channels = {ch["id"] for ch in res_c.json()["channels"]}
+        assert "claude-only" in c_channels
+        assert "ag-only" not in c_channels
+
+        # Antigravity sees ag-only, not claude-only
+        res_ag = await client.get(
+            "/api/channels", headers={"Authorization": f"Bearer {token_antigravity}"}
+        )
+        assert res_ag.status_code == 200
+        ag_channels = {ch["id"] for ch in res_ag.json()["channels"]}
+        assert "ag-only" in ag_channels
+        assert "claude-only" not in ag_channels
+
+        # Human sees both
+        await client.get("/")
+        res_human = await client.get("/api/channels")
+        assert res_human.status_code == 200
+        human_channels = {ch["id"] for ch in res_human.json()["channels"]}
+        assert "claude-only" in human_channels
+        assert "ag-only" in human_channels
+
+
+@pytest.mark.asyncio
+async def test_update_read_cursor(test_db: Settings):
+    """Test updating the read cursor via PATCH /api/channels/{id}/read."""
+    app.state.hub = Hub()
+    token_store = TokenStore(test_db.data_dir / ".secrets.env")
+    token_claude = token_store.issue("claude")
+
+    await store.create_channel(channel_id="cursor-test", name="Cursor Test", team_id="t1")
+    await store.add_channel_member("cursor-test", "claude", "agent")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Human update
+        await client.get("/")
+        res = await client.patch(
+            "/api/channels/cursor-test/read",
+            json={"message_id": 42},
+        )
+        assert res.status_code == 200
+        assert res.json()["last_read_message_id"] == 42
+        assert res.json()["member_id"] == "dante"
+
+        # Agent update
+        res_agent = await client.patch(
+            "/api/channels/cursor-test/read",
+            headers={"Authorization": f"Bearer {token_claude}"},
+            json={"message_id": 100},
+        )
+        assert res_agent.status_code == 200
+        assert res_agent.json()["last_read_message_id"] == 100
+        assert res_agent.json()["member_id"] == "claude"
+
+        # Verify in store
+        members = await store.get_channel_members("cursor-test")
+        dante_mem = next(m for m in members if m["member_id"] == "dante")
+        claude_mem = next(m for m in members if m["member_id"] == "claude")
+        assert dante_mem["last_read_message_id"] == 42
+        assert claude_mem["last_read_message_id"] == 100
