@@ -4,7 +4,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from cerebro.api.app import app
-from cerebro.auth import TokenStore
+from cerebro.auth import SessionStore, TokenStore
 from cerebro.config import Settings
 from cerebro.hub import Hub
 
@@ -128,3 +128,51 @@ async def test_revoked_and_malformed_credentials_never_become_dante(
         )
         assert history.status_code == 200
         assert history.json()["messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_human_message_requires_a_positive_valid_session(test_db: Settings):
+    """No credentials and an invalid cookie fail; only a server-issued session is Dante."""
+    app.state.hub = Hub()
+    app.state.session_store = SessionStore(test_db.data_dir / ".session.token")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        created = await client.post(
+            "/api/channels",
+            json={
+                "id": "part-c-session-proof",
+                "name": "Part C session proof",
+            },
+        )
+        assert created.status_code == 201
+
+        anonymous = await client.post(
+            "/api/channels/part-c-session-proof/messages",
+            json={"content": "anonymous must fail", "author_id": "dante"},
+        )
+        assert anonymous.status_code == 401
+
+        client.cookies.set("cerebro_session", "invalid-session")
+        invalid = await client.post(
+            "/api/channels/part-c-session-proof/messages",
+            json={"content": "invalid must fail", "author_id": "dante"},
+        )
+        assert invalid.status_code == 401
+
+        opened = await client.get("/")
+        assert opened.status_code == 200
+        assert opened.cookies.get("cerebro_session")
+
+        posted = await client.post(
+            "/api/channels/part-c-session-proof/messages",
+            json={"content": "Dante typed this", "author_id": "codex"},
+        )
+        assert posted.status_code == 200
+        assert posted.json()["author_id"] == "dante"
+        assert posted.json()["author_kind"] == "user"
+
+        history = await client.get("/api/channels/part-c-session-proof/messages")
+        assert [message["body"] for message in history.json()["messages"]] == [
+            "Dante typed this"
+        ]
