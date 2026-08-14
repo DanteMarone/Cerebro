@@ -412,7 +412,32 @@ nothing about OpenAI or Google shapes.
 - Retries with jittered backoff on 429/503; on exhaustion the agent posts an error message rather
   than silently dying.
 
-### 9.3 FakeProvider (`fake.py`)
+### 9.3 CLI agent provider (`cli_agent.py`)
+
+A third provider kind, added at Dante's request: an agent whose backend is **another agent
+harness** rather than a raw model. `claude -p` and `agy` both take a prompt on stdin and stream
+text back, which is all the `Provider` protocol needs. This makes Claude and Antigravity ordinary
+members of a channel — with a profile, an avatar, memory and a lease, exactly like Jarvis.
+
+```json
+{ "provider": "cli_agent", "backend": "claude" | "agy",
+  "cwd": "D:/Code Projects/Cerebro", "timeout_s": 900 }
+```
+
+Implementation notes:
+
+- One subprocess per turn. The channel context packet goes in on stdin; stdout streams back as
+  `TextDelta`. Non-zero exit becomes an error message in the channel, not a crash.
+- **These agents bring their own tools.** Cerebro's `tools_enabled` allowlist does not constrain
+  them, and its journal and deny-list do not wrap what they do — they act through their own
+  harness with their own permissions. That is a real and deliberate hole in the §8 guarantees, and
+  it is the reason `cli_agent` agents are marked with a distinct badge in the UI and are excluded
+  from cron triggers by default. A human should be in the room when they run.
+- Turn caps and rate limits still apply, because those live in Cerebro's pipeline, not in the
+  provider.
+- Cost is per-invocation and much higher than a local model. Budget them explicitly.
+
+### 9.4 FakeProvider (`fake.py`)
 
 Scripted deltas driven by a fixture file. **Mandatory** — every pipeline test uses it. No test may
 require LM Studio or network access.
