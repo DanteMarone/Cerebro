@@ -193,16 +193,61 @@ def test_deploy_exits_0_early_when_already_up_to_date(monkeypatch, capsys):
     assert "Already up to date" in capsys.readouterr().out
 
 
+def test_deploy_lease_mutual_exclusion_and_lifecycle(tmp_path, monkeypatch):
+    """Proves acquisition inserts real schema rows, blocks second acquire, and releases cleanly."""
+    db_file = tmp_path / "cerebro.db"
+    con = sqlite3.connect(db_file)
+    con.execute(
+        "CREATE TABLE leases ("
+        "  resource TEXT PRIMARY KEY, holder_id TEXT NOT NULL, holder_kind TEXT NOT NULL, "
+        "  channel_id TEXT, reason TEXT, acquired_at TEXT NOT NULL, expires_at TEXT NOT NULL"
+        ")"
+    )
+    con.commit()
+    con.close()
+
+    _point_settings_at(monkeypatch, db_file, tmp_path)
+
+    # 1. First acquisition succeeds
+    assert deploy.acquire_deploy_lease("agent1", ttl=60) is True
+
+    # 2. Verify row exists with correct columns
+    con = sqlite3.connect(db_file)
+    row = con.execute("SELECT * FROM leases WHERE resource = ?", (deploy.DEPLOY_RESOURCE,)).fetchone()
+    con.close()
+    assert row is not None
+    assert row[0] == deploy.DEPLOY_RESOURCE
+    assert row[1] == "agent1"
+    assert row[2] == "cli"
+
+    # 3. Second acquisition while active is refused
+    assert deploy.acquire_deploy_lease("agent2", ttl=60) is False
+
+    # 4. Release removes the lease
+    deploy.release_deploy_lease("agent1")
+    con = sqlite3.connect(db_file)
+    row = con.execute("SELECT * FROM leases WHERE resource = ?", (deploy.DEPLOY_RESOURCE,)).fetchone()
+    con.close()
+    assert row is None
+
+    # 5. Acquisition succeeds again after release
+    assert deploy.acquire_deploy_lease("agent2", ttl=60) is True
+    deploy.release_deploy_lease("agent2")
+
+
 def test_deploy_refuses_when_deploy_lease_is_held(tmp_path, monkeypatch, capsys):
     db_file = tmp_path / "cerebro.db"
     con = sqlite3.connect(db_file)
     con.execute(
-        "CREATE TABLE leases (resource TEXT PRIMARY KEY, holder TEXT, acquired_at TEXT, "
-        "expires_at TEXT, ttl_seconds INTEGER, reason TEXT)"
+        "CREATE TABLE leases ("
+        "  resource TEXT PRIMARY KEY, holder_id TEXT NOT NULL, holder_kind TEXT NOT NULL, "
+        "  channel_id TEXT, reason TEXT, acquired_at TEXT NOT NULL, expires_at TEXT NOT NULL"
+        ")"
     )
     con.execute(
         "INSERT INTO leases VALUES "
-        "('service:cerebro:deploy', 'other_agent', '2026-08-14T00:00:00Z', '2099-01-01T00:00:00Z', 120, 'deploying')"
+        "('service:cerebro:deploy', 'other_agent', 'cli', NULL, 'deploying', "
+        "'2026-08-14T00:00:00Z', '2099-01-01T00:00:00Z')"
     )
     con.commit()
     con.close()
@@ -215,3 +260,18 @@ def test_deploy_refuses_when_deploy_lease_is_held(tmp_path, monkeypatch, capsys)
 
     assert deploy.main() == 2
     assert "deployment lease 'service:cerebro:deploy' is held" in capsys.readouterr().err
+
+
+def test_deploy_fails_closed_when_lease_registry_corrupt(tmp_path, monkeypatch, capsys):
+    """If the lease table cannot be queried, deploy fails closed rather than proceeding silently."""
+    db_file = tmp_path / "cerebro.db"
+    db_file.write_bytes(b"corrupt-database-bytes")
+
+    _point_settings_at(monkeypatch, db_file, tmp_path)
+    monkeypatch.setattr(deploy, "git_state", lambda: {
+        "head": "abc1234", "branch": "v2", "dirty": False, "origin": "abc1234"})
+    monkeypatch.setattr(deploy, "health", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["deploy.py"])
+
+    assert deploy.main() == 2
+    assert "cannot reach lease registry" in capsys.readouterr().err

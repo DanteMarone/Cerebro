@@ -50,7 +50,7 @@ DEPLOY_RESOURCE = "service:cerebro:deploy"
 
 
 def acquire_deploy_lease(holder: str = "deploy.py", ttl: int = 120) -> bool:
-    """Acquire the deployment mutex across the SQLite WAL lease registry (§8.7)."""
+    """Acquire the deployment mutex across the SQLite WAL lease registry (§8.7). Fail closed."""
     db_file = Path(settings.db_path)
     if not db_file.exists():
         return True
@@ -58,28 +58,32 @@ def acquire_deploy_lease(holder: str = "deploy.py", ttl: int = 120) -> bool:
         conn = sqlite3.connect(str(db_file), timeout=5.0)
         try:
             conn.execute("BEGIN IMMEDIATE;")
-            now = datetime.now(timezone.utc).isoformat()
+            now_dt = datetime.now(timezone.utc)
+            now = now_dt.isoformat()
             conn.execute("DELETE FROM leases WHERE expires_at <= ?;", (now,))
             cur = conn.execute(
-                "SELECT holder, expires_at FROM leases WHERE resource = ?;", (DEPLOY_RESOURCE,)
+                "SELECT holder_id, expires_at, reason FROM leases WHERE resource = ?;",
+                (DEPLOY_RESOURCE,),
             )
             row = cur.fetchone()
             if row:
                 conn.rollback()
                 return False
-            expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat()
+            expires = (now_dt + timedelta(seconds=ttl)).isoformat()
             conn.execute(
-                "INSERT INTO leases (resource, holder, acquired_at, expires_at, ttl_seconds, reason) "
-                "VALUES (?, ?, ?, ?, ?, ?);",
-                (DEPLOY_RESOURCE, holder, now, expires, ttl, "deploying update"),
+                "INSERT INTO leases ("
+                "  resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?);",
+                (DEPLOY_RESOURCE, holder, "cli", None, "deploying update", now, expires),
             )
             conn.commit()
             return True
         finally:
             conn.close()
     except Exception as exc:
-        print(f"  note      lease registry unavailable ({exc}); continuing without lease")
-        return True
+        raise DeployRefused(
+            f"cannot reach lease registry to acquire deployment mutex: {exc}"
+        ) from exc
 
 
 def release_deploy_lease(holder: str = "deploy.py") -> None:
@@ -92,7 +96,7 @@ def release_deploy_lease(holder: str = "deploy.py") -> None:
         try:
             conn.execute("BEGIN IMMEDIATE;")
             conn.execute(
-                "DELETE FROM leases WHERE resource = ? AND holder = ?;",
+                "DELETE FROM leases WHERE resource = ? AND holder_id = ?;",
                 (DEPLOY_RESOURCE, holder),
             )
             conn.commit()
