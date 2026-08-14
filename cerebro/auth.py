@@ -139,6 +139,10 @@ class TokenStore:
         """Agent ids holding a token. Deliberately returns no token material."""
         return sorted(self._read())
 
+    def get(self, agent_id: str) -> str | None:
+        """Return the bearer token for agent_id, or None if not found."""
+        return self._read().get(agent_id)
+
     def resolve(self, token: str) -> str | None:
         """Return the agent id for a token, or None. Constant-time scan across all entries."""
         if not token:
