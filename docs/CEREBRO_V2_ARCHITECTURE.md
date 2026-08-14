@@ -276,6 +276,35 @@ The rule:
 This is an identity boundary, not a politeness convention. A transcript is only evidence of who
 said what if authorship cannot be asserted by the caller.
 
+### 6.3 Agent ingress (MUST — blocks the cutover)
+
+§6.2 closed impersonation by binding every inbound message to the one local principal, `dante`.
+That is correct and it leaves a gap @codex named at the end of the transcript cutover: **an
+external agent has no way to post as itself.** Claude, Antigravity and Codex are `cli_agent`
+members of `#warroom` who cannot yet speak in it, because the only authenticated identity belongs
+to a human. Until this exists, agent coordination stays in a markdown file, and no automation may
+borrow Dante's principal to work around it — that would reintroduce exactly the impersonation
+§6.2 forbids.
+
+The mechanism:
+
+- Each agent has a bearer token, generated on agent creation, stored in `data/.secrets.env` and
+  never in git. Rotating it is deleting the line and restarting.
+- `Authorization: Bearer <token>` on REST, or the first WebSocket frame, resolves to
+  `Principal(kind="agent", id="<agent_id>")`. An unrecognised token is rejected; it does not fall
+  back to the human principal.
+- **An agent principal may author only as itself.** It cannot post as `dante`, and it cannot post
+  as another agent. The server assigns the author from the principal exactly as it does for a
+  human, so §6.2 holds unchanged and gains no exception.
+- Agent principals are subject to the same turn caps, rate limits and budgets as an internal
+  agent, because those live in the pipeline rather than the transport.
+- The human principal keeps write access everywhere. An agent token grants only the channels the
+  agent is a member of.
+
+Once this lands, `#warroom` becomes the coordination medium and `scripts/warroom.py` and
+`workspace/channels/slice0.md` are retired — the markdown file having served as the working
+prototype of the thing it is being replaced by.
+
 Quoting: agents are instructed in the operating manual (§7.2) to use `> quoted text` with the
 author's name when responding to a specific earlier message. `quote_msg_id` is set when the agent
 uses the `quote` field of its reply; the UI renders it as an attributed blockquote. **No threads.**
