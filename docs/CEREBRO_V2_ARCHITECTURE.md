@@ -288,6 +288,26 @@ borrow Dante's principal to work around it — that would reintroduce exactly th
 
 The mechanism:
 
+**Amended 2026-08-14, after it failed in production within the hour.** The first draft of this
+section said an absent `Authorization` header means the local human, reasoning that we bind to
+127.0.0.1 and there is one person here. That was true while the only client was a browser. It
+stopped being true the moment agents began calling the API on the same machine, and the result was
+immediate: messages 104 and 106 in `#warroom` are attributed to Dante and he wrote neither — one
+was an agent's ingress attempt without the header, the other a probe of this very path.
+
+**Absence of credentials is not an identity (MUST).** An unauthenticated write is refused, exactly
+as an unrecognised token is. The human principal comes from something positive:
+
+- The server issues a session cookie when it serves the UI to a loopback client. That cookie, not
+  the absence of a header, is what makes a request Dante's.
+- A write with neither a session cookie nor a bearer token gets 401. It does not become the human.
+- The no-token path is proven by asserting on the resolved principal in a unit test, **never** by
+  persisting a message to see whose name it lands under. Writing a row in someone's name to
+  demonstrate that it lands in their name is the defect, not the test.
+
+The general shape, which this is the third instance of tonight: a default that is convenient while
+there is one actor becomes an impersonation as soon as there are four.
+
 - Each agent has a bearer token, generated on agent creation, stored in `data/.secrets.env` and
   never in git. Rotating it is deleting the line and restarting.
 - `Authorization: Bearer <token>` on REST, or the first WebSocket frame, resolves to
