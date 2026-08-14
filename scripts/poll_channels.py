@@ -2,7 +2,11 @@
 
 Polls the Cerebro HTTP API (/api/channels) for new messages in channels where the
 specified agent is an enrolled member. Uses positive bearer token authentication
-from `.secrets.env` and maintains an atomic, isolated per-agent state cursor file.
+from `.secrets.env` and maintains an isolated, atomic per-agent cursor file.
+
+Design constraint: Run at most one poller process per agent identity. Each agent's
+cursor is tracked in `.agent_seen_{agent_id}.json` using atomic temporary file
+swaps to protect against torn/corrupt state during process interruption.
 """
 
 import argparse

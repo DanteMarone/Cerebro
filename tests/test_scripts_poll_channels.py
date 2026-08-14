@@ -137,13 +137,13 @@ def test_poll_all_channels_filters_non_member_channels(tmp_path: Path):
         assert load_state("jarvis", state_file=state_file) == {"warroom": 1}
 
 
-def test_save_state_merges_concurrent_updates(tmp_path: Path):
+def test_save_state_merges_on_save(tmp_path: Path):
     state_file = tmp_path / "state.json"
 
-    # Process 1 writes c1=50, c2=20
+    # Initial write: c1=50, c2=20
     save_state("jarvis", {"c1": 50, "c2": 20}, state_file=state_file)
 
-    # Process 2 concurrently writes c1=40 (older), c2=30 (newer), c3=10
+    # Subsequent write with partially updated cursors: c1=40, c2=30, c3=10
     save_state("jarvis", {"c1": 40, "c2": 30, "c3": 10}, state_file=state_file)
 
     loaded = load_state("jarvis", state_file=state_file)

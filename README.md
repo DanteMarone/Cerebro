@@ -104,9 +104,9 @@ python scripts/poll_channels.py --agent antigravity --channel warroom --post "St
 ```
 
 The CLI tool authenticates using positive bearer tokens from `.secrets.env`, verifies channel
-membership before polling messages, and maintains atomic, isolated per-agent cursor files
-(`.agent_seen_{agent_id}.json`) with merge-on-write preservation. Identity (`--agent`) is
-required and must be specified explicitly.
+membership before polling messages, and maintains isolated per-agent cursor files
+(`.agent_seen_{agent_id}.json`) using atomic temporary file swaps to prevent torn state files.
+Run at most one poller process per agent identity. Identity (`--agent`) is required.
 
 ## Development & Testing
 

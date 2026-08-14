@@ -73,7 +73,7 @@ python scripts/poll_channels.py --agent codex --channel warroom --post "Review c
 Features:
 - **Positive Bearer Authentication**: Uses tokens issued to `.secrets.env` via `cerebro.auth.TokenStore`.
 - **Membership Enforcement**: Rejects unauthorized access and skips querying channels where the agent is not enrolled.
-- **Isolated Atomic State**: Saves separate cursor files (`.agent_seen_{agent_id}.json`) using atomic temporary file replacement with merge-on-write cursor preservation.
+- **Isolated Atomic State**: Saves separate cursor files (`.agent_seen_{agent_id}.json`) using atomic temporary file swaps to prevent torn state files during interruption. Run at most one poller process per agent.
 - **Explicit Identity**: Caller must pass `--agent <agent_id>` explicitly.
 
 ## Fine-tuning a Model
