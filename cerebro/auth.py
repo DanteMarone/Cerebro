@@ -6,15 +6,9 @@ identity is the human, so Claude, Antigravity and Codex sit in channels they can
 the tempting shortcut is to let automation borrow Dante's principal — which is impersonation with
 a cutover attached.
 
-Design notes worth keeping:
-
-- **An unknown token is rejected, never downgraded.** Falling back to the human principal on a bad
-  token would turn a typo into an impersonation, which is precisely the failure this module exists
-  to prevent.
-- **Comparison is constant-time and scans every token.** Short-circuiting on the first match leaks
-  which prefixes are valid through timing.
-- **Tokens live in `data/.secrets.env`, never in `profile.json`, the database, an API response or
-  a log line.** `redact()` exists so that stays true by construction rather than by vigilance.
+§6.3 Amendment: Absence of credentials is NOT an identity. The human principal comes only from a
+positive session token issued by the server when serving the UI to a loopback client, NEVER from
+the absence of a header. An unauthenticated request is refused with 401.
 """
 
 import hmac
@@ -22,11 +16,12 @@ import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
-from fastapi import Header, HTTPException, Request
+from fastapi import Cookie, Header, HTTPException, Request
 
 TOKEN_PREFIX = "CEREBRO_AGENT_TOKEN_"
 TOKEN_BYTES = 32
 HUMAN_ID = "dante"
+SESSION_COOKIE_NAME = "cerebro_session"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,13 +54,41 @@ def _env_key(agent_id: str) -> str:
     return TOKEN_PREFIX + agent_id.upper().replace("-", "_")
 
 
+class SessionStore:
+    """Server loopback session token management for the human owner (§6.3)."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+
+    def issue(self) -> str:
+        """Get or create the active server session secret."""
+        if self.path.exists():
+            try:
+                secret = self.path.read_text(encoding="utf-8").strip()
+                if secret:
+                    return secret
+            except OSError:
+                pass
+        secret = secrets.token_urlsafe(TOKEN_BYTES)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(secret, encoding="utf-8")
+        os.replace(tmp, self.path)
+        return secret
+
+    def validate(self, token: str | None) -> bool:
+        """Validate a session token against the stored secret in constant time."""
+        if not token:
+            return False
+        known = self.issue()
+        return hmac.compare_digest(token, known)
+
+
 class TokenStore:
     """Agent bearer tokens, in an env file outside version control."""
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-
-    # -- persistence --------------------------------------------------------------
 
     def _read(self) -> dict[str, str]:
         """agent_id -> token. A malformed line is skipped rather than fatal."""
@@ -96,8 +119,6 @@ class TokenStore:
         tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
         os.replace(tmp, self.path)
 
-    # -- operations ---------------------------------------------------------------
-
     def issue(self, agent_id: str) -> str:
         """Mint a token, replacing any existing one for that agent."""
         token = secrets.token_urlsafe(TOKEN_BYTES)
@@ -119,11 +140,7 @@ class TokenStore:
         return sorted(self._read())
 
     def resolve(self, token: str) -> str | None:
-        """Return the agent id for a token, or None.
-
-        Scans every entry with a constant-time comparison: returning early on a match would let a
-        caller learn valid prefixes from response timing.
-        """
+        """Return the agent id for a token, or None. Constant-time scan across all entries."""
         if not token:
             return None
         found: str | None = None
@@ -131,20 +148,6 @@ class TokenStore:
             if hmac.compare_digest(token, known):
                 found = agent_id
         return found
-
-
-def principal_for(token: str | None, tokens: TokenStore) -> Principal:
-    """Resolve an Authorization bearer value to a principal.
-
-    No token means the local human (§D5: we bind to localhost and there is one person here). A
-    token that does not resolve raises — it must never quietly become the human.
-    """
-    if token is None:
-        return HUMAN
-    agent_id = tokens.resolve(token)
-    if agent_id is None:
-        raise PermissionError("unrecognised agent token")
-    return Principal(id=agent_id, kind="agent", name=agent_id)
 
 
 def parse_bearer(header: str | None) -> str | None:
@@ -162,14 +165,31 @@ def get_token_store() -> TokenStore:
     return TokenStore(settings.data_dir / ".secrets.env")
 
 
+def get_session_store() -> SessionStore:
+    from cerebro.config import settings
+    return SessionStore(settings.data_dir / ".session.token")
+
+
+def principal_for(token: str | None, tokens: TokenStore) -> Principal:
+    """Resolve an agent bearer token to an agent Principal. Absent token returns HUMAN."""
+    if token is None:
+        return HUMAN
+    agent_id = tokens.resolve(token)
+    if agent_id is None:
+        raise PermissionError("unrecognised agent token")
+    return Principal(id=agent_id, kind="agent", name=agent_id)
+
+
 async def get_current_principal(
     request: Request,
     authorization: str | None = Header(default=None),
+    cerebro_session: str | None = Cookie(default=None),
 ) -> Principal:
-    """Resolve who is speaking, per §6.2 and §6.3.
+    """Resolve who is speaking, per §6.2 and amended §6.3.
 
-    No Authorization header is the local human. A bearer token is an agent speaking as itself.
-    An unrecognised token or malformed header raises 401 and never quietly downgrades to Dante.
+    1. Authorization Bearer token -> agent Principal.
+    2. cerebro_session cookie -> Dante HUMAN principal.
+    3. Absence of credentials -> 401 Unauthorized (never quietly defaults to Dante).
     """
     if authorization is not None:
         token = parse_bearer(authorization)
@@ -180,4 +200,12 @@ async def get_current_principal(
             return principal_for(token, token_store)
         except PermissionError:
             raise HTTPException(status_code=401, detail="unrecognised agent token")
-    return HUMAN
+
+    if cerebro_session is not None:
+        session_store = getattr(request.app.state, "session_store", None) or get_session_store()
+        if session_store.validate(cerebro_session):
+            return HUMAN
+        raise HTTPException(status_code=401, detail="invalid session token")
+
+    # Absence of credentials is NOT an identity (§6.3)
+    raise HTTPException(status_code=401, detail="authentication required")

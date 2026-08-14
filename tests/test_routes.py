@@ -32,6 +32,10 @@ async def test_routes_agents_and_channels(test_db: Settings):
         channels = res.json()["channels"]
         assert any(c["id"] == "dm-dante-jarvis" for c in channels)
 
+        # Obtain positive session from UI load on loopback (§6.3)
+        init_res = await client.get("/")
+        assert init_res.status_code == 200
+
         # Post a message to dm-dante-jarvis
         res = await client.post(
             "/api/channels/dm-dante-jarvis/messages",
@@ -41,6 +45,7 @@ async def test_routes_agents_and_channels(test_db: Settings):
         msg = res.json()
         assert msg["content"] == "Hello from pytest"
         assert msg["author_id"] == "dante"
+        assert msg["author_kind"] == "user"
 
         # Fetch messages
         res = await client.get("/api/channels/dm-dante-jarvis/messages")

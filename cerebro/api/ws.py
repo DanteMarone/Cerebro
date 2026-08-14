@@ -5,7 +5,14 @@ import json
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from cerebro import store
-from cerebro.auth import HUMAN, get_token_store, parse_bearer, principal_for
+from cerebro.auth import (
+    HUMAN,
+    SESSION_COOKIE_NAME,
+    get_session_store,
+    get_token_store,
+    parse_bearer,
+    principal_for,
+)
 from cerebro.hub import Hub
 
 logger = logging.getLogger(__name__)
@@ -15,9 +22,14 @@ router = APIRouter(tags=["websocket"])
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Handle bi-directional WebSocket connection with principal resolution."""
-    # Resolve principal on connect from Authorization header and keep for socket lifetime (§6.3)
+    # Resolve principal on connect from Bearer header or positive session cookie (§6.3)
     headers = getattr(websocket, "headers", None) or {}
+    cookies = getattr(websocket, "cookies", None) or {}
     auth_header = headers.get("authorization")
+    session_cookie = cookies.get(SESSION_COOKIE_NAME)
+
+    principal = None
+
     if auth_header is not None:
         token = parse_bearer(auth_header)
         if not token:
@@ -29,8 +41,16 @@ async def websocket_endpoint(websocket: WebSocket):
         except PermissionError:
             await websocket.close(code=4401, reason="unrecognised agent token")
             return
+    elif session_cookie is not None:
+        session_store = getattr(websocket.app.state, "session_store", None) or get_session_store()
+        if session_store.validate(session_cookie):
+            principal = HUMAN
+        else:
+            await websocket.close(code=4401, reason="invalid session cookie")
+            return
     else:
-        principal = HUMAN
+        # Anonymous connection allowed for receiving events; write requires credentials
+        principal = None
 
     await websocket.accept()
     hub: Hub | None = getattr(websocket.app.state, "hub", None)
@@ -70,6 +90,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 payload = data.get("payload", {})
 
                 if msg_type in ("message.send", "message.new"):
+                    if principal is None:
+                        logger.warning("Unauthenticated message.send rejected over WebSocket")
+                        continue
+
                     channel_id = payload.get("channel_id")
                     content = (payload.get("content") or "").strip()
 

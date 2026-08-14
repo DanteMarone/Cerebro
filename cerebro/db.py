@@ -71,11 +71,20 @@ async def _writer_consumer() -> None:
 
 async def connect(db_path: Path | str | None = None) -> aiosqlite.Connection:
     """Connect to SQLite database and start writer queue."""
-    global _db, _write_queue, _writer_task, _loop
-    if _db is not None:
-        return _db
+    global _db, _write_queue, _writer_task, _loop, _path
 
     path = Path(db_path) if db_path is not None else settings.db_path
+    if _db is not None:
+        # Silently returning the existing connection means a caller asking for a different
+        # database gets the live one instead. That is how a test writes a channel named "test"
+        # into Dante's real sidebar: the fixture asks for a temp path, gets production, and
+        # nothing anywhere says so.
+        if _path is not None and Path(path).resolve() != _path.resolve():
+            raise WrongDatabase(
+                f"already connected to {_path}, refusing to hand back that connection for "
+                f"{path}. Close the existing connection first."
+            )
+        return _db
     path.parent.mkdir(parents=True, exist_ok=True)
 
     _db = await aiosqlite.connect(str(path))

@@ -7,16 +7,19 @@ from fastapi import WebSocketDisconnect
 from starlette.testclient import TestClient
 from cerebro.api.app import app
 from cerebro.api.ws import websocket_endpoint
-from cerebro.auth import TokenStore
+from cerebro.auth import SessionStore, TokenStore
 from cerebro.config import Settings
 from cerebro.hub import Hub
 from cerebro import store
 
 
 def test_websocket_connect_and_receive_events(test_db: Settings):
-    """Test WebSocket connection and event delivery via Hub."""
+    """Test WebSocket connection with session cookie and event delivery via Hub."""
     app.state.hub = Hub()
     client = TestClient(app)
+
+    # Initial root request issues session cookie
+    client.get("/")
 
     with client.websocket_connect("/ws") as ws:
         # Publish an event on hub
@@ -46,11 +49,13 @@ class MockWebSocket:
         app_instance,
         incoming: list[str],
         headers: dict | None = None,
+        cookies: dict | None = None,
         query_params: dict | None = None,
     ):
         self.app = app_instance
         self.incoming = list(incoming)
         self.headers = headers or {}
+        self.cookies = cookies or {}
         self.query_params = query_params or {}
         self.sent: list[str] = []
         self.accepted = False
@@ -74,9 +79,12 @@ class MockWebSocket:
 
 
 @pytest.mark.asyncio
-async def test_websocket_inbound_message_enforces_dante_principal(test_db: Settings):
-    """Test that inbound anonymous WebSocket messages strictly author as 'dante'."""
+async def test_websocket_inbound_message_with_session_cookie_authors_as_dante(test_db: Settings):
+    """Test that WebSocket authenticated with session cookie strictly authors as 'dante'."""
     app.state.hub = Hub()
+    session_store = SessionStore(test_db.data_dir / ".session.token")
+    session_token = session_store.issue()
+
     await store.create_channel(
         channel_id="test-chan",
         name="test",
@@ -94,13 +102,42 @@ async def test_websocket_inbound_message_enforces_dante_principal(test_db: Setti
         }
     )
 
-    ws = MockWebSocket(app, [payload])
+    ws = MockWebSocket(app, [payload], cookies={"cerebro_session": session_token})
     await websocket_endpoint(ws)
 
     messages = await store.list_messages("test-chan")
     assert len(messages) == 1
     assert messages[0]["author_id"] == "dante"
     assert messages[0]["body"] == "Hello from WS client"
+
+
+@pytest.mark.asyncio
+async def test_websocket_unauthenticated_cannot_write_messages(test_db: Settings):
+    """Test that WebSocket connection without any credentials cannot author messages."""
+    app.state.hub = Hub()
+    await store.create_channel(
+        channel_id="anon-chan",
+        name="anon",
+        team_id="personal-assistant",
+    )
+
+    payload = json.dumps(
+        {
+            "type": "message.send",
+            "payload": {
+                "channel_id": "anon-chan",
+                "content": "Attempting unauthenticated WS write",
+                "author_id": "impostor",
+            },
+        }
+    )
+
+    ws = MockWebSocket(app, [payload])
+    await websocket_endpoint(ws)
+
+    # Inbound write must be rejected; zero rows persisted
+    messages = await store.list_messages("anon-chan")
+    assert len(messages) == 0
 
 
 @pytest.mark.asyncio

@@ -23,12 +23,14 @@ def tmp_settings(tmp_path: Path) -> Settings:
 async def test_db(tmp_settings: Settings) -> AsyncIterator[Settings]:
     """Provide an initialized and migrated database in a temporary directory."""
     from cerebro.api.app import app
-    from cerebro.auth import TokenStore
+    from cerebro.auth import SessionStore, TokenStore
 
     tmp_settings.ensure_dirs()
     await db.connect(db_path=tmp_settings.db_path)
     await db.migrate()
     app.state.token_store = TokenStore(tmp_settings.data_dir / ".secrets.env")
+    app.state.session_store = SessionStore(tmp_settings.data_dir / ".session.token")
+    app.state.session_store.issue()
     try:
         yield tmp_settings
     finally:
