@@ -129,10 +129,11 @@ class AgentRuntime:
         channel_id: str,
         turn_id: str | None = None,
         depth: int = 0,
+        quote_msg_id: int | None = None,
     ) -> Message | None:
         """Produce one reply from `agent` in `channel_id`.
 
-        Returns the persisted message, or None when the turn was refused or the backend failed.
+        Returns the persisted message, or None when refused, passed, or failed.
         """
         turn_id = turn_id or new_turn_id()
 
@@ -147,40 +148,38 @@ class AgentRuntime:
 
         provider = self.provider_for(agent)
 
-        # Build the context BEFORE persisting the placeholder. The placeholder is a real row in
-        # the channel, so reading history afterwards hands the model an empty assistant turn of
-        # its own -- against gpt-oss-20b that alone was enough to make it answer with nothing.
         transcript = await self._context(agent, channel_id)
 
-        reply = await self.store.append_message(
-            Message(
-                channel_id=channel_id,
-                author_id=agent.id,
-                author_kind="agent",
-                kind="chat",
-                body="",
-                turn_id=turn_id,
-                depth=depth,
-            )
+        # Signal in-flight turn activity across WebSockets without writing a message row to database
+        await self._status(agent, channel_id, "thinking")
+        await self.hub.publish(
+            "agent.activity",
+            {
+                "channel_id": channel_id,
+                "agent_id": agent.id,
+                "turn_id": turn_id,
+                "status": "thinking",
+                "quote_msg_id": quote_msg_id,
+            },
         )
-        await self.hub.publish("message.new", {"channel_id": channel_id,
-                                               "message": reply.model_dump()})
 
         async with self._semaphore(provider):
             try:
-                body = await self._generate(agent, channel_id, reply, provider, transcript)
+                body = await self._generate(agent, channel_id, turn_id, provider, transcript)
             except ProviderUnavailable as exc:
-                return await self._fail(agent, channel_id, reply, f"backend offline — {exc}")
+                return await self._fail(
+                    agent, channel_id, turn_id, depth, quote_msg_id, f"backend offline — {exc}"
+                )
             except ProviderError as exc:
-                return await self._fail(agent, channel_id, reply, f"provider error — {exc}")
+                return await self._fail(
+                    agent, channel_id, turn_id, depth, quote_msg_id, f"provider error — {exc}"
+                )
             except Exception as exc:  # noqa: BLE001 - an agent must never take the process down
-                return await self._fail(agent, channel_id, reply, f"unexpected error — {exc!r}")
+                return await self._fail(
+                    agent, channel_id, turn_id, depth, quote_msg_id, f"unexpected error — {exc!r}"
+                )
 
         if not body.strip():
-            # An agent that produced nothing has not "said nothing" -- something went wrong, and
-            # an empty row in the channel tells Dante only that the product is broken. The usual
-            # cause is a reasoning model spending its whole budget thinking: qwen3.6-27b emitted
-            # 200 reasoning deltas, zero content, and finished on `length`.
             reason = "produced no answer"
             if self._last_finish == "length":
                 reason = (
@@ -189,34 +188,46 @@ class AgentRuntime:
                 )
             elif self._last_finish:
                 reason = f"produced no answer (finished: {self._last_finish})"
-            return await self._fail(agent, channel_id, reply, reason)
+            return await self._fail(agent, channel_id, turn_id, depth, quote_msg_id, reason)
 
         if is_pass(body):
-            # §6: deciding and speaking are the same call. An agent with nothing to add replies
-            # PASS, and PASS is discarded rather than persisted -- otherwise every poll of every
-            # agent would leave a row saying "nothing to say", and the channel would fill with
-            # silence made visible.
-            await self.store.delete_message(reply.id)
             await self._status(agent, channel_id, "idle")
             await self.hub.publish(
-                "message.discarded",
-                {"channel_id": channel_id, "message_id": reply.id, "agent_id": agent.id},
+                "turn.discarded",
+                {"channel_id": channel_id, "turn_id": turn_id, "agent_id": agent.id},
             )
             return None
 
-        reply.body = body
-        await self.store.update_message_body(reply.id, body)
+        # Completion-ordered persistence: the message is appended once with final timestamp
+        reply = await self.store.append_message(
+            Message(
+                channel_id=channel_id,
+                author_id=agent.id,
+                author_kind="agent",
+                kind="chat",
+                body=body,
+                quote_msg_id=quote_msg_id,
+                turn_id=turn_id,
+                depth=depth,
+            )
+        )
         self.guard.record_agent_message(turn_id, depth)
         await self._status(agent, channel_id, "idle")
-        await self.hub.publish("message.done", {"channel_id": channel_id,
-                                                "message": reply.model_dump()})
+        await self.hub.publish(
+            "message.new",
+            {"channel_id": channel_id, "message": reply.model_dump()},
+        )
+        await self.hub.publish(
+            "message.done",
+            {"channel_id": channel_id, "message": reply.model_dump()},
+        )
         return reply
 
     async def _generate(
         self,
         agent: Agent,
         channel_id: str,
-        reply: Message,
+        turn_id: str,
         provider: Provider,
         transcript: list[Message],
     ) -> str:
@@ -235,8 +246,13 @@ class AgentRuntime:
                 if isinstance(delta, TextDelta):
                     produced += delta.text
                     await self.hub.publish(
-                        "message.delta",
-                        {"channel_id": channel_id, "message_id": reply.id, "text": delta.text},
+                        "turn.delta",
+                        {
+                            "channel_id": channel_id,
+                            "agent_id": agent.id,
+                            "turn_id": turn_id,
+                            "text": delta.text,
+                        },
                     )
                 elif isinstance(delta, ReasoningDelta):
                     # Thinking is private (Dante, 2026-08-14): "Only message the group what we
@@ -378,17 +394,46 @@ class AgentRuntime:
         return message
 
     async def _fail(
-        self, agent: Agent, channel_id: str, reply: Message, reason: str
+        self,
+        agent: Agent,
+        channel_id: str,
+        turn_id: str,
+        depth: int,
+        quote_msg_id: int | None,
+        reason: str,
     ) -> Message:
-        """Surface a failure in the channel. The turn ends; the agent stays enabled."""
-        reply.body = f"⚠ {reason}"
-        reply.kind = "error"
-        await self.store.update_message_body(reply.id, reply.body)
+        """Surface a failure in the channel as a completed error message."""
+        reply = await self.store.append_message(
+            Message(
+                channel_id=channel_id,
+                author_id=agent.id,
+                author_kind="agent",
+                kind="error",
+                body=f"⚠ {reason}",
+                quote_msg_id=quote_msg_id,
+                turn_id=turn_id,
+                depth=depth,
+            )
+        )
         await self._status(agent, channel_id, "idle")
-        await self.hub.publish("error", {"channel_id": channel_id, "agent_id": agent.id,
-                                         "message_id": reply.id, "reason": reason})
-        await self.hub.publish("message.done", {"channel_id": channel_id,
-                                                "message": reply.model_dump()})
+        await self.hub.publish(
+            "error",
+            {
+                "channel_id": channel_id,
+                "agent_id": agent.id,
+                "turn_id": turn_id,
+                "message_id": reply.id,
+                "reason": reason,
+            },
+        )
+        await self.hub.publish(
+            "message.new",
+            {"channel_id": channel_id, "message": reply.model_dump()},
+        )
+        await self.hub.publish(
+            "message.done",
+            {"channel_id": channel_id, "message": reply.model_dump()},
+        )
         return reply
 
 

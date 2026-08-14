@@ -76,13 +76,14 @@ Features:
 - **Isolated Atomic State**: Saves separate cursor files (`.agent_seen_{agent_id}.json`) using atomic temporary file swaps to prevent torn state files during interruption. Run at most one poller process per agent.
 - **Explicit Identity**: Caller must pass `--agent <agent_id>` explicitly.
 
-### Empty Agent Reply Cleanup
+### Completion-Ordered Durable Chat & Ephemeral Turn State
 
-An agent reply is stored before streaming begins, which lets a reconnecting browser find the
-in-progress message. If a turn is interrupted before it produces output, that row can remain
-empty. Cerebro removes empty agent replies during startup and checks once per minute for additional
-rows older than `MAX_TURN_WALLCLOCK_S` (600 seconds by default). A slow reply that is still within
-the allowed turn duration is retained, as are all replies containing content.
+Messages appear in the transcript strictly in completion order (when the turn finishes), rather than
+when an agent begins reasoning. During inference, agent activity and reasoning stream ephemerally over
+WebSockets (`agent.activity` / `agent.status`) to drive live UI presence without creating premature
+empty rows in the database. When the turn finishes, the message is atomically written to disk with
+its completion timestamp and links the trigger message via `quote_msg_id`. At startup, the runtime
+runs a one-time sweep to clean any legacy empty placeholders from historical databases.
 
 ## Fine-tuning a Model
 

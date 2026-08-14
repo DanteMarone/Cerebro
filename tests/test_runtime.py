@@ -62,8 +62,8 @@ async def drain(sub):
     return out
 
 
-async def test_reply_is_persisted_before_the_first_token():
-    """A client reconnecting mid-stream must find the row already there."""
+async def test_reply_is_persisted_only_on_completion():
+    """Messages are persisted only when complete, eliminating orphaned placeholders."""
     provider = FakeProvider([TextDelta(text="hi "), TextDelta(text="there"), Done(reason="stop")])
     store = MemoryStore()
     hub, runtime = build(provider, store)
@@ -73,24 +73,30 @@ async def test_reply_is_persisted_before_the_first_token():
         events = await drain(sub)
 
     kinds = [e.type for e in events]
-    assert kinds[0] == "message.new"
-    assert events[0].payload["message"]["body"] == ""
-    assert "message.delta" in kinds
+    assert "agent.activity" in kinds
+    assert "turn.delta" in kinds
+    assert "message.new" in kinds
+    assert "message.done" in kinds
     assert kinds[-1] == "message.done"
 
+    # Message row is created on completion with full body
     assert reply.body == "hi there"
+    assert len(store.messages) == 1
     assert store.messages[0].body == "hi there"
 
 
-async def test_deltas_carry_the_persisted_message_id():
+async def test_deltas_carry_turn_id_and_agent_id():
     provider = FakeProvider([TextDelta(text="x"), Done(reason="stop")])
     hub, runtime = build(provider)
 
-    async with hub.subscribe("message.delta") as sub:
-        reply = await runtime.run_turn(AGENT, "c1")
+    async with hub.subscribe("turn.delta") as sub:
+        await runtime.run_turn(AGENT, "c1", turn_id="turn-123")
         deltas = await drain(sub)
 
-    assert [d.payload["message_id"] for d in deltas] == [reply.id]
+    assert len(deltas) == 1
+    assert deltas[0].payload["turn_id"] == "turn-123"
+    assert deltas[0].payload["agent_id"] == "jarvis"
+    assert deltas[0].payload["text"] == "x"
 
 
 async def test_context_puts_the_system_prompt_first():
@@ -313,7 +319,7 @@ async def test_a_pass_reply_is_discarded_and_leaves_no_row():
     store = MemoryStore()
     hub, runtime = build(provider, store)
 
-    async with hub.subscribe("message.discarded") as sub:
+    async with hub.subscribe("turn.discarded") as sub:
         result = await runtime.run_turn(AGENT, "c1")
         discarded = await drain(sub)
 
@@ -398,3 +404,87 @@ async def test_reasoning_is_written_to_the_agents_own_log(tmp_path):
     logs = list((home / "logs").glob("reasoning-*.log"))
     assert logs, "no reasoning log written"
     assert "private deliberation" in logs[0].read_text(encoding="utf-8")
+
+
+async def test_two_overlapping_turns_finish_in_reverse_order():
+    """Completion-ordered chat: Turn B finishes before Turn A, so Message B appears before A."""
+    import asyncio
+
+    store = MemoryStore()
+    hub = Hub()
+
+    agent_slow = Agent(id="slow_agent", name="slow", provider="lmstudio")
+    agent_fast = Agent(id="fast_agent", name="fast", provider="lmstudio")
+
+    provider_slow = FakeProvider([TextDelta(text="slow reply"), Done(reason="stop")], delay_s=0.08)
+    provider_fast = FakeProvider([TextDelta(text="fast reply"), Done(reason="stop")], delay_s=0.0)
+
+    def provider_for(agent: Agent):
+        return provider_slow if agent.id == "slow_agent" else provider_fast
+
+    runtime = AgentRuntime(
+        hub=hub,
+        store=store,
+        provider_for=provider_for,
+    )
+
+    # Start slow turn first, then fast turn immediately after
+    task_slow = asyncio.create_task(runtime.run_turn(agent_slow, "c1"))
+    await asyncio.sleep(0.01)
+    task_fast = asyncio.create_task(runtime.run_turn(agent_fast, "c1"))
+
+    await asyncio.gather(task_slow, task_fast)
+
+    # Fast agent finished first -> ID 1 and first in transcript
+    # Slow agent finished second -> ID 2 and second in transcript
+    assert len(store.messages) == 2
+    assert store.messages[0].author_id == "fast_agent"
+    assert store.messages[0].body == "fast reply"
+    assert store.messages[0].id == 1
+
+    assert store.messages[1].author_id == "slow_agent"
+    assert store.messages[1].body == "slow reply"
+    assert store.messages[1].id == 2
+
+
+async def test_quote_msg_id_is_preserved_on_reply():
+    """quote_msg_id identifies what prompted the turn while completion time controls ordering."""
+    provider = FakeProvider([TextDelta(text="answering question"), Done(reason="stop")])
+    store = MemoryStore()
+    hub, runtime = build(provider, store)
+
+    reply = await runtime.run_turn(AGENT, "c1", quote_msg_id=42)
+
+    assert reply.quote_msg_id == 42
+    assert store.messages[0].quote_msg_id == 42
+
+
+async def test_no_empty_placeholder_rows_created_during_generation():
+    """During inference, zero rows exist in the database transcript."""
+    store = MemoryStore()
+    hub = Hub()
+
+    messages_during_stream = []
+
+    class AssertingProvider:
+        name = "lmstudio"
+
+        async def stream(self, messages, tools, params):
+            messages_during_stream.append(len(store.messages))
+            yield TextDelta(text="computed answer")
+            messages_during_stream.append(len(store.messages))
+            yield Done(reason="stop")
+
+    runtime = AgentRuntime(
+        hub=hub,
+        store=store,
+        provider_for=lambda a: AssertingProvider(),
+    )
+
+    reply = await runtime.run_turn(AGENT, "c1")
+
+    # While generating, zero rows existed in the database
+    assert messages_during_stream == [0, 0]
+    # Only upon completion does the single completed row appear
+    assert len(store.messages) == 1
+    assert store.messages[0].id == reply.id

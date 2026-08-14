@@ -16,6 +16,7 @@ function App() {
     const [thinkingDeltas, setThinkingDeltas] = useState({});
     const [drafts, setDrafts] = useState({});
     const [unreadCounts, setUnreadCounts] = useState({});
+    const [activeTurns, setActiveTurns] = useState({});
     const [connected, setConnected] = useState(false);
     const [sending, setSending] = useState(false);
     const [isPinned, setIsPinned] = useState(true);
@@ -210,6 +211,15 @@ function App() {
                                 return { ...prev, [channelId]: [...list, msg] };
                             });
 
+                            // Clear active turn indicator for this agent
+                            if (msg.author_id) {
+                                setActiveTurns(prev => {
+                                    const ch = { ...(prev[channelId] || {}) };
+                                    delete ch[msg.author_id];
+                                    return { ...prev, [channelId]: ch };
+                                });
+                            }
+
                             // Increment unread count if message is on an inactive channel
                             if (channelId !== activeChannelIdRef.current) {
                                 setUnreadCounts(prev => ({
@@ -217,6 +227,34 @@ function App() {
                                     [channelId]: (prev[channelId] || 0) + 1
                                 }));
                             }
+                        }
+                    } else if (type === "agent.status" || type === "agent.activity") {
+                        const { channel_id, agent_id, status } = payload;
+                        if (channel_id && agent_id) {
+                            if (status === "thinking" || (status && status.startsWith("tool:"))) {
+                                setActiveTurns(prev => ({
+                                    ...prev,
+                                    [channel_id]: {
+                                        ...(prev[channel_id] || {}),
+                                        [agent_id]: { status }
+                                    }
+                                }));
+                            } else if (status === "idle") {
+                                setActiveTurns(prev => {
+                                    const ch = { ...(prev[channel_id] || {}) };
+                                    delete ch[agent_id];
+                                    return { ...prev, [channel_id]: ch };
+                                });
+                            }
+                        }
+                    } else if (type === "turn.discarded") {
+                        const { channel_id, agent_id } = payload;
+                        if (channel_id && agent_id) {
+                            setActiveTurns(prev => {
+                                const ch = { ...(prev[channel_id] || {}) };
+                                delete ch[agent_id];
+                                return { ...prev, [channel_id]: ch };
+                            });
                         }
                     } else if (type === "agent.thinking") {
                         const { message_id, text } = payload;
@@ -226,7 +264,7 @@ function App() {
                                 [message_id]: (prev[message_id] || "") + text
                             }));
                         }
-                    } else if (type === "message.delta") {
+                    } else if (type === "message.delta" || type === "turn.delta") {
                         const { message_id, text } = payload;
                         if (message_id != null && text) {
                             setStreamingDeltas(prev => ({
@@ -238,6 +276,13 @@ function App() {
                         const msg = payload.message || payload;
                         if (msg && msg.id != null) {
                             const channelId = msg.channel_id;
+                            if (msg.author_id && channelId) {
+                                setActiveTurns(prev => {
+                                    const ch = { ...(prev[channelId] || {}) };
+                                    delete ch[msg.author_id];
+                                    return { ...prev, [channelId]: ch };
+                                });
+                            }
                             setStreamingDeltas(prev => {
                                 const next = { ...prev };
                                 delete next[msg.id];
@@ -281,6 +326,7 @@ function App() {
             ws.onclose = () => {
                 if (isCancelled) return;
                 setConnected(false);
+                setActiveTurns({});
                 reconnectTimerRef.current = setTimeout(connectWs, 2000);
             };
 
@@ -602,6 +648,25 @@ function App() {
                             h("div", { class: "message-content" }, [
                                 content,
                                 delta ? h("span", { class: "streaming-cursor" }) : null
+                            ])
+                        ])
+                    ]);
+                }),
+
+                ...Object.entries(activeTurns[activeChannelId] || {}).map(([agentId, turn]) => {
+                    const agent = agents.find(a => a.id === agentId) || { name: agentId, avatar: "🤖" };
+                    return h("div", { key: `turn-${agentId}`, class: "message-row turn-activity-row" }, [
+                        h("div", { class: "message-avatar" }, agent.avatar || (agent.name?.[0]?.toUpperCase()) || "🤖"),
+                        h("div", { class: "message-body" }, [
+                            h("div", { class: "message-meta" }, [
+                                h("span", { class: "message-author" }, agent.display_name || agent.name || agentId),
+                                h("span", { class: "message-time" }, "working...")
+                            ]),
+                            h("div", { class: "thinking-block active-thinking" }, [
+                                h("div", { class: "thinking-header" }, [
+                                    h("span", { class: "thinking-spinner" }),
+                                    h("span", null, `${agent.display_name || agent.name} is reasoning...`)
+                                ])
                             ])
                         ])
                     ]);

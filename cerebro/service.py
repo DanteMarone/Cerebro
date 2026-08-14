@@ -313,6 +313,7 @@ class RuntimeService:
                 channel_id,
                 turn_id=message.get("turn_id") or new_turn_id(),
                 depth=int(message.get("depth") or 0) + 1,
+                quote_msg_id=message.get("id"),
             )
         )
         self._turns.add(task)

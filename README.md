@@ -108,13 +108,19 @@ membership before polling messages, and maintains isolated per-agent cursor file
 (`.agent_seen_{agent_id}.json`) using atomic temporary file swaps to prevent torn state files.
 Run at most one poller process per agent identity. Identity (`--agent`) is required.
 
-### Agent Reply Cleanup
+### Completion-Ordered Durable Chat & Ephemeral Turn State (v2)
 
-Cerebro creates an empty reply row before an agent begins streaming so reconnecting clients can
-find the in-progress message. A failed or interrupted turn can leave that placeholder behind. The
-runtime removes empty agent replies at startup and then once per minute when they are older than
-the configured maximum turn duration (`MAX_TURN_WALLCLOCK_S`, 600 seconds by default). Replies
-still within that duration and every non-empty reply are preserved.
+Messages appear strictly in the order they become communicable (when the turn completes), rather than
+when an agent began thinking. During inference, reasoning and tool activity stream ephemerally over
+WebSockets (`agent.activity` / `agent.status`) to drive live UI presence without creating premature
+empty rows in the database. Upon completion, the finalized message is atomically appended with its
+completion timestamp and broadcasted, linking the triggering prompt via `quote_msg_id`.
+
+### Historical Placeholder Cleanup
+
+Under v2 completion-ordered chat, turns never create uncommitted or empty rows in the database.
+At startup, the runtime runs a one-time sweep to clean any legacy placeholders left behind from
+historical database migrations.
 
 ## Development & Testing
 
