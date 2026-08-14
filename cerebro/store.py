@@ -345,6 +345,62 @@ async def list_messages(
 
 # --- Leases (§8.7) ---
 
+async def _acquire_lease_conn(
+    conn: Any,
+    resource: str,
+    holder_id: str,
+    holder_kind: str = "agent",
+    ttl_s: int = 600,
+    reason: str = "",
+    channel_id: str | None = None,
+    is_owner: bool = False,
+    now_dt: datetime | None = None,
+) -> Lease:
+    """Core atomic acquisition logic on a single connection."""
+    now_dt = now_dt or datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(seconds=ttl_s)).isoformat()
+
+    cur = await conn.execute("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    existing = await cur.fetchone()
+    if existing:
+        if existing["expires_at"] > now:
+            if existing["holder_id"] != holder_id and not is_owner:
+                raise LeaseConflictError(
+                    resource=resource,
+                    holder_id=existing["holder_id"],
+                    expires_at=existing["expires_at"],
+                    reason=existing["reason"] or "",
+                )
+        await conn.execute(
+            """
+            UPDATE leases
+            SET holder_id = ?, holder_kind = ?, channel_id = ?, reason = ?,
+                acquired_at = ?, expires_at = ?
+            WHERE resource = ?;
+            """,
+            (holder_id, holder_kind, channel_id, reason, now, expires_at, resource),
+        )
+    else:
+        await conn.execute(
+            """
+            INSERT INTO leases (
+                resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?);
+            """,
+            (resource, holder_id, holder_kind, channel_id, reason, now, expires_at),
+        )
+    return Lease(
+        resource=resource,
+        holder_id=holder_id,
+        holder_kind=holder_kind,
+        channel_id=channel_id,
+        reason=reason,
+        acquired_at=now,
+        expires_at=expires_at,
+    )
+
+
 async def acquire_lease(
     resource: str,
     holder_id: str,
@@ -355,73 +411,95 @@ async def acquire_lease(
     is_owner: bool = False,
 ) -> Lease:
     """Atomically acquire or re-acquire a lease inside a single writer transaction."""
-    now_dt = datetime.now(timezone.utc)
-    now = now_dt.isoformat()
-    expires_at = (now_dt + timedelta(seconds=ttl_s)).isoformat()
-
     async def _tx(conn: Any) -> Lease:
-        cur = await conn.execute("SELECT * FROM leases WHERE resource = ?;", (resource,))
-        existing = await cur.fetchone()
-        if existing:
-            if existing["expires_at"] > now:
-                if existing["holder_id"] != holder_id and not is_owner:
-                    raise LeaseConflictError(
-                        resource=resource,
-                        holder_id=existing["holder_id"],
-                        expires_at=existing["expires_at"],
-                        reason=existing["reason"] or "",
-                    )
-            await conn.execute(
-                """
-                UPDATE leases
-                SET holder_id = ?, holder_kind = ?, channel_id = ?, reason = ?,
-                    acquired_at = ?, expires_at = ?
-                WHERE resource = ?;
-                """,
-                (holder_id, holder_kind, channel_id, reason, now, expires_at, resource),
-            )
-        else:
-            await conn.execute(
-                """
-                INSERT INTO leases (
-                    resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?);
-                """,
-                (resource, holder_id, holder_kind, channel_id, reason, now, expires_at),
-            )
-        return Lease(
+        return await _acquire_lease_conn(
+            conn=conn,
             resource=resource,
             holder_id=holder_id,
             holder_kind=holder_kind,
-            channel_id=channel_id,
+            ttl_s=ttl_s,
             reason=reason,
-            acquired_at=now,
-            expires_at=expires_at,
+            channel_id=channel_id,
+            is_owner=is_owner,
         )
 
     return await db.run_in_writer(_tx)
 
 
+async def _release_lease_conn(
+    conn: Any,
+    resource: str,
+    holder_id: str,
+    is_owner: bool = False,
+    now_dt: datetime | None = None,
+) -> bool:
+    """Core atomic release logic on a single connection."""
+    now = (now_dt or datetime.now(timezone.utc)).isoformat()
+    cur = await conn.execute("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    existing = await cur.fetchone()
+    if not existing:
+        return False
+    if existing["expires_at"] > now and existing["holder_id"] != holder_id and not is_owner:
+        raise LeaseConflictError(
+            resource=resource,
+            holder_id=existing["holder_id"],
+            expires_at=existing["expires_at"],
+            reason=existing["reason"] or "",
+        )
+    cur_del = await conn.execute("DELETE FROM leases WHERE resource = ?;", (resource,))
+    return cur_del.rowcount > 0
+
+
 async def release_lease(resource: str, holder_id: str, is_owner: bool = False) -> bool:
     """Atomically release a lease inside a single writer transaction. Only holder or owner may release."""
-    now = datetime.now(timezone.utc).isoformat()
-
     async def _tx(conn: Any) -> bool:
-        cur = await conn.execute("SELECT * FROM leases WHERE resource = ?;", (resource,))
-        existing = await cur.fetchone()
-        if not existing:
-            return False
-        if existing["expires_at"] > now and existing["holder_id"] != holder_id and not is_owner:
-            raise LeaseConflictError(
-                resource=resource,
-                holder_id=existing["holder_id"],
-                expires_at=existing["expires_at"],
-                reason=existing["reason"] or "",
-            )
-        cur_del = await conn.execute("DELETE FROM leases WHERE resource = ?;", (resource,))
-        return cur_del.rowcount > 0
+        return await _release_lease_conn(conn, resource, holder_id, is_owner)
 
     return await db.run_in_writer(_tx)
+
+
+async def _renew_lease_conn(
+    conn: Any,
+    resource: str,
+    holder_id: str,
+    ttl_s: int = 600,
+    is_owner: bool = False,
+    now_dt: datetime | None = None,
+) -> Lease:
+    """Core atomic renew logic on a single connection."""
+    now_dt = now_dt or datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(seconds=ttl_s)).isoformat()
+
+    cur = await conn.execute("SELECT * FROM leases WHERE resource = ?;", (resource,))
+    existing = await cur.fetchone()
+    if not existing or existing["expires_at"] <= now:
+        raise LeaseConflictError(
+            resource=resource,
+            holder_id=existing["holder_id"] if existing else "none",
+            expires_at=existing["expires_at"] if existing else now,
+            reason="Lease does not exist or has expired",
+        )
+    if existing["holder_id"] != holder_id and not is_owner:
+        raise LeaseConflictError(
+            resource=resource,
+            holder_id=existing["holder_id"],
+            expires_at=existing["expires_at"],
+            reason=existing["reason"] or "",
+        )
+    await conn.execute(
+        "UPDATE leases SET expires_at = ? WHERE resource = ?;",
+        (expires_at, resource),
+    )
+    return Lease(
+        resource=existing["resource"],
+        holder_id=existing["holder_id"],
+        holder_kind=existing["holder_kind"],
+        channel_id=existing["channel_id"],
+        reason=existing["reason"] or "",
+        acquired_at=existing["acquired_at"],
+        expires_at=expires_at,
+    )
 
 
 async def renew_lease(
@@ -431,40 +509,8 @@ async def renew_lease(
     is_owner: bool = False,
 ) -> Lease:
     """Atomically extend the expiration time of an active lease in a single writer transaction."""
-    now_dt = datetime.now(timezone.utc)
-    now = now_dt.isoformat()
-    expires_at = (now_dt + timedelta(seconds=ttl_s)).isoformat()
-
     async def _tx(conn: Any) -> Lease:
-        cur = await conn.execute("SELECT * FROM leases WHERE resource = ?;", (resource,))
-        existing = await cur.fetchone()
-        if not existing or existing["expires_at"] <= now:
-            raise LeaseConflictError(
-                resource=resource,
-                holder_id=existing["holder_id"] if existing else "none",
-                expires_at=existing["expires_at"] if existing else now,
-                reason="Lease does not exist or has expired",
-            )
-        if existing["holder_id"] != holder_id and not is_owner:
-            raise LeaseConflictError(
-                resource=resource,
-                holder_id=existing["holder_id"],
-                expires_at=existing["expires_at"],
-                reason=existing["reason"] or "",
-            )
-        await conn.execute(
-            "UPDATE leases SET expires_at = ? WHERE resource = ?;",
-            (expires_at, resource),
-        )
-        return Lease(
-            resource=existing["resource"],
-            holder_id=existing["holder_id"],
-            holder_kind=existing["holder_kind"],
-            channel_id=existing["channel_id"],
-            reason=existing["reason"] or "",
-            acquired_at=existing["acquired_at"],
-            expires_at=expires_at,
-        )
+        return await _renew_lease_conn(conn, resource, holder_id, ttl_s, is_owner)
 
     return await db.run_in_writer(_tx)
 

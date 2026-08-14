@@ -178,3 +178,41 @@ async def test_owner_dante_can_override_and_release_any_lease(test_db: Settings)
         )
         assert r_rel.status_code == 200
         assert r_rel.json()["released"] is True
+
+
+@pytest.mark.asyncio
+async def test_rest_lazy_sweep_emits_lease_expired_event(test_db: Settings):
+    """GET /api/leases lazily sweeps expired leases and emits lease.expired over Hub."""
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+    from cerebro import db
+
+    app.state.hub = Hub()
+    sub = app.state.hub.subscribe("lease.expired")
+
+    token_store = app.state.token_store
+    tok = token_store.issue("antigravity")
+    headers = {"Authorization": f"Bearer {tok}"}
+
+    past = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+    sql = """
+    INSERT INTO leases (resource, holder_id, holder_kind, channel_id, reason, acquired_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?);
+    """
+    fut = await db.enqueue_write(
+        sql, ("res:expired_lazy", "claude", "agent", "warroom", "expired lease", past, past)
+    )
+    await fut
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/leases", headers=headers)
+        assert resp.status_code == 200
+        leases = resp.json()["leases"]
+        assert len(leases) == 0
+
+    event = await asyncio.wait_for(sub.get(), timeout=1.0)
+    assert event.type == "lease.expired"
+    assert event.payload["resource"] == "res:expired_lazy"
+    assert event.payload["holder_id"] == "claude"
+    sub.close()

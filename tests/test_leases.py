@@ -252,10 +252,54 @@ async def test_production_race_for_lease():
         except Exception as exc:
             results.append(("error", str(exc)))
 
-    # Launch two concurrent workers calling the production store method
     await asyncio.gather(
         worker("agent_alpha"),
         worker("agent_beta"),
+    )
+
+    winner = next(r[1] for r in results if r[0] == "success")
+    loser_conflict = next(r for r in results if r[0] == "conflict")
+    assert loser_conflict[1] == winner
+    assert loser_conflict[2] == "repo:Cerebro:HEAD"
+
+
+async def test_two_independent_connections_race_for_lease(init_db: Path):
+    """Concurrency proof: Two independent SQLite connections race for the same resource.
+
+    Uses the exact production _acquire_lease_conn logic with BEGIN IMMEDIATE on both connections.
+    Exactly one connection succeeds and commits; the second receives typed LeaseConflictError.
+    """
+    import aiosqlite
+
+    db_path = str(init_db)
+    results = []
+
+    async def worker(agent_id: str):
+        async with aiosqlite.connect(db_path, timeout=10.0) as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA journal_mode=WAL;")
+            try:
+                await conn.execute("BEGIN IMMEDIATE;")
+                lease = await store._acquire_lease_conn(
+                    conn=conn,
+                    resource="repo:Cerebro:HEAD",
+                    holder_id=agent_id,
+                    holder_kind="agent",
+                    ttl_s=300,
+                    reason=f"racing from {agent_id}",
+                )
+                await conn.commit()
+                results.append(("success", lease.holder_id))
+            except LeaseConflictError as exc:
+                await conn.rollback()
+                results.append(("conflict", exc.holder_id, exc.resource))
+            except Exception as exc:
+                await conn.rollback()
+                results.append(("error", str(exc)))
+
+    await asyncio.gather(
+        worker("conn_alpha"),
+        worker("conn_beta"),
     )
 
     statuses = [r[0] for r in results]

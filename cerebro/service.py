@@ -10,6 +10,7 @@ agent, which is the cheapest possible guarantee against a conversation that neve
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -248,11 +249,15 @@ class RuntimeService:
     async def stop(self) -> None:
         if hasattr(self, "_lease_sweeper") and self._lease_sweeper:
             self._lease_sweeper.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._lease_sweeper
         await self.poller.stop()
         for task in tuple(self._turns):
             task.cancel()
         if self._pump:
             self._pump.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._pump
         if self._sub:
             self._sub.close()
 

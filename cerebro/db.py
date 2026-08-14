@@ -64,6 +64,7 @@ async def _writer_consumer() -> None:
         if len(item) == 3 and item[0] == "tx":
             _, fn, future = item
             try:
+                await _db.execute("BEGIN IMMEDIATE;")
                 res = await fn(_db)
                 await _db.commit()
                 if not future.done():
