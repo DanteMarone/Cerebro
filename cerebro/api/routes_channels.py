@@ -51,9 +51,25 @@ async def create_channel(
     req: CreateChannelRequest,
     principal: Principal = Depends(get_current_principal),
 ):
-    """Create a new channel. Only the human principal may create channels (§6.3)."""
-    if principal.is_agent:
-        raise HTTPException(status_code=403, detail="Agent channel creation not permitted")
+    """Create a channel (§6.4).
+
+    Agents may create channels. The guard this replaces refused them entirely, which defended
+    against agents opening rooms that exclude Dante -- something §6.1 already makes impossible,
+    since he is added unconditionally and cannot be removed. It cost a capability specified since
+    the first draft and bought nothing.
+
+    What an agent may not do is create a room it is not itself in: that would let it arrange a
+    conversation between Dante and a third party while standing outside it.
+    """
+    members = list(req.member_ids)
+    if principal.is_agent and principal.id not in members:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Agent '{principal.id}' must include itself in a channel it creates. "
+                "Creating a room you are not in is not permitted (§6.4)."
+            ),
+        )
 
     channel_id = (req.id or _slugify(req.name)).strip()
     if not channel_id:
@@ -69,11 +85,11 @@ async def create_channel(
         team_id=req.team_id,
         kind=req.kind,
         topic=req.topic or "",
-        created_by="dante",
+        created_by=principal.id,
     )
 
     # Add initial agent members (Dante is already added as owner by create_channel)
-    for m_id in req.member_ids:
+    for m_id in members:
         if m_id and m_id != "dante":
             await store.add_channel_member(
                 channel_id=channel_id,
