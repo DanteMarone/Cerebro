@@ -198,6 +198,29 @@ html, body {
 }
 
 /* Message Stream */
+.jump-bottom-btn {
+    position: absolute;
+    bottom: 85px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--accent-color);
+    color: #ffffff;
+    border: none;
+    border-radius: 20px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.jump-bottom-btn:hover {
+    background-color: var(--accent-hover);
+    transform: translateX(-50%) scale(1.04);
+}
+
 .message-stream {
     flex: 1;
     overflow-y: auto;
@@ -206,6 +229,7 @@ html, body {
     flex-direction: column;
     gap: 1.25rem;
     scroll-behavior: smooth;
+    position: relative;
 }
 
 .message-row {

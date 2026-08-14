@@ -255,6 +255,27 @@ At Dante's direction, and enforced in code rather than convention:
 
 Agents are not asked to respect this. The store refuses to create a channel without him.
 
+### 6.2 Attribution is assigned, never claimed (MUST)
+
+The Slice 1 WebSocket accepted `author_id` from the client payload, so anything that could open a
+socket could post as Dante — and during acceptance testing, my own probe did exactly that, putting
+words in his mouth in his private DM. He objected, correctly.
+
+The rule:
+
+- **The server assigns the author from the authenticated `Principal`.** An inbound message payload
+  carrying `author_id` has that field ignored, not honoured. This is the reason the `Principal`
+  seam exists in §12 even while there is one local user.
+- **`dante` is reserved for Dante's own input.** No agent, test, probe, importer or harness may
+  author as him. Synthetic traffic authors as `test-runner` or as the agent doing the work.
+- **Agents author as themselves.** An agent's `author_id` comes from the runtime that invoked it,
+  never from model output — otherwise a prompt-injected model could impersonate a peer.
+- Testing against a live instance happens in a dedicated test channel or a group channel, never
+  inside someone's DM.
+
+This is an identity boundary, not a politeness convention. A transcript is only evidence of who
+said what if authorship cannot be asserted by the caller.
+
 Quoting: agents are instructed in the operating manual (§7.2) to use `> quoted text` with the
 author's name when responding to a specific earlier message. `quote_msg_id` is set when the agent
 uses the `quote` field of its reply; the UI renders it as an attributed blockquote. **No threads.**

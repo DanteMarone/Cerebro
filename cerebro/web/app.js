@@ -1,12 +1,12 @@
 /**
  * Cerebro v2 Front-End Application
- * Built with Preact & HTM (No build step, zero bundler)
+ * Built with pure Preact Hyperscript (Zero-build, zero parser overhead, 100% reliable)
  */
 
-import { h, render, useState, useEffect, useRef, useCallback } from "./vendor/preact.mjs";
-import htm from "./vendor/htm.mjs";
-
-const html = htm.bind(h);
+// Resolved by the import map in index.html to the verified upstream artifacts in vendor/.
+// Do not point these at a hand-written bundle: see vendor/VENDOR.md.
+import { h, render } from "preact";
+import { useState, useEffect, useRef, useCallback } from "preact/hooks";
 
 function App() {
     const [channels, setChannels] = useState([]);
@@ -15,14 +15,16 @@ function App() {
     const [messages, setMessages] = useState({});
     const [streamingDeltas, setStreamingDeltas] = useState({});
     const [thinkingDeltas, setThinkingDeltas] = useState({});
+    const [drafts, setDrafts] = useState({});
     const [connected, setConnected] = useState(false);
-    const [inputText, setInputText] = useState("");
     const [sending, setSending] = useState(false);
+    const [isPinned, setIsPinned] = useState(true);
 
     const streamRef = useRef(null);
-    const isPinnedRef = useRef(true);
     const wsRef = useRef(null);
     const reconnectTimerRef = useRef(null);
+
+    const currentDraft = drafts[activeChannelId] || "";
 
     // Fetch initial channels and agents
     useEffect(() => {
@@ -79,6 +81,14 @@ function App() {
 
     useEffect(() => {
         loadChannelMessages(activeChannelId);
+        setIsPinned(true);
+        if (streamRef.current) {
+            setTimeout(() => {
+                if (streamRef.current) {
+                    streamRef.current.scrollTop = streamRef.current.scrollHeight;
+                }
+            }, 50);
+        }
     }, [activeChannelId, loadChannelMessages]);
 
     // WebSocket connection and event handling
@@ -95,7 +105,6 @@ function App() {
             ws.onopen = () => {
                 if (isCancelled) return;
                 setConnected(true);
-                // Resync active channel messages on reconnect
                 setMessages(prev => {
                     const currentList = prev[activeChannelId] || [];
                     const lastId = currentList.length > 0 ? currentList[currentList.length - 1].id : null;
@@ -192,22 +201,21 @@ function App() {
         };
     }, [activeChannelId, loadChannelMessages]);
 
-    // Handle scroll pinning
     const handleScroll = () => {
         if (!streamRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = streamRef.current;
-        isPinnedRef.current = scrollHeight - scrollTop - clientHeight < 60;
+        const pinned = scrollHeight - scrollTop - clientHeight < 60;
+        setIsPinned(pinned);
     };
 
     useEffect(() => {
-        if (isPinnedRef.current && streamRef.current) {
+        if (isPinned && streamRef.current) {
             streamRef.current.scrollTop = streamRef.current.scrollHeight;
         }
-    }, [messages, streamingDeltas, activeChannelId]);
+    }, [messages, streamingDeltas, thinkingDeltas, isPinned]);
 
-    // Send Message
     const handleSendMessage = async () => {
-        const text = inputText.trim();
+        const text = currentDraft.trim();
         if (!text || sending || !activeChannelId) return;
 
         setSending(true);
@@ -218,18 +226,19 @@ function App() {
                 body: JSON.stringify({
                     content: text,
                     author_id: "dante",
-                    type: "text"
+                    type: "chat"
                 })
             });
 
             if (res.ok) {
-                setInputText("");
+                setDrafts(prev => ({ ...prev, [activeChannelId]: "" }));
                 const newMsg = await res.json();
                 setMessages(prev => {
                     const list = prev[activeChannelId] || [];
                     if (list.some(m => m.id === newMsg.id)) return prev;
                     return { ...prev, [activeChannelId]: [...list, newMsg] };
                 });
+                setIsPinned(true);
             }
         } catch (err) {
             console.error("Failed to send message:", err);
@@ -253,140 +262,141 @@ function App() {
 
     const currentMessages = messages[activeChannelId] || [];
 
-    return html`
-        <div id="app">
-            <!-- Sidebar -->
-            <aside class="sidebar">
-                <div class="sidebar-header">
-                    <h1>⚡ Cerebro</h1>
-                    <div class="status-badge">
-                        <span class="status-dot ${connected ? 'online' : ''}"></span>
-                        <span>${connected ? 'live' : 'offline'}</span>
-                    </div>
-                </div>
+    return h("div", { id: "app" }, [
+        // Sidebar
+        h("aside", { class: "sidebar" }, [
+            h("div", { class: "sidebar-header" }, [
+                h("h1", null, "⚡ Cerebro"),
+                h("div", { class: "status-badge" }, [
+                    h("span", { class: `status-dot ${connected ? 'online' : ''}` }),
+                    h("span", null, connected ? 'live' : 'offline'),
+                ]),
+            ]),
+            h("div", { class: "sidebar-content" }, [
+                h("div", { class: "sidebar-section" }, [
+                    h("div", { class: "sidebar-section-title" }, "Direct Messages"),
+                    ...channels.filter(c => c.type === 'dm' || c.kind === 'dm').map(ch =>
+                        h("div", {
+                            key: ch.id,
+                            class: `nav-item ${ch.id === activeChannelId ? 'active' : ''}`,
+                            onClick: () => setActiveChannelId(ch.id)
+                        }, [
+                            h("span", { class: "nav-icon" }, "👤"),
+                            h("span", null, ch.name)
+                        ])
+                    )
+                ]),
+                h("div", { class: "sidebar-section" }, [
+                    h("div", { class: "sidebar-section-title" }, "Channels"),
+                    ...channels.filter(c => c.type !== 'dm' && c.kind !== 'dm').map(ch =>
+                        h("div", {
+                            key: ch.id,
+                            class: `nav-item ${ch.id === activeChannelId ? 'active' : ''}`,
+                            onClick: () => setActiveChannelId(ch.id)
+                        }, [
+                            h("span", { class: "nav-icon" }, "#"),
+                            h("span", null, ch.name)
+                        ])
+                    )
+                ]),
+                h("div", { class: "sidebar-section" }, [
+                    h("div", { class: "sidebar-section-title" }, `Agents (${agents.length})`),
+                    ...agents.map(ag =>
+                        h("div", { key: ag.id, class: "nav-item", style: "cursor: default; opacity: 0.9;" }, [
+                            h("span", { class: "nav-icon" }, ag.avatar || "🤖"),
+                            h("span", null, ag.display_name || ag.name)
+                        ])
+                    )
+                ])
+            ])
+        ]),
 
-                <div class="sidebar-content">
-                    <!-- Direct Messages -->
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Direct Messages</div>
-                        ${channels.filter(c => c.type === 'dm').map(ch => html`
-                            <div 
-                                key=${ch.id} 
-                                class="nav-item ${ch.id === activeChannelId ? 'active' : ''}"
-                                onClick=${() => setActiveChannelId(ch.id)}
-                            >
-                                <span class="nav-icon">👤</span>
-                                <span>${ch.name}</span>
-                            </div>
-                        `)}
-                    </div>
+        // Main Chat
+        h("main", { class: "chat-container", style: "position: relative;" }, [
+            h("header", { class: "chat-header" }, [
+                h("div", { class: "chat-header-title" }, [
+                    h("span", null, (activeChannel.type === 'dm' || activeChannel.kind === 'dm') ? `👤 @${activeChannel.name}` : `#${activeChannel.name}`),
+                    activeChannel.topic ? h("span", { class: "chat-header-topic" }, `— ${activeChannel.topic}`) : null
+                ])
+            ]),
 
-                    <!-- Channels -->
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Channels</div>
-                        ${channels.filter(c => c.type !== 'dm').map(ch => html`
-                            <div 
-                                key=${ch.id} 
-                                class="nav-item ${ch.id === activeChannelId ? 'active' : ''}"
-                                onClick=${() => setActiveChannelId(ch.id)}
-                            >
-                                <span class="nav-icon">#</span>
-                                <span>${ch.name}</span>
-                            </div>
-                        `)}
-                    </div>
+            // Message Stream
+            h("div", { class: "message-stream", ref: streamRef, onScroll: handleScroll }, [
+                currentMessages.length === 0 ? h("div", { style: "text-align: center; color: var(--text-secondary); margin-top: 3rem;" }, [
+                    h("p", { style: "font-size: 1.1rem; font-weight: 500;" }, `Welcome to #${activeChannel.name}`),
+                    h("p", { style: "font-size: 0.85rem; margin-top: 0.3rem;" }, "Start the conversation below.")
+                ]) : null,
 
-                    <!-- Agents Roster -->
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Agents (${agents.length})</div>
-                        ${agents.map(ag => html`
-                            <div key=${ag.id} class="nav-item" style="cursor: default; opacity: 0.9;">
-                                <span class="nav-icon">${ag.avatar || '🤖'}</span>
-                                <span>${ag.display_name || ag.name}</span>
-                            </div>
-                        `)}
-                    </div>
-                </div>
-            </aside>
+                ...currentMessages.map(msg => {
+                    const isUser = msg.author_id === 'dante';
+                    const delta = streamingDeltas[msg.id];
+                    const thinking = thinkingDeltas[msg.id];
+                    const content = delta ? (msg.content + delta) : (msg.content || msg.body);
+                    const timeStr = msg.created_at ? msg.created_at.slice(11, 16) : '';
 
-            <!-- Main Chat View -->
-            <main class="chat-container">
-                <header class="chat-header">
-                    <div class="chat-header-title">
-                        <span>${activeChannel.type === 'dm' ? '👤 @' : '#'}${activeChannel.name}</span>
-                        ${activeChannel.topic && html`
-                            <span class="chat-header-topic">— ${activeChannel.topic}</span>
-                        `}
-                    </div>
-                </header>
+                    return h("div", { key: msg.id, class: "message-row" }, [
+                        h("div", { class: `message-avatar ${isUser ? 'user' : ''}` },
+                            isUser ? 'D' : (msg.author_id?.[0]?.toUpperCase() || 'J')
+                        ),
+                        h("div", { class: "message-body" }, [
+                            h("div", { class: "message-meta" }, [
+                                h("span", { class: "message-author" }, isUser ? 'Dante' : msg.author_id),
+                                h("span", { class: "message-time" }, timeStr)
+                            ]),
+                            thinking ? h("div", { class: "thinking-block" }, [
+                                h("div", { class: "thinking-header" }, "💭 Thinking..."),
+                                h("div", { class: "thinking-content" }, thinking)
+                            ]) : null,
+                            h("div", { class: "message-content" }, [
+                                content,
+                                delta ? h("span", { class: "streaming-cursor" }) : null
+                            ])
+                        ])
+                    ]);
+                })
+            ]),
 
-                <div class="message-stream" ref=${streamRef} onScroll=${handleScroll}>
-                    ${currentMessages.length === 0 && html`
-                        <div style="text-align: center; color: var(--text-secondary); margin-top: 3rem;">
-                            <p style="font-size: 1.1rem; font-weight: 500;">Welcome to #${activeChannel.name}</p>
-                            <p style="font-size: 0.85rem; margin-top: 0.3rem;">Start the conversation below.</p>
-                        </div>
-                    `}
+            // Jump to latest button
+            !isPinned ? h("button", {
+                class: "jump-bottom-btn",
+                onClick: () => {
+                    if (streamRef.current) {
+                        streamRef.current.scrollTop = streamRef.current.scrollHeight;
+                        setIsPinned(true);
+                    }
+                }
+            }, "↓ Jump to latest") : null,
 
-                    ${currentMessages.map(msg => {
-                        const isUser = msg.author_id === 'dante';
-                        const delta = streamingDeltas[msg.id];
-                        const thinking = thinkingDeltas[msg.id];
-                        const content = delta ? (msg.content + delta) : msg.content;
-                        const timeStr = msg.created_at ? msg.created_at.slice(11, 16) : '';
-
-                        return html`
-                            <div key=${msg.id} class="message-row">
-                                <div class="message-avatar ${isUser ? 'user' : ''}">
-                                    ${isUser ? 'D' : (msg.author_id?.[0]?.toUpperCase() || 'J')}
-                                </div>
-                                <div class="message-body">
-                                    <div class="message-meta">
-                                        <span class="message-author">${isUser ? 'Dante' : msg.author_id}</span>
-                                        <span class="message-time">${timeStr}</span>
-                                    </div>
-                                    ${thinking && html`
-                                        <div class="thinking-block">
-                                            <div class="thinking-header">💭 Thinking...</div>
-                                            <div class="thinking-content">${thinking}</div>
-                                        </div>
-                                    `}
-                                    <div class="message-content">
-                                        ${content}
-                                        ${delta && html`<span class="streaming-cursor"></span>`}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    })}
-                </div>
-
-                <div class="composer-container">
-                    <div class="composer-box">
-                        <textarea 
-                            class="composer-textarea" 
-                            placeholder="Message ${activeChannel.type === 'dm' ? '@' : '#'}${activeChannel.name}…"
-                            value=${inputText}
-                            onInput=${(e) => setInputText(e.target.value)}
-                            onKeyDown=${handleKeyDown}
-                            disabled=${sending}
-                            autofocus
-                        ></textarea>
-                        <div class="composer-footer">
-                            <span><strong>Enter</strong> to send, <strong>Shift + Enter</strong> for new line</span>
-                            <button 
-                                class="send-button" 
-                                onClick=${handleSendMessage}
-                                disabled=${!inputText.trim() || sending}
-                            >
-                                Send
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    `;
+            // Composer
+            h("div", { class: "composer-container" }, [
+                h("div", { class: "composer-box" }, [
+                    h("textarea", {
+                        class: "composer-textarea",
+                        placeholder: `Message ${(activeChannel.type === 'dm' || activeChannel.kind === 'dm') ? '@' : '#'}${activeChannel.name}…`,
+                        value: currentDraft,
+                        onInput: (e) => setDrafts(prev => ({ ...prev, [activeChannelId]: e.target.value })),
+                        onKeyDown: handleKeyDown,
+                        disabled: sending,
+                        autofocus: true
+                    }),
+                    h("div", { class: "composer-footer" }, [
+                        h("span", null, [
+                            h("strong", null, "Enter"),
+                            " to send, ",
+                            h("strong", null, "Shift + Enter"),
+                            " for new line"
+                        ]),
+                        h("button", {
+                            class: "send-button",
+                            onClick: handleSendMessage,
+                            disabled: !currentDraft.trim() || sending
+                        }, "Send")
+                    ])
+                ])
+            ])
+        ])
+    ]);
 }
 
-render(html`<${App} />`, document.body);
+const mountTarget = document.getElementById("app") || document.body;
+render(h(App, null), mountTarget);

@@ -1,3 +1,4 @@
+import mimetypes
 from pathlib import Path
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -61,6 +62,15 @@ app.include_router(ws.router)
 
 # Mount Web Assets if directory exists
 if WEB_DIR.exists():
+    # Python resolves static MIME types from the Windows registry, where .mjs is commonly
+    # text/plain. Browsers enforce strict MIME checking on ES modules, so the vendored
+    # preact.mjs and htm.mjs are rejected and the entire UI renders blank -- with a green test
+    # suite, because no test exercises a browser. Register the types explicitly rather than
+    # trusting the host machine's registry.
+    mimetypes.add_type("text/javascript", ".mjs")
+    mimetypes.add_type("text/javascript", ".js")
+    mimetypes.add_type("text/css", ".css")
+
     app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
