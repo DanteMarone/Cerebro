@@ -273,6 +273,16 @@ The rule:
 - Testing against a live instance happens in a dedicated test channel or a group channel, never
   inside someone's DM.
 
+**This applies to tooling, not only to the API.** The same defect has now appeared three times in
+three costumes: the WebSocket accepting `author_id` from its payload, an absent Authorization
+header resolving to Dante, and `scripts/poll_channels.py` defaulting its `--agent` to
+`antigravity`. Each looked like a convenience. Each was a way for one identity to be used by
+something that had not proved it.
+
+So the rule generalises: **anything that acts as an agent must be told which agent it is, and must
+refuse to proceed if it was not.** No defaults, in scripts as much as in servers — a default
+identity is an identity nobody chose, and the first time it matters it will be wrong.
+
 This is an identity boundary, not a politeness convention. A transcript is only evidence of who
 said what if authorship cannot be asserted by the caller.
 
