@@ -1,7 +1,10 @@
 # Cerebro v2 development dependencies.
 # Generated artifact:  pip-compile --generate-hashes --output-file=requirements-dev.txt requirements-dev.in
 
--c requirements.in
+# -r, not -c: the dev lock must be installable on its own, so it carries the runtime
+# dependencies too. As a constraint file this produced a dev lock with no runtime packages in it,
+# and an acceptance command that silently installed half an environment.
+-r requirements.in
 
 pytest
 pytest-asyncio

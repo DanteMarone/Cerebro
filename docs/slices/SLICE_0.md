@@ -147,10 +147,15 @@ pip-compile --generate-hashes --output-file=requirements-dev.txt requirements-de
 
 Rules (non-negotiable — these are Dante's standing supply-chain directives):
 - Exact pins with hashes. Never hand-edit the generated files.
-- Every resolved release must be **at least 7 days old**. If the newest release is younger, pin the
-  previous one and note it in your report.
+- Every resolved release must be **at least 7 days old**. Verify this with
+  `python scripts/audit_cooldown.py`, which checks every pin against the PyPI release date — do not
+  assert it from memory. Where a resolved version is too young, pin the previous release in the
+  `.in` file and recompile.
+- **Target interpreter is CPython 3.14** — Dante's default `python`. Compile the lock against it
+  (`--python-version 3.14`); a lock resolved against a different minor version installs a wheel set
+  that will not import here.
 - No package with an install script / arbitrary `setup.py` execution beyond what these well-known
-  packages already do. If `pip-compile` pulls in something unexpected, stop and report it.
+  packages already do. If the resolver pulls in something unexpected, stop and report it.
 
 ---
 
@@ -170,11 +175,17 @@ in `requirements.in` without asking first.
 All of these must pass, from a clean checkout of `v2`:
 
 ```bash
-pip install -r requirements-dev.txt
-flake8 .
-PYTHONPATH=. pytest -q
-python main.py   # then: curl http://127.0.0.1:8765/api/health
+py -3.14 -m venv .venv
+.venv/Scripts/python -m pip install -r requirements-dev.txt
+.venv/Scripts/python -m flake8 .
+PYTHONPATH=. .venv/Scripts/python -m pytest -q
+.venv/Scripts/python scripts/audit_cooldown.py
+PYTHONPATH=. .venv/Scripts/python main.py   # then: curl http://127.0.0.1:8765/api/health
 ```
+
+Run these in a **freshly created venv**, not one that already has packages in it. The first
+acceptance run of this slice reported green in an environment that still had a dependency left
+over from the PyQt application; on a clean checkout two tests failed.
 
 - `flake8` clean.
 - `pytest` green, including the 12 retained plugin tests.
