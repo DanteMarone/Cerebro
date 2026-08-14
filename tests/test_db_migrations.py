@@ -59,6 +59,32 @@ async def test_migration_idempotent(test_db: Settings):
 
 
 @pytest.mark.asyncio
+async def test_migration_failure_atomic_rollback(tmp_path, test_db: Settings):
+    """Assert a failed migration rolls back completely without recording in schema_version."""
+    bad_migration = tmp_path / "002_broken.sql"
+    bad_migration.write_text(
+        "CREATE TABLE broken_test (id TEXT PRIMARY KEY);\n"
+        "SYNTAX ERROR INVALID SQL;\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(Exception):
+        await db.migrate(migrations_dir=tmp_path)
+
+    # Assert broken_test table was rolled back and does not exist
+    table = await db.fetch_one(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='broken_test';"
+    )
+    assert table is None
+
+    # Assert schema_version 2 was not recorded
+    version_row = await db.fetch_one(
+        "SELECT * FROM schema_version WHERE version = 2;"
+    )
+    assert version_row is None
+
+
+@pytest.mark.asyncio
 async def test_single_writer_queue_and_reads(test_db: Settings):
     """Test enqueue_write, fetch_one, and fetch_all through the DB layer."""
     future = await db.enqueue_write(

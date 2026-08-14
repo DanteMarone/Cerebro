@@ -39,7 +39,7 @@ You can also view the documentation online here: **[Cerebro User Guide](docs/use
 
 ## Requirements (v2)
 
-*   Python 3.12 or higher
+*   Python 3.14 or higher
 *   Dependencies managed via hash-locked `requirements.txt` / `requirements-dev.txt`
 *   LM Studio local server (`http://127.0.0.1:1234`) and/or Google Gemini API key
 

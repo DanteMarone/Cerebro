@@ -1,5 +1,8 @@
 import json
-from tool_plugins import math_solver
+import pytest
+
+pytest.importorskip("sympy")
+from tool_plugins import math_solver  # noqa: E402
 
 
 def test_solve_expression():

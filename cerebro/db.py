@@ -115,13 +115,20 @@ async def migrate(migrations_dir: Path | None = None) -> list[int]:
             continue
 
         content = sql_file.read_text(encoding="utf-8")
-        await _db.executescript(content)
-        await _db.execute(
-            "INSERT OR REPLACE INTO schema_version (version, applied_at) "
-            "VALUES (?, datetime('now'));",
-            (version,),
-        )
-        await _db.commit()
+        raw_statements = [s.strip() for s in content.split(";") if s.strip()]
+
+        await _db.execute("BEGIN IMMEDIATE;")
+        try:
+            for statement in raw_statements:
+                await _db.execute(statement)
+            await _db.execute(
+                "INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'));",
+                (version,),
+            )
+            await _db.commit()
+        except Exception:
+            await _db.execute("ROLLBACK;")
+            raise
         applied_now.append(version)
 
     return applied_now

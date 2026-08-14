@@ -3,6 +3,7 @@
 import json
 import re
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 PIN = re.compile(r"^([A-Za-z0-9._-]+)==([0-9][^ \t\\]*)")
@@ -16,24 +17,33 @@ for fname in ("requirements.txt", "requirements-dev.txt"):
                 pins[m.group(1).lower()] = m.group(2)
 
 today = datetime.now(timezone.utc)
-young, unknown = [], []
 
-for name, ver in sorted(pins.items()):
+
+def check_pin(item):
+    name, ver = item
     try:
         url = "https://pypi.org/pypi/%s/%s/json" % (name, ver)
-        with urllib.request.urlopen(url, timeout=25) as resp:
+        req = urllib.request.Request(url, headers={"User-Agent": "Cerebro-Audit/1.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.load(resp)
         stamps = [f.get("upload_time_iso_8601") for f in data.get("urls", [])]
         stamps = [s for s in stamps if s]
         if not stamps:
-            unknown.append((name, ver, "no upload timestamps"))
-            continue
+            return ("unknown", (name, ver, "no upload timestamps"))
         released = min(datetime.fromisoformat(s.replace("Z", "+00:00")) for s in stamps)
         age = (today - released).days
         if age < 7:
-            young.append((name, ver, age, released.date().isoformat()))
+            return ("young", (name, ver, age, released.date().isoformat()))
+        return ("ok", (name, ver))
     except Exception as exc:
-        unknown.append((name, ver, type(exc).__name__))
+        return ("unknown", (name, ver, type(exc).__name__))
+
+
+with ThreadPoolExecutor(max_workers=20) as executor:
+    results = list(executor.map(check_pin, sorted(pins.items())))
+
+young = [r[1] for r in results if r[0] == "young"]
+unknown = [r[1] for r in results if r[0] == "unknown"]
 
 print("audited %d pinned packages against the 7-day cooldown" % len(pins))
 if young:
