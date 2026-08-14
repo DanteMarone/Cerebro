@@ -15,12 +15,11 @@ router = APIRouter(tags=["websocket"])
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Handle bi-directional WebSocket connection with principal resolution."""
-    # Resolve principal on connect and keep for the life of the socket (§6.3)
+    # Resolve principal on connect from Authorization header and keep for socket lifetime (§6.3)
     headers = getattr(websocket, "headers", None) or {}
-    query_params = getattr(websocket, "query_params", None) or {}
-    auth_header = headers.get("authorization") or query_params.get("token")
+    auth_header = headers.get("authorization")
     if auth_header is not None:
-        token = parse_bearer(auth_header) if " " in auth_header else auth_header
+        token = parse_bearer(auth_header)
         if not token:
             await websocket.close(code=4401, reason="malformed authorization")
             return
