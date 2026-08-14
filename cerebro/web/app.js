@@ -901,6 +901,7 @@ function App() {
                 ])
             ]),
         ]),
+    ]),
 
         // New DM Modal Dialog
         showDmModal ? h("div", { class: "modal-backdrop", onClick: (e) => {
