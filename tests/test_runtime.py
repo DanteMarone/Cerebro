@@ -641,3 +641,81 @@ async def test_cancelled_turn_emits_terminal_activity_event_and_leaves_no_rows()
 
     # Zero rows created in database
     assert store.messages == []
+
+
+async def test_one_turn_finish_reason_cannot_overwrite_another(test_db=None):
+    """Concurrent turns must not share a finish reason.
+
+    RuntimeService holds ONE AgentRuntime and starts every turn with asyncio.create_task -- by
+    design, so a slow model does not stall the pump. The finish reason used to live on that shared
+    instance, so a turn that ended `stop` could overwrite a concurrent turn's `length` in the window
+    between the stream ending and the check that reads it.
+
+    That was survivable while it only picked the wording of an error. Once it decided whether a
+    message is written at all, the concurrent `stop` silently deleted the other turn's "ran out of
+    tokens" error -- the agent simply never answered and nothing said why. Found by reviewing
+    64874af, reproduced deterministically, and this is that reproduction.
+    """
+    import asyncio
+
+    from cerebro.models import Done
+
+    slow_done = asyncio.Event()
+    fast_done = asyncio.Event()
+
+    class Scripted:
+        def __init__(self, name, reason, signal=None, wait_for=None):
+            # Distinct names so each turn gets its own provider semaphore and the two really do
+            # overlap; sharing one would serialise them and the race would never be exercised.
+            self.name = name
+            self.reason, self.signal, self.wait_for = reason, signal, wait_for
+
+        async def stream(self, messages, tools, params):
+            yield Done(reason=self.reason)
+            if self.signal:
+                self.signal.set()
+            if self.wait_for:
+                await asyncio.wait_for(self.wait_for.wait(), timeout=5)
+
+    slow = Agent(id="slow", name="slow", provider="lmstudio")
+    fast = Agent(id="fast", name="fast", provider="lmstudio")
+    providers = {
+        "slow": Scripted("lmstudio-slow", "length", signal=slow_done, wait_for=fast_done),
+        "fast": Scripted("lmstudio-fast", "stop", signal=fast_done),
+    }
+    runtime = AgentRuntime(
+        hub=Hub(), store=MemoryStore(), provider_for=lambda a: providers[a.id]
+    )
+
+    async def run_fast():
+        await slow_done.wait()          # let the slow turn record `length` first
+        return await runtime.run_turn(fast, "channel-b")
+
+    slow_reply, fast_reply = await asyncio.gather(
+        runtime.run_turn(slow, "channel-a"), run_fast()
+    )
+
+    assert slow_reply is not None, "the slow turn's error was silently deleted by the fast turn"
+    assert slow_reply.kind == "error"
+    assert "ran out of tokens" in slow_reply.body
+    assert fast_reply is None, "the fast turn genuinely was silent and must stay silent"
+
+
+async def test_unserviced_tool_calls_are_not_treated_as_silence():
+    """Silence requires a clean stop AND no outstanding tool activity (Codex's contract).
+
+    A model that asked to call a tool has not finished its turn. Without a tool executor those
+    calls cannot be serviced, and treating that as a considered silence hides a real dead end.
+    """
+    from cerebro.models import Done, ToolCallDelta
+
+    provider = FakeProvider([
+        ToolCallDelta(id="c1", name="fs_read", args_fragment="{}"),
+        Done(reason="stop"),
+    ])
+    hub, runtime = build(provider, executor=None)
+
+    reply = await runtime.run_turn(AGENT, "c1")
+
+    assert reply is not None, "an unfinished tool round is not silence"
+    assert reply.kind == "error"

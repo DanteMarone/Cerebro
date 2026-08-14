@@ -21,6 +21,7 @@ MCP executor into `tool_executor` without touching this file.
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
@@ -58,6 +59,24 @@ def is_pass(body: str) -> bool:
     to occasionally hide one.
     """
     return body.strip().rstrip(".").upper() == PASS_TOKEN
+
+
+@dataclass(frozen=True)
+class Completion:
+    """One turn's result, carried back from the stream rather than stashed on the runtime.
+
+    `finish_reason` used to live on the AgentRuntime instance. RuntimeService holds a single
+    runtime and starts every turn with asyncio.create_task, so that attribute was shared by all
+    turns in flight: one turn's finish reason could overwrite another's between the stream ending
+    and the check that reads it. While it only chose the wording of an error that was mostly
+    invisible; once it decided whether a message is written at all, a concurrent `stop` could
+    silently delete another turn's "ran out of tokens" error and the agent would simply never
+    answer.
+    """
+
+    text: str
+    finish_reason: str | None
+    pending_calls: bool = False
 
 
 class Persistence(Protocol):
@@ -110,7 +129,6 @@ class AgentRuntime:
         self.history_window = history_window
         self.max_tool_iterations = max_tool_iterations
         self.context = context
-        self._last_finish: str | None = None
         self._limits = {
             name: asyncio.Semaphore(n)
             for name, n in (concurrency or {"lmstudio": 2, "gemini": 4}).items()
@@ -141,7 +159,6 @@ class AgentRuntime:
         Returns the persisted message, or None when refused, passed, or failed.
         """
         turn_id = turn_id or new_turn_id()
-        self._last_finish = None
 
         verdict = self.guard.check(turn_id, depth)
         if not verdict.allowed:
@@ -162,7 +179,9 @@ class AgentRuntime:
         try:
             async with self._semaphore(provider):
                 try:
-                    body = await self._generate(agent, channel_id, turn_id, provider, transcript)
+                    completion = await self._generate(
+                        agent, channel_id, turn_id, provider, transcript
+                    )
                 except ProviderUnavailable as exc:
                     return await self._fail(
                         agent, channel_id, turn_id, depth, quote_msg_id, f"backend offline — {exc}"
@@ -183,8 +202,9 @@ class AgentRuntime:
             )
             raise
 
+        body = completion.text
         if not body.strip():
-            if self._last_finish == "stop":
+            if completion.finish_reason == "stop" and not completion.pending_calls:
                 logger.info("Agent %s completed turn %s silently (finish: stop)", agent.id, turn_id)
                 await self._status(agent, channel_id, "idle", turn_id=turn_id)
                 await self.hub.publish(
@@ -199,13 +219,13 @@ class AgentRuntime:
                 return None
 
             reason = "produced no answer"
-            if self._last_finish == "length":
+            if completion.finish_reason == "length":
                 reason = (
                     "ran out of tokens before answering — it spent its budget reasoning. "
                     "Raise max_tokens for this agent."
                 )
-            elif self._last_finish:
-                reason = f"produced no answer (finished: {self._last_finish})"
+            elif completion.finish_reason:
+                reason = f"produced no answer (finished: {completion.finish_reason})"
             return await self._fail(agent, channel_id, turn_id, depth, quote_msg_id, reason)
 
         if is_pass(body):
@@ -253,12 +273,14 @@ class AgentRuntime:
         turn_id: str,
         provider: Provider,
         transcript: list[Message],
-    ) -> str:
+    ) -> Completion:
         """Stream a completion, servicing tool calls until the model stops asking for them."""
         params = _params_for(agent)
         tools = self.tools_for(agent)
         text_parts: list[str] = []
         thinking: list[str] = []
+        finish_reason: str | None = None
+        unserviced_calls = False
 
         for _ in range(self.max_tool_iterations):
             await self._status(agent, channel_id, "thinking", turn_id=turn_id)
@@ -292,7 +314,7 @@ class AgentRuntime:
                         call["name"] = delta.name
                     call["args"] += delta.args_fragment
                 elif isinstance(delta, Done):
-                    self._last_finish = delta.reason
+                    finish_reason = delta.reason
                 elif isinstance(delta, Usage):
                     await self.hub.publish(
                         "usage",
@@ -308,6 +330,9 @@ class AgentRuntime:
                 text_parts.append(produced)
 
             if not calls or self.tool_executor is None:
+                # Calls we cannot service are not a finished turn. Codex's contract: silence
+                # requires a clean stop AND no outstanding tool activity.
+                unserviced_calls = bool(calls) and self.tool_executor is None
                 break
 
             # The protocol shape: one assistant turn carrying the calls, then one tool turn per
@@ -344,7 +369,11 @@ class AgentRuntime:
 
         if thinking:
             self._log_thinking(agent, "".join(thinking))
-        return "".join(text_parts).strip()
+        return Completion(
+            text="".join(text_parts).strip(),
+            finish_reason=finish_reason,
+            pending_calls=unserviced_calls,
+        )
 
     def _log_thinking(self, agent: Agent, text: str) -> None:
         """Write reasoning to the agent's own log rather than the shared channel.
