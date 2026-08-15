@@ -180,7 +180,7 @@ def owning_pids() -> list[int]:
 
 def command_line(pid: int) -> str:
     result = _run([
-        "powershell", "-NonInteractive", "-Command",
+        "powershell", "-NoProfile", "-NonInteractive", "-Command",
         f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine",
     ])
     return (result.stdout or "").strip()
@@ -194,7 +194,12 @@ def stop_service() -> None:
     """
     for pid in owning_pids():
         cmdline = command_line(pid)
-        if "cerebro" not in cmdline.lower() and str(REPO_ROOT).lower() not in cmdline.lower():
+        is_cerebro = (
+            "cerebro" in cmdline.lower()
+            or str(REPO_ROOT).lower() in cmdline.lower()
+            or "main.py" in cmdline.lower()
+        )
+        if not is_cerebro:
             raise DeployRefused(
                 f"PID {pid} owns port {PORT} but does not look like Cerebro:\n"
                 f"    {cmdline or '<command line unavailable>'}\n"
