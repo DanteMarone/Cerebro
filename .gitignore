@@ -15,6 +15,9 @@ downloads/
 screenshots/
 cerebro.log
 metrics.json
+*.db
+*.db-wal
+*.db-shm
 
 # Secrets — never committed under any circumstances
 *.env
