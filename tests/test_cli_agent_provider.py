@@ -118,7 +118,7 @@ def test_unknown_backend_is_rejected_at_construction():
         CliAgentProvider(self_id="claude", backend="nonsense")
 
 
-@pytest.mark.parametrize("backend", sorted(["claude", "codex", "agy"]))
+@pytest.mark.parametrize("backend", sorted(["claude", "codex", "agy", "goose"]))
 def test_every_seeded_agents_backend_is_registered(backend):
     """Waking Codex failed on a backend name nobody had registered. Cheap to make, slow to find."""
     from cerebro.providers.cli_agent import BACKENDS
@@ -205,3 +205,61 @@ async def test_an_empty_reply_file_is_an_error_not_an_empty_message(tmp_path, mo
 
     with pytest.raises(ProviderError, match="reply was empty"):
         await collect(prov)
+
+
+def test_parse_cli_output_strips_banner_and_extracts_reasoning():
+    from cerebro.providers.cli_agent import parse_cli_output
+
+    raw = (
+        "__( O)>  ● new session · openai google/gemma-4-26b-a4b\n"
+        "  \\__)   20260815_2 · D:\\Code Projects\\Cerebro\n"
+        "   L L   goose is ready\n"
+        "<|channel>thoughtThe user (Dante) is checking if I am awake/responsive.\n"
+        "I should confirm that I am online.<channel|>Yes, Dante. I'm awake and ready. How can I help you today?"
+    )
+
+    reasoning, clean = parse_cli_output(raw, backend="goose")
+    assert "The user (Dante) is checking" in reasoning
+    assert clean == "Yes, Dante. I'm awake and ready. How can I help you today?"
+
+
+async def test_goose_stream_emits_reasoning_and_clean_text():
+    from cerebro.models import ReasoningDelta
+
+    raw = (
+        "__( O)>  ● new session\n"
+        "   L L   goose is ready\n"
+        "<think>internal thoughts</think>Hello Dante!"
+    )
+    harness = fake_harness(
+        f"import sys; sys.stdout.reconfigure(encoding='utf-8'); sys.stdin.read(); sys.stdout.write({raw!r})"
+    )
+    prov = CliAgentProvider(self_id="goose", backend="goose", command=harness)
+
+    deltas = await collect(prov)
+    reasoning_deltas = [d.text for d in deltas if isinstance(d, ReasoningDelta)]
+    text_deltas = [d.text for d in deltas if isinstance(d, TextDelta)]
+
+    assert reasoning_deltas == ["internal thoughts"]
+    assert text_deltas == ["Hello Dante!"]
+
+
+def test_sonnet_provider_for_resolves_claude_model_command():
+    from cerebro.models import Agent
+    from cerebro.service import _provider_for
+
+    agent = Agent(
+        id="sonnet",
+        name="sonnet",
+        display_name="Sonnet 5",
+        avatar="S",
+        role="Specialist",
+        provider="cli_agent",
+        model="sonnet",
+        params_json='{"backend": "claude"}',
+    )
+    prov = _provider_for(agent)
+    assert isinstance(prov, CliAgentProvider)
+    assert prov.backend == "claude"
+    assert prov._command == ["claude", "-p", "--model", "sonnet"]
+

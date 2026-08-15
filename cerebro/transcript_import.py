@@ -25,6 +25,30 @@ CLI_AGENT_SEEDS = {
         "model": "claude-code",
         "params": {"backend": "claude"},
     },
+    "sonnet": {
+        "display_name": "Sonnet 5",
+        "avatar": "S",
+        "role": "Autonomous Developer & Specialist",
+        "model": "sonnet",
+        "params": {
+            "backend": "claude",
+            "command": ["claude", "-p", "--model", "sonnet", "--no-session-persistence"],
+            "history_window": 8,
+            "context_budget": 6000,
+        },
+    },
+    "opus": {
+        "display_name": "Opus 5",
+        "avatar": "O",
+        "role": "Lead Architect & Deep Reasoner",
+        "model": "opus",
+        "params": {
+            "backend": "claude",
+            "command": ["claude", "-p", "--model", "opus", "--no-session-persistence"],
+            "history_window": 8,
+            "context_budget": 8000,
+        },
+    },
     "antigravity": {
         "display_name": "Antigravity",
         "avatar": "A",

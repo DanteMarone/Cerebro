@@ -456,14 +456,17 @@ class AgentRuntime:
         Section 7 replaces this with the full context packet in Slice 4 — scratchpad, retrieved
         memory, shared drive index and budgeting. Keep the shape, grow the contents.
         """
+        params = _agent_params(agent)
+        window = int(params.get("history_window") or self.history_window)
         prompt = await self.store.system_prompt(agent)
-        history = await self.store.history(channel_id, self.history_window)
+        history = await self.store.history(channel_id, window)
 
         if self.context is not None:
             try:
                 channel = await self.store.channel(channel_id)
                 members = await self.store.members(channel_id)
-                return self.context.build(agent, prompt, channel, members, history)
+                budget = int(params.get("context_budget") or params.get("budget_tokens") or self.context.budget_tokens)
+                return self.context.build(agent, prompt, channel, members, history, budget_tokens=budget)
             except Exception:  # noqa: BLE001 - a thin packet beats no turn at all
                 logger.exception("context build failed for %s; falling back", agent.id)
 
@@ -533,3 +536,13 @@ def _params_for(agent: Agent) -> Params:
         return Params(**json.loads(agent.params_json))
     except (json.JSONDecodeError, TypeError, ValueError):
         return Params()
+
+
+def _agent_params(agent: Agent) -> dict:
+    if not agent.params_json:
+        return {}
+    try:
+        return json.loads(agent.params_json)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+

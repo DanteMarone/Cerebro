@@ -136,8 +136,10 @@ class ContextBuilder:
         channel: dict,
         members: list[str],
         history: list[Message],
+        budget_tokens: int | None = None,
     ) -> list[Message]:
         """Return the packet as messages, system blocks first, history last."""
+        budget = budget_tokens if budget_tokens is not None else self.budget_tokens
         sections = [
             self.identity(agent, system_prompt),
             self.manual(),
@@ -147,7 +149,7 @@ class ContextBuilder:
         ]
         sections = [s for s in sections if s is not None]
 
-        history_budget = self.budget_tokens - sum(s.cost for s in sections)
+        history_budget = budget - sum(s.cost for s in sections)
         kept = _fit_history(history, max(history_budget, 0))
 
         # One system message, not one per section.

@@ -158,3 +158,12 @@ def test_the_packet_has_exactly_one_system_message(tmp_path):
     text = systems[0].body
     for expected in ("Jarvis", "rules", "#warroom", "notes", "a fact"):
         assert expected in text
+
+
+def test_custom_budget_tokens_override(tmp_path):
+    agent = agent_with_home(tmp_path)
+    b = builder(tmp_path, budget_tokens=20000)
+    # With tight budget override of 100 tokens, history of 50 large messages is trimmed
+    packet = b.build(agent, "prompt", CHANNEL, MEMBERS, history(50, 200), budget_tokens=100)
+    assert len(packet) < 50
+

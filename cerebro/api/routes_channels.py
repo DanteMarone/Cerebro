@@ -25,6 +25,10 @@ class AddMemberRequest(BaseModel):
     listen_mode: str = "auto"
 
 
+class UpdateMemberRequest(BaseModel):
+    listen_mode: str = Field(..., pattern="^(active|mention_only|muted)$")
+
+
 class CreateMessageRequest(BaseModel):
     content: str
     author_id: str = "dante"
@@ -221,6 +225,42 @@ async def add_channel_member(
         member_kind=req.member_kind,
         listen_mode=req.listen_mode,
     )
+    members = await store.get_channel_members(channel_id)
+
+    hub: Any = getattr(request.app.state, "hub", None)
+    if hub is not None:
+        await hub.publish("channel.update", {"channel": channel, "members": members})
+
+    return {"ok": True, "members": members}
+
+
+@router.patch("/{channel_id}/members/{member_id}")
+async def update_channel_member(
+    channel_id: str,
+    member_id: str,
+    req: UpdateMemberRequest,
+    request: Request,
+    principal: Principal = Depends(get_current_principal),
+):
+    """Mute or unmute a member ("kick" without losing history), refusing for Dante (§6.1).
+
+    Muting stops the member from being offered a turn (service.py's `_responder` and the poller's
+    `_channels_for` both skip muted rows) while leaving it in the roster: the room's history and
+    the member's own context stay intact, so unmuting brings it right back in rather than requiring
+    a fresh invite.
+    """
+    if principal.is_agent:
+        raise HTTPException(status_code=403, detail="Agent member administration not permitted")
+
+    channel = await store.get_channel(channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail=f"Channel '{channel_id}' not found")
+
+    try:
+        await store.set_member_listen_mode(channel_id, member_id, req.listen_mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     members = await store.get_channel_members(channel_id)
 
     hub: Any = getattr(request.app.state, "hub", None)

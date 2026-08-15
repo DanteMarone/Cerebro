@@ -10,7 +10,7 @@
   "params": {
     "temperature": 0.7,
     "max_tokens": 4096,
-    "poll_enabled": false,
+    "poll_enabled": true,
     "poll_interval_s": 45
   },
   "tools_enabled": [

@@ -1,22 +1,24 @@
 {
-  "id": "claude",
-  "name": "claude",
-  "display_name": "Claude",
-  "avatar": "C",
-  "role": "Architect",
+  "id": "opus",
+  "name": "opus",
+  "display_name": "Opus 5",
+  "avatar": "O",
+  "role": "Lead Architect & Deep Reasoner",
   "standing": "second",
   "provider": "cli_agent",
-  "model": "claude-code",
+  "model": "opus",
   "params": {
     "backend": "claude",
     "command": [
       "claude",
       "-p",
+      "--model",
+      "opus",
       "--no-session-persistence"
     ],
     "temperature": 0.7,
     "max_tokens": 4096,
-    "poll_enabled": true,
+    "poll_enabled": false,
     "poll_interval_s": 45,
     "history_window": 8,
     "context_budget": 8000

@@ -1,25 +1,27 @@
 {
-  "id": "claude",
-  "name": "claude",
-  "display_name": "Claude",
-  "avatar": "C",
-  "role": "Architect",
-  "standing": "second",
+  "id": "sonnet",
+  "name": "sonnet",
+  "display_name": "Sonnet 5",
+  "avatar": "S",
+  "role": "Autonomous Developer & Specialist",
+  "standing": "standard",
   "provider": "cli_agent",
-  "model": "claude-code",
+  "model": "sonnet",
   "params": {
     "backend": "claude",
     "command": [
       "claude",
       "-p",
+      "--model",
+      "sonnet",
       "--no-session-persistence"
     ],
     "temperature": 0.7,
     "max_tokens": 4096,
-    "poll_enabled": true,
+    "poll_enabled": false,
     "poll_interval_s": 45,
     "history_window": 8,
-    "context_budget": 8000
+    "context_budget": 6000
   },
   "tools_enabled": [
     "cerebro-core:*"

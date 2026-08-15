@@ -33,7 +33,14 @@ from cerebro.turnguard import TurnGuard, TurnLimits, new_turn_id
 logger = logging.getLogger(__name__)
 
 # Which harness each seeded agent is, absent an explicit backend in its profile.
-_DEFAULT_BACKENDS = {"claude": "claude", "antigravity": "agy", "codex": "codex"}
+_DEFAULT_BACKENDS = {
+    "claude": "claude",
+    "sonnet": "claude",
+    "opus": "claude",
+    "antigravity": "agy",
+    "codex": "codex",
+    "goose": "goose",
+}
 
 
 _CORE_TOOLS = CoreTools(agents_root=settings.agents_path)
@@ -130,12 +137,29 @@ def _provider_for(agent: Agent):
         # CLI window open. Note that each turn is a *fresh* process with no memory of previous
         # ones: continuity comes from the context packet and the scratchpad, not from the harness.
         params = _agent_params(agent)
+        backend = params.get("backend") or _DEFAULT_BACKENDS.get(agent.id, "claude")
+        cmd = params.get("command")
+        if not cmd and backend == "claude" and agent.model and agent.model not in ("claude-code", ""):
+            cmd = ["claude", "-p", "--model", agent.model]
+        cwd = params.get("cwd")
+        if not cwd:
+            agent_home = (
+                Path(agent.home_path)
+                if agent.home_path
+                else settings.agents_path / agent.id
+            ).resolve()
+            workspace_dir = agent_home / "workspace"
+            workspace_dir.mkdir(parents=True, exist_ok=True)
+            cwd = str(workspace_dir)
+        else:
+            Path(cwd).mkdir(parents=True, exist_ok=True)
+
         return CliAgentProvider(
             self_id=agent.id,
-            backend=params.get("backend") or _DEFAULT_BACKENDS.get(agent.id, "claude"),
-            cwd=params.get("cwd"),
+            backend=backend,
+            cwd=cwd,
             timeout_s=float(params.get("timeout_s", 900)),
-            command=params.get("command"),
+            command=cmd,
         )
 
     if agent.provider in ("openai_compatible", "openrouter", "deepseek", "glm", "openai"):
@@ -172,8 +196,15 @@ async def _polling_agents() -> list[Agent]:
 
 
 async def _channels_for(agent_id: str) -> list[str]:
+    """Channels the poller should wake this agent for.
+
+    Excludes rooms where the agent is muted: a mute is a kick that keeps the member on the roster
+    (§ channel_members.listen_mode), so it must still stop the poller from waking it, not just stop
+    it appearing as a DM responder.
+    """
     rows = await db.fetch_all(
-        "SELECT channel_id FROM channel_members WHERE member_id = ?;", (agent_id,)
+        "SELECT channel_id FROM channel_members WHERE member_id = ? AND listen_mode != 'muted';",
+        (agent_id,),
     )
     return [r["channel_id"] for r in rows]
 
@@ -299,7 +330,12 @@ class RuntimeService:
         task.add_done_callback(self._turns.discard)
 
     async def _responder(self, channel_id: str) -> Agent | None:
-        """Slice 1: the single agent member of a DM. Slice 3 replaces this with the moderator."""
+        """Slice 1: the single agent member of a DM. Slice 3 replaces this with the moderator.
+
+        A muted member is filtered out before the count check, so a muted DM partner behaves like
+        an empty room rather than a still-eligible responder: it stays on the roster and keeps the
+        channel's history, it just never answers again until unmuted.
+        """
         if not channel_id:
             return None
         channel = await store.get_channel(channel_id)
@@ -307,7 +343,10 @@ class RuntimeService:
             return None
 
         members = await store.get_channel_members(channel_id)
-        agent_ids = [m["member_id"] for m in members if m.get("member_kind") == "agent"]
+        agent_ids = [
+            m["member_id"] for m in members
+            if m.get("member_kind") == "agent" and m.get("listen_mode") != "muted"
+        ]
         if len(agent_ids) != 1:
             return None
 

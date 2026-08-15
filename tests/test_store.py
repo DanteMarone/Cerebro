@@ -91,6 +91,33 @@ async def test_dante_channel_owner_invariants(test_db: Settings):
 
 
 @pytest.mark.asyncio
+async def test_set_member_listen_mode_mutes_and_unmutes(test_db: Settings):
+    """Muting keeps the member on the roster (unlike remove_channel_member) while flipping its
+    listen_mode, and unmuting restores it -- the "kick that keeps context" primitive."""
+    await store.create_channel(channel_id="ch-mute-test", name="mute-test")
+    await store.add_channel_member("ch-mute-test", "codex", member_kind="agent")
+
+    await store.set_member_listen_mode("ch-mute-test", "codex", "muted")
+    members = await store.get_channel_members("ch-mute-test")
+    codex = next(m for m in members if m["member_id"] == "codex")
+    assert codex["listen_mode"] == "muted"
+
+    await store.set_member_listen_mode("ch-mute-test", "codex", "active")
+    members = await store.get_channel_members("ch-mute-test")
+    codex = next(m for m in members if m["member_id"] == "codex")
+    assert codex["listen_mode"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_set_member_listen_mode_cannot_mute_dante(test_db: Settings):
+    """Muting Dante would silence the room's owner in his own channel; refuse it like removal."""
+    await store.create_channel(channel_id="ch-mute-dante", name="mute-dante-test")
+
+    with pytest.raises(ValueError, match="Cannot mute owner 'dante'"):
+        await store.set_member_listen_mode("ch-mute-dante", "dante", "muted")
+
+
+@pytest.mark.asyncio
 async def test_list_messages_recent_limit_order(test_db: Settings):
     """Test that list_messages without after_id returns latest messages in chronological order."""
     ch_id = "ch-paging-test"

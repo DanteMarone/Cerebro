@@ -55,3 +55,29 @@ async def test_bootstrap_seed_data(test_db: Settings):
     member_ids = {m["agent_id"] for m in members}
     assert "dante" in member_ids
     assert "jarvis" in member_ids
+
+    # Check sonnet agent exists
+    sonnet = await store.get_agent("sonnet")
+    assert sonnet is not None
+    assert sonnet["id"] == "sonnet"
+    assert sonnet["display_name"] == "Sonnet 5"
+    assert sonnet["provider"] == "cli_agent"
+
+    # Check Sonnet DM channel exists
+    dm_sonnet = await store.get_channel("dm-dante-sonnet")
+    assert dm_sonnet is not None
+    assert dm_sonnet["type"] == "dm"
+
+    # Check opus agent exists
+    opus = await store.get_agent("opus")
+    assert opus is not None
+    assert opus["id"] == "opus"
+    assert opus["display_name"] == "Opus 5"
+    assert opus["provider"] == "cli_agent"
+
+    # Check Opus DM channel exists
+    dm_opus = await store.get_channel("dm-dante-opus")
+    assert dm_opus is not None
+    assert dm_opus["type"] == "dm"
+
+

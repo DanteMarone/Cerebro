@@ -217,6 +217,19 @@ async def remove_channel_member(channel_id: str, member_id: str) -> None:
     await _execute_write(sql, (channel_id, member_id))
 
 
+async def set_member_listen_mode(channel_id: str, member_id: str, listen_mode: str) -> None:
+    """Mute or unmute a member in place -- a "kick" that keeps them in the roster and the room's
+
+    history intact, unlike remove_channel_member. A muted member stays visible to everyone and can
+    be unmuted later with full context, instead of having to be re-invited into a channel it no
+    longer remembers.
+    """
+    if member_id.lower() == "dante" and listen_mode == "muted":
+        raise ValueError("Cannot mute owner 'dante' (§6.1 invariant)")
+    sql = "UPDATE channel_members SET listen_mode = ? WHERE channel_id = ? AND member_id = ?;"
+    await _execute_write(sql, (listen_mode, channel_id, member_id))
+
+
 async def get_channel_members(channel_id: str) -> list[dict[str, Any]]:
     """Retrieve all members of a channel."""
     sql = """

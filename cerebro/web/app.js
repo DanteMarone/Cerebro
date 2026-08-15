@@ -40,6 +40,8 @@ function App() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showDmModal, setShowDmModal] = useState(false);
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+    const [showManageMembersModal, setShowManageMembersModal] = useState(false);
+    const [mutingMemberId, setMutingMemberId] = useState(null);
 
     // Channel creation state
     const [newChanName, setNewChanName] = useState("");
@@ -603,6 +605,32 @@ function App() {
         }
     };
 
+    // Mute stops a member being offered a turn while it stays in the roster and keeps the room's
+    // history -- a "kick" that can be undone by unmuting, unlike removing the member outright.
+    const handleToggleMute = async (member) => {
+        if (!activeChannelId || mutingMemberId) return;
+        const nextMode = member.listen_mode === "muted" ? "active" : "muted";
+        setMutingMemberId(member.member_id);
+        try {
+            const res = await fetch(`/api/channels/${activeChannelId}/members/${member.member_id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ listen_mode: nextMode })
+            });
+            if (res.ok) {
+                await loadActiveMembers(activeChannelId);
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to update member");
+            }
+        } catch (err) {
+            console.error("Failed to update member:", err);
+            alert("Error updating member");
+        } finally {
+            setMutingMemberId(null);
+        }
+    };
+
     const toggleAgentSelection = (agentId) => {
         setSelectedAgents(prev => 
             prev.includes(agentId) ? prev.filter(id => id !== agentId) : [...prev, agentId]
@@ -787,7 +815,12 @@ function App() {
                     activeChannel.topic ? h("span", { class: "chat-header-topic" }, `— ${activeChannel.topic}`) : null
                 ]),
                 h("div", { class: "chat-header-actions" }, [
-                    channelMembers.length > 0 ? h("div", { class: "member-pill" }, [
+                    channelMembers.length > 0 ? h("div", {
+                        class: "member-pill",
+                        style: "cursor: pointer;",
+                        title: "Manage members",
+                        onClick: () => setShowManageMembersModal(true)
+                    }, [
                         h("span", null, `👥 ${channelMembers.length} members`)
                     ]) : null,
                     h("button", {
@@ -971,6 +1004,48 @@ function App() {
                 ]),
                 h("div", { class: "modal-footer" }, [
                     h("button", { class: "btn-secondary", onClick: () => setShowAddMemberModal(false) }, "Close")
+                ])
+            ])
+        ]) : null,
+
+        // Manage Members Modal Dialog — mute stops a member answering without removing it
+        showManageMembersModal ? h("div", { class: "modal-backdrop", onClick: (e) => {
+            if (e.target === e.currentTarget) setShowManageMembersModal(false);
+        }}, [
+            h("div", { class: "modal-dialog" }, [
+                h("div", { class: "modal-header" }, [
+                    h("h2", null, `Members of #${activeChannel.name}`),
+                    h("button", { class: "modal-close-btn", onClick: () => setShowManageMembersModal(false) }, "✕")
+                ]),
+                h("div", { class: "modal-body" }, [
+                    h("p", { style: "font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.6rem;" },
+                        "Muting stops a member from answering in this room while keeping it here, so the room's history and its own context stay intact until you unmute it."
+                    ),
+                    h("div", { class: "agent-select-list" }, [
+                        ...channelMembers.map(m => {
+                            const ag = agents.find(a => a.id === m.member_id);
+                            const isDante = m.member_id === "dante";
+                            const isMuted = m.listen_mode === "muted";
+                            return h("div", { key: m.member_id, class: "agent-select-item", style: "cursor: default;" }, [
+                                h("span", { style: "font-size: 1.5rem;" }, isDante ? "👤" : (ag?.avatar || "🤖")),
+                                h("div", { class: "agent-select-info" }, [
+                                    h("span", { class: "agent-select-name" },
+                                        isDante ? "Dante" : (ag?.display_name || ag?.name || m.member_id)),
+                                    h("span", { class: "agent-select-role" },
+                                        isDante ? "Owner" : (isMuted ? "Muted" : (m.listen_mode || "active")))
+                                ]),
+                                isDante ? null : h("button", {
+                                    class: isMuted ? "btn-primary" : "btn-secondary",
+                                    style: "margin-left: auto; padding: 0.3rem 0.7rem; font-size: 0.8rem;",
+                                    onClick: () => handleToggleMute(m),
+                                    disabled: mutingMemberId === m.member_id
+                                }, isMuted ? "Unmute" : "Mute")
+                            ]);
+                        })
+                    ])
+                ]),
+                h("div", { class: "modal-footer" }, [
+                    h("button", { class: "btn-secondary", onClick: () => setShowManageMembersModal(false) }, "Close")
                 ])
             ])
         ]) : null,

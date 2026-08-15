@@ -21,12 +21,13 @@ silently is indistinguishable from one that had nothing to say.
 
 import asyncio
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
 from typing import AsyncIterator
 
-from cerebro.models import Delta, Done, Message, TextDelta
+from cerebro.models import Delta, Done, Message, ReasoningDelta, TextDelta
 from cerebro.providers.base import Params, ToolSpec
 from cerebro.providers.lmstudio import ProviderError, ProviderUnavailable
 
@@ -39,6 +40,7 @@ BACKENDS: dict[str, list[str]] = {
     "claude": ["claude", "-p"],
     "codex": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-"],
     "agy": ["agy"],
+    "goose": ["goose", "run", "-i", "-"],
 }
 
 # Backends whose stdout is a work log rather than an answer.
@@ -73,6 +75,42 @@ def render_prompt(messages: list[Message], self_id: str) -> str:
             who = ROLE_LABEL.get(msg.author_kind, msg.author_id)
         lines.append(f"[{who}]\n{msg.body}".rstrip())
     return "\n\n".join(lines) + "\n"
+
+
+def parse_cli_output(text: str, backend: str) -> tuple[str, str]:
+    """Extract reasoning and clean answer from CLI stdout.
+
+    Strips startup banners (e.g. Goose ASCII art), separates inner reasoning tokens
+    (<|channel>thought, <think>, <thought>, <chain-of-thought>), and returns (reasoning, clean_text).
+    """
+    # Strip Goose startup banner and session headers
+    if backend == "goose" or "goose is ready" in text or "__( O)>" in text:
+        text = re.sub(
+            r"^\s*__\(\s*O\)>.*?(?:goose is ready[^\n]*\n?|\n\n)",
+            "",
+            text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+
+    reasoning_parts: list[str] = []
+    # Match model reasoning tags: Gemma/Gemini (<|channel>thought...<channel|>), DeepSeek (<think>), etc.
+    pattern = re.compile(
+        r"(?:<\|channel>thought|<\|thought\|>|<think>|<thought>|<chain-of-thought>)"
+        r"(.*?)"
+        r"(?:<channel\|>|<\|/thought\|>|</think>|</thought>|</chain-of-thought>|$)",
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    def replacer(match: re.Match) -> str:
+        content = match.group(1).strip()
+        if content:
+            reasoning_parts.append(content)
+        return ""
+
+    cleaned = pattern.sub(replacer, text)
+    # Strip any stray channel/token wrappers
+    cleaned = re.sub(r"<\|?channel\|?>", "", cleaned)
+    return "\n".join(reasoning_parts).strip(), cleaned.strip()
 
 
 class CliAgentProvider:
@@ -201,11 +239,15 @@ class CliAgentProvider:
                     raise ProviderError(
                         f"agent '{self.self_id}' finished but wrote no reply file: {exc}"
                     ) from exc
-                if not answer:
+                reasoning, clean_text = parse_cli_output(answer, self.backend)
+                if reasoning:
+                    yield ReasoningDelta(text=reasoning)
+                if clean_text:
+                    yield TextDelta(text=clean_text)
+                elif not reasoning:
                     raise ProviderError(
                         f"agent '{self.self_id}' exited cleanly but its reply was empty."
                     )
-                yield TextDelta(text=answer)
                 yield Done(reason="stop")
                 return
             finally:
@@ -215,7 +257,7 @@ class CliAgentProvider:
         await proc.stdin.drain()
         proc.stdin.close()
 
-        produced = False
+        chunks: list[str] = []
         try:
             while True:
                 chunk = await asyncio.wait_for(proc.stdout.read(CHUNK), timeout=self.timeout_s)
@@ -225,8 +267,7 @@ class CliAgentProvider:
                     # This backend's stdout is a work log. It still has to be drained or the pipe
                     # fills and the child blocks forever, but none of it is the reply.
                     continue
-                produced = True
-                yield TextDelta(text=chunk.decode("utf-8", "replace"))
+                chunks.append(chunk.decode("utf-8", "replace"))
             code = await asyncio.wait_for(proc.wait(), timeout=30)
         except asyncio.TimeoutError as exc:
             await self._terminate(proc)
@@ -244,8 +285,19 @@ class CliAgentProvider:
                 + (": " + " / ".join(tail) if tail else " with no diagnostics.")
             )
 
-        if not produced:
+        raw_output = "".join(chunks)
+        if not raw_output:
             raise ProviderError(f"agent '{self.self_id}' exited cleanly without producing a reply.")
+
+        reasoning, clean_text = parse_cli_output(raw_output, self.backend)
+        if reasoning:
+            yield ReasoningDelta(text=reasoning)
+
+        if not clean_text and not reasoning:
+            raise ProviderError(f"agent '{self.self_id}' exited cleanly without producing a reply.")
+
+        if clean_text:
+            yield TextDelta(text=clean_text)
 
         yield Done(reason="stop")
 

@@ -43,11 +43,9 @@ async def load_all_agents(agents_dir: Path = DEFAULT_AGENTS_DIR) -> list[dict]:
 
 
 async def bootstrap_seed_data(agents_dir: Path = DEFAULT_AGENTS_DIR) -> None:
-    """Bootstrap seed agent, team, and DM channel if the database is unpopulated."""
-    existing_agents = await store.list_agents()
-    if not existing_agents:
-        # Load agents from disk
-        await load_all_agents(agents_dir)
+    """Bootstrap seed agent, team, and DM channels from disk."""
+    # Always load and sync agent profiles from disk
+    await load_all_agents(agents_dir)
 
     # Ensure personal-assistant team exists
     await _execute_write(
@@ -65,17 +63,44 @@ async def bootstrap_seed_data(agents_dir: Path = DEFAULT_AGENTS_DIR) -> None:
         """
     )
 
-    # Ensure DM channel between Dante and Jarvis exists
-    dm_channel_id = "dm-dante-jarvis"
-    channel = await store.get_channel(dm_channel_id)
-    if not channel:
-        await store.create_channel(
-            channel_id=dm_channel_id,
-            name="jarvis",
-            channel_type="dm",
-            team_id="personal-assistant",
-            topic="Direct Message with Jarvis",
-            created_by="dante",
+    # Ensure DM channels exist between Dante and each agent
+    agents = await store.list_agents()
+    for agent in agents:
+        agent_id = agent["id"]
+        dm_channel_id = f"dm-dante-{agent_id}"
+        channel = await store.get_channel(dm_channel_id)
+        if not channel:
+            display_name = agent.get("display_name") or agent.get("name") or agent_id
+            await store.create_channel(
+                channel_id=dm_channel_id,
+                name=display_name,
+                channel_type="dm",
+                team_id="personal-assistant",
+                topic=f"Direct Message with {display_name}",
+                created_by="dante",
+            )
+            await store.add_channel_member(dm_channel_id, "dante", member_kind="user")
+            await store.add_channel_member(dm_channel_id, agent_id, member_kind="agent")
+
+    # Ensure warroom channel has sonnet and opus if warroom channel exists
+    warroom = await store.get_channel("warroom")
+    if warroom:
+        await store.add_channel_member("warroom", "sonnet", member_kind="agent", listen_mode="active")
+        await store.add_channel_member("warroom", "opus", member_kind="agent", listen_mode="active")
+
+    # Link sonnet and opus to teams
+    for agent_id in ("sonnet", "opus"):
+        await _execute_write(
+            """
+            INSERT OR IGNORE INTO agent_teams (agent_id, team_id)
+            VALUES (?, 'personal-assistant');
+            """,
+            (agent_id,),
         )
-        await store.add_channel_member(dm_channel_id, "dante", member_kind="user")
-        await store.add_channel_member(dm_channel_id, "jarvis", member_kind="agent")
+        await _execute_write(
+            """
+            INSERT OR IGNORE INTO agent_teams (agent_id, team_id)
+            VALUES (?, 'cerebro-core');
+            """,
+            (agent_id,),
+        )

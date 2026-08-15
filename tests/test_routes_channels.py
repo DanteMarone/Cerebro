@@ -138,6 +138,72 @@ async def test_add_and_remove_channel_members(test_db: Settings):
 
 
 @pytest.mark.asyncio
+async def test_mute_and_unmute_channel_member(test_db: Settings):
+    """PATCH .../members/{id} mutes a member without removing it, and unmutes it back to active.
+
+    This is the "kick from a room" primitive: it stops the member being offered a turn while
+    leaving it on the roster and the room's history intact, unlike DELETE.
+    """
+    app.state.hub = Hub()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/")
+        await client.post("/api/channels", json={"name": "Mute Room", "id": "mute-room"})
+        await client.post(
+            "/api/channels/mute-room/members",
+            json={"member_id": "antigravity", "member_kind": "agent"},
+        )
+
+        mute_res = await client.patch(
+            "/api/channels/mute-room/members/antigravity",
+            json={"listen_mode": "muted"},
+        )
+        assert mute_res.status_code == 200
+        members = {m["member_id"]: m for m in mute_res.json()["members"]}
+        assert members["antigravity"]["listen_mode"] == "muted"
+        assert "antigravity" in members, "muting must not remove the member"
+
+        unmute_res = await client.patch(
+            "/api/channels/mute-room/members/antigravity",
+            json={"listen_mode": "active"},
+        )
+        assert unmute_res.status_code == 200
+        members = {m["member_id"]: m for m in unmute_res.json()["members"]}
+        assert members["antigravity"]["listen_mode"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_mute_channel_member_refused_for_agents_and_dante(test_db: Settings):
+    """Muting is human-only administration (mirrors DELETE), and Dante can never be muted."""
+    app.state.hub = Hub()
+    token_store = TokenStore(test_db.data_dir / ".secrets.env")
+    token = token_store.issue("claude")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/")
+        await client.post("/api/channels", json={"name": "Mute Guard", "id": "mute-guard"})
+        await client.post(
+            "/api/channels/mute-guard/members",
+            json={"member_id": "claude", "member_kind": "agent"},
+        )
+
+        agent_res = await client.patch(
+            "/api/channels/mute-guard/members/claude",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"listen_mode": "muted"},
+        )
+        assert agent_res.status_code == 403
+
+        dante_res = await client.patch(
+            "/api/channels/mute-guard/members/dante",
+            json={"listen_mode": "muted"},
+        )
+        assert dante_res.status_code == 400
+        assert "Cannot mute owner 'dante'" in dante_res.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_agent_message_post_requires_membership(test_db: Settings):
     """Test that an agent can only post messages to channels where it is enrolled."""
     app.state.hub = Hub()
