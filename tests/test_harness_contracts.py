@@ -565,3 +565,28 @@ def test_the_current_lmstudio_profile_is_admissible():
     adapter = OpenAICompatibleAdapter(FakeTransport([]))
     profile = model_profile()
     assert_continuation_admissible(adapter.resolve_capabilities(profile), profile)
+
+
+# -- module boundaries ---------------------------------------------------------------
+
+def test_no_generic_harness_module_reads_collaboration_messages():
+    """`messages` is the product transcript. Only the compatibility edges may touch it."""
+    import ast
+    import pathlib
+
+    import cerebro.harness
+
+    root = pathlib.Path(cerebro.harness.__file__).parent
+    allowed = {"projection.py", "cli_external.py"}
+    offenders: list[str] = []
+
+    for path in sorted(root.rglob("*.py")):
+        if path.name in allowed:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "cerebro.models":
+                if any(alias.name == "Message" for alias in node.names):
+                    offenders.append(path.name)
+
+    assert offenders == [], offenders

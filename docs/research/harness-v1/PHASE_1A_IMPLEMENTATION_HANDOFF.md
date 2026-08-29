@@ -30,8 +30,10 @@ From the base, in order:
 - `55e497cb119db02ac9cc4eef1f568737aab4cf3e` — Add Harness v1 canonical contracts and adapter
   boundaries
 - `cca5d4b77a3c8ddad78c085f1914801078d83711` — Add deterministic tests for Harness v1 Phase 1A contracts
-- this handoff commit follows the documentation commit that adds
-  `docs/harness_v1_contracts.md` and the README pointer
+- `69d12b4` — Document Harness v1 Phase 1A contracts and record the handoff (adds
+  `docs/harness_v1_contracts.md`, the README pointer and the first revision of this file)
+- a final amendment commit follows, correcting the module-boundary wording and adding the
+  import-boundary test
 
 A Git commit cannot contain its own SHA. The authoritative final branch head is the
 `implement/harness-v1-phase1a-contracts` ref after the final commit, reported on issue #212.
@@ -137,8 +139,9 @@ policy written after the data exists is written too late:
    `OpenAICompatibleProvider.stream_payload`. Two SSE parsers would drift, and the drift would
    show up as a tool call one path sees and the other does not.
 2. **Canonical history, not `Message` rows.** `prepare()` renders ordered `InferenceItem`s. No
-   generic Harness module imports `cerebro.models.Message`; `projection.py` is the single
-   compatibility module that does, and it produces canonical types.
+   generic Harness module imports `cerebro.models.Message`. Exactly two compatibility edges
+   do: `projection.py`, which turns rows into canonical types, and `adapters/cli_external.py`,
+   which hands them straight back to the unchanged `CliAgentProvider`. A test enforces this.
 3. **Wire shapes stop at the dialect module.** Chat roles, `tool_calls`, `tool_call_id` and the
    assistant-then-tool sequence live only in `adapters/openai_dialect.py`.
 4. **`tool_call_id` → `ProviderCallRef`, never `CerebroCallId`.** `replay_required=True`, because
@@ -219,15 +222,15 @@ PYTHONPATH=. pytest -q
 Results:
 
 - `flake8 .` — clean, exit 0. (The base commit reported 5 × W391; those files were trimmed.)
-- `PYTHONPATH=. pytest -q` — **565 passed, 3 skipped**. The base commit was 448 passed, 3 skipped,
-  so the 117 new tests are additive and nothing previously green regressed. The 3 skips are the
+- `PYTHONPATH=. pytest -q` — **566 passed, 3 skipped**. The base commit was 448 passed, 3 skipped,
+  so the 118 new tests are additive and nothing previously green regressed. The 3 skips are the
   same pre-existing skips as on the base.
 
 New test modules:
 
 | Module | Tests | Covers |
 | --- | --- | --- |
-| `tests/test_harness_contracts.py` | 47 | identity invariants, item envelope validation, ordered mixed history, AR-02 supersession, attempt dispatch barrier and monotonicity, error kind vs transport retryability vs semantic disposition, tool uncertainty/idempotency metadata, turn finalization discriminator and attention projection, causal wake occurrence identity, request semantic hash, AR-11 admission |
+| `tests/test_harness_contracts.py` | 48 | identity invariants, item envelope validation, ordered mixed history, AR-02 supersession, attempt dispatch barrier and monotonicity, error kind vs transport retryability vs semantic disposition, tool uncertainty/idempotency metadata, turn finalization discriminator and attention projection, causal wake occurrence identity, request semantic hash, AR-11 admission, the collaboration-`Message` import boundary |
 | `tests/test_harness_serialization.py` | 12 | round trips for every item variant, attempt and tool execution; opaque payload fidelity; missing/future `format_version` rejection for all three families |
 | `tests/test_harness_openai_adapter.py` | 34 | canonical → wire for plain, tool-round and multi-call histories; attempt-scoped merging; explicit refusals; `prepare` payload shape; wire → canonical finalized events; deltas never authoritative; malformed arguments; unresolved tool names; error classification; AR-12 declaration |
 | `tests/test_harness_external_agent.py` | 10 | structural separation of the two adapter protocols, no shared base class, no inference-semantics imports, event streaming, prompt-rendering preservation, error propagation, no claimed recovery, cancellation reaching the child-owning task |
@@ -280,10 +283,10 @@ ContextManager/compaction.
 
 ## Notes for the next implementer
 
-- `cerebro/harness/projection.py` is the only module in the package that imports
-  `cerebro.models.Message`. Keep it that way; a test in
-  `tests/test_harness_external_agent.py` already guards the equivalent boundary for
-  `external_agent.py`.
+- `cerebro.models.Message` is imported by exactly two modules: `projection.py` and
+  `adapters/cli_external.py`. `test_no_generic_harness_module_reads_collaboration_messages`
+  enforces that, and `tests/test_harness_external_agent.py` guards the equivalent boundary
+  for `external_agent.py`. Keep both green.
 - `ToolExecution` and `AgentTurn` have `validate_assignment` off deliberately: their transitions
   move two fields at once and the invariant only holds across the pair, so each transition
   re-checks explicitly. `InferenceAttempt` keeps assignment validation because its transitions are

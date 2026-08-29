@@ -46,7 +46,7 @@ The canonical contracts answer each of those with a durable fact rather than an 
 | `provider_adapter.py` | The direct native `ProviderAdapter` protocol |
 | `external_agent.py` | The separate `ExternalAgentAdapter` protocol |
 | `adapters/` | `OpenAICompatibleAdapter`, the CLI external shim, and the dialect registry |
-| `projection.py` | The only module that reads collaboration `Message` rows |
+| `projection.py` | Compatibility projection from collaboration `Message` rows |
 
 ## The properties worth knowing
 
