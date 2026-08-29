@@ -58,9 +58,13 @@ _OUTCOMES_WITH_MESSAGE = frozenset({"final_message", "fail_closed_error"})
 
 
 class AgentTurn(BaseModel):
-    """One agent execution admitted from one causal wake."""
+    """One agent execution admitted from one causal wake.
 
-    model_config = {"validate_assignment": True}
+    Assignment validation is off for the same reason as `ToolExecution`: the attention
+    projection is two fields that are only coherent together. The transitions re-check.
+    """
+
+    model_config = {"validate_assignment": False}
 
     id: AgentTurnId
     format_version: int = AGENT_TURN_FORMAT_VERSION
@@ -147,8 +151,6 @@ class AgentTurn(BaseModel):
         """
         if count < 0:
             raise HarnessStateError("unresolved_effect_count cannot be negative")
+        self.needs_attention = count > 0
         self.unresolved_effect_count = count
-        if count > 0:
-            self.needs_attention = True
-        elif self.needs_attention and count == 0:
-            self.needs_attention = False
+        self._terminal_state_is_coherent()

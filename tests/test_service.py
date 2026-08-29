@@ -59,4 +59,3 @@ def test_provider_for_cli_agent_sandboxed_cwd(tmp_path):
     assert prov.backend == "claude"
     assert prov.cwd is not None
     assert "opus" in prov.cwd and "workspace" in prov.cwd
-

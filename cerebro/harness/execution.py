@@ -86,9 +86,14 @@ ToolResolution = Annotated[
 
 
 class ToolExecution(BaseModel):
-    """One `CerebroCallId`'s durable execution record."""
+    """One `CerebroCallId`'s durable execution record.
 
-    model_config = {"validate_assignment": True}
+    Assignment validation is off because the transitions below move two fields at once and
+    the invariant only holds across the pair. Each transition re-checks it explicitly when it
+    is done, so the state machine is still the contract.
+    """
+
+    model_config = {"validate_assignment": False}
 
     call_id: CerebroCallId
     format_version: int = TOOL_EXECUTION_FORMAT_VERSION
@@ -199,6 +204,7 @@ class ToolExecution(BaseModel):
             )
         self._advance("dispatch_may_have_escaped")
         self.dispatch_marked_at = at
+        self._resolution_matches_state()
 
     def resolve_known(
         self,
@@ -225,6 +231,7 @@ class ToolExecution(BaseModel):
             self.raw_output_ref = raw_output_ref
         if model_output_item_id is not None:
             self.model_output_item_id = model_output_item_id
+        self._resolution_matches_state()
 
     def resolve_indeterminate(
         self, reason: str, *, at: str, reconciliation_attempted: bool = False
@@ -240,3 +247,4 @@ class ToolExecution(BaseModel):
             reason=reason, reconciliation_attempted=reconciliation_attempted
         )
         self.resolved_at = at
+        self._resolution_matches_state()

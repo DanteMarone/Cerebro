@@ -262,4 +262,3 @@ def test_sonnet_provider_for_resolves_claude_model_command():
     assert isinstance(prov, CliAgentProvider)
     assert prov.backend == "claude"
     assert prov._command == ["claude", "-p", "--model", "sonnet"]
-

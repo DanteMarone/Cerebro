@@ -79,5 +79,3 @@ async def test_bootstrap_seed_data(test_db: Settings):
     dm_opus = await store.get_channel("dm-dante-opus")
     assert dm_opus is not None
     assert dm_opus["type"] == "dm"
-
-
