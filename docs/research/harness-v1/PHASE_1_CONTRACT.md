@@ -1091,3 +1091,249 @@ These are implementation-review questions, not architecture ambiguity:
 6. whether Phase 1 reducer cutover is feature-flagged/shadowed during rollout and how mixed old/new single-process paths are prevented from executing the same wake.
 
 None of these may weaken the frozen invariants above.
+
+## 32. Issue #210 contract clarifications — normative addendum
+
+This section applies the accepted AR-01 through AR-12 findings from issue #209 at
+`review/harness-v1-architecture-audit@46865080a74a20f7406df506d7c6668ffdafc283`.
+It is normative for implementation and supersedes earlier wording in this document only where the
+older text is less specific. It does not reopen or reverse any frozen issue #206 architecture
+decision.
+
+### 32.1 Canonical persisted type deltas — AR-02 and AR-10
+
+The following fields are part of the canonical persisted contracts from PR 1 onward:
+
+```text
+InferenceItem shared persisted envelope
+  item_id: InferenceItemId
+  format_version: int
+  producing_attempt_id: InferenceAttemptId?
+
+InferenceAttempt
+  format_version: int
+  ... existing fields from section 11 ...
+
+ToolExecution
+  format_version: int
+  ... existing fields from section 16 ...
+```
+
+`producing_attempt_id` is present on every persisted `InferenceItem`. It is required and non-null for
+provider-originated items emitted through `OutputItemCompleted`; it is null only for items projected
+from non-provider product/context state or otherwise created outside a provider attempt. Provider
+adapters may not substitute generic provenance for this identity.
+
+Every persisted row/object in these three families carries its own `format_version`; schema epoch or
+event-envelope versioning is not a substitute.
+
+### 32.2 Interrupted/superseded attempt item disposition — AR-02
+
+When an `InferenceAttempt` is abandoned without authoritative `InferenceCompleted`, finalized items
+already persisted from that attempt are not all treated alike:
+
+- Provider-originated items that authorized no tool/provider side effect which reached
+  `dispatch_may_have_escaped` are attempt-scoped. On abandonment they are durably marked
+  superseded, retained as audit evidence, and excluded from every later `InferenceRequest.history`.
+- If a dispatched or committed side effect exists, the smallest ordered prefix needed to preserve
+  the causal history of that effect, plus every committed tool resolution/result, remains active
+  canonical semantic history. It is never superseded merely to retry the provider.
+- Trailing finalized output after the last protected effect boundary may be superseded when it did
+  not authorize another dispatched effect.
+- Supersession is durable metadata on the inference-item storage envelope (`superseded_at`, reason,
+  and superseding/new-attempt identity where applicable); it is never implemented by deleting audit
+  evidence.
+
+This refines the monotonic-progress rule: Cerebro never rewinds across committed/possibly escaped
+external effects, while an incomplete provider attempt cannot accidentally become an assistant
+prefill in the next semantic retry.
+
+### 32.3 Restart recovery driver and suspension — AR-01
+
+The Phase 1 restart driver is **`TurnRecoveryDriver`**, a logical responsibility owned by
+`TurnCoordinator`. At process startup, before admitting new wakes for an agent,
+`TurnRecoveryDriver` scans all non-terminal `agent_turns` in the active `execution_epoch`.
+`queued`/`running` rows are driven through the section 12/18/19 recovery rules; already `suspended`
+rows remain suspended unless an explicit resume disposition exists.
+
+Every scanned turn must reach one of: safely resumed `running`, terminal, or durably `suspended`.
+A turn that Phase 1 cannot safely reconstruct/resume, including a non-recoverable external-agent
+execution, is transitioned to `suspended` with an explicit `suspension_reason`; it may not remain
+`running` indefinitely because the prior process disappeared.
+
+### 32.4 Conversation-retained replay storage ownership — AR-03
+
+`inference_items` uses a conversation-scoped durable owner from its first schema. For current Phase 1
+product paths the owner is the stable Cerebro conversation/channel identity already used to build
+history. Every item row also carries required `agent_turn_id` attribution and its ordered sequence
+metadata. Turn-scoped reads are filters over this conversation-owned collection, not a different
+primary ownership model.
+
+`ReplayRetentionScope.conversation` therefore retains required replay items across later turns
+without re-keying the central `inference_items` model. Provider replay state remains separate from
+collaboration `messages`/`Message.meta_json`.
+
+### 32.5 Causal wake uniqueness and occurrence semantics — AR-07
+
+The Phase 1 serialized key is versioned and derived from these tuples:
+
+```text
+direct_message = (direct_message, target_agent_id, channel_id, trigger_message_id)
+channel_poll   = (channel_poll, target_agent_id, channel_id, trigger_message_id)
+explicit_turn  = (explicit_turn, target_agent_id, channel_id, occurrence_id)
+```
+
+For a message-driven DM/poll, `trigger_message_id` is the occurrence identity. A poll wake without a
+durable trigger message and every explicit/manual turn must supply a durable `occurrence_id` from
+the wake layer. Future intentionally recurring wake kinds likewise require explicit occurrence
+identity.
+
+A duplicate key loads the existing turn only while that row is the same admitted occurrence and is
+non-terminal/recoverable. Re-delivery of the same occurrence after terminal completion returns the
+recorded terminal/decline outcome and never silently starts a second execution. A legitimate later
+occurrence must carry a distinct occurrence identity and therefore a distinct key; a terminal prior
+wake cannot permanently suppress it. If the product declines a new occurrence, that decline is a
+durable recorded decision rather than a silent uniqueness-conflict drop.
+
+### 32.6 Pre-tool checkpoint atomicity and stable operation key — AR-06
+
+Section 17's list A-L is a required **checkpoint/precondition set**, not twelve separately durable
+mini-transactions. Add:
+
+```text
+E2. when the frozen ToolBinding declares stable_idempotency_key,
+    stable_operation_key is assigned and persisted before dispatch eligibility
+```
+
+The atomic barrier transaction commits D, E, E2 (when applicable), I, J, K and L together. A, B, C,
+F, G and H may have been committed by earlier authoritative streaming/snapshot transactions, but the
+barrier transaction must verify them against the expected snapshot/attempt/history/replay versions
+and fail closed if any is missing or stale. No external executor invocation is possible unless the
+entire set is true after the atomic barrier commit.
+
+`stable_operation_key` is then reused unchanged for every executor retry whose recovery capability
+requires stable externally enforced idempotency.
+
+### 32.7 One execution authority per causal wake — AR-08
+
+For one admitted `CausalWakeKey`, exactly one execution authority may dispatch a provider, dispatch a
+client tool, or insert a collaboration/product result row. Legacy/compatibility/shadow paths may
+observe the same wake only when they are mechanically non-side-effecting for it. A feature flag or
+shadow comparison is not permission for dual execution.
+
+This is a frozen safety invariant, not an implementation-review question.
+
+### 32.8 Outstanding indeterminate execution ownership and visibility — AR-04
+
+`AgentTurn` has an authoritative durable projection of outstanding uncertain effects:
+
+```text
+AgentTurn
+  needs_attention: bool
+  unresolved_effect_count: int
+```
+
+These fields are maintained in the same SQLite transaction as relevant `ToolExecution` transitions.
+Any execution at `dispatch_may_have_escaped` without a known/reconciled outcome contributes to the
+count; resolving it removes that contribution. Cancellation/failure/other turn termination never
+implicitly resolves or hides the execution. A terminal turn with an outstanding uncertain effect
+remains `needs_attention=true` until authoritative reconciliation resolves it.
+
+Minimum Phase 1 discovery surface: `TurnStore` must support querying/listing turns needing attention
+and reading the associated unresolved `CerebroCallId`, `ToolKey`, dispatch state and reason without
+requiring replay of transient Hub events. The product/operator layer must expose a durable status
+projection derived from that store; Hub may mirror it but is not the sole notification channel.
+Sensitive provider payloads/raw tool output are not required on this surface.
+
+### 32.9 Product finalization discriminator — AR-05
+
+`AgentTurn.product_outcome_kind` is the authoritative idempotency/finalization discriminator. A
+re-entered finalization path checks this field first and either validates/returns the existing
+outcome or performs the one finalization transaction when it is absent.
+
+`final_message_id` is evidence associated with `final_message`/`fail_closed_error`; it is never, by
+itself, a finalization predicate. Its intentional absence for `topic_pass` and `topic_silent_stop`
+must not cause finalization to run again.
+
+Any user-visible error/failure publication participates in the same atomic finalization semantics:
+the message insert (when any), `product_outcome_kind`, `final_message_id` (when any), terminal
+lifecycle/state version, and durable finalization event commit together.
+
+### 32.10 Corrected and added acceptance fixtures — AR-09
+
+The following definitions replace the earlier F-05, F-07 and F-14 text:
+
+**F-05 — replay checkpoint crash matrix.** Inject process failure at the defined durable boundaries:
+pre-barrier, immediately after the atomic barrier commit, after `dispatch_may_have_escaped` commits,
+after executor invocation before result commit, and immediately after result commit. Assert the
+D/E/E2/I/J/K/L atomic set is all-or-nothing; every pre-barrier state yields zero external calls; and
+recovery after an executable boundary retains exactly one `CerebroCallId`, snapshot/replay set and
+operation key where applicable.
+
+**F-07 — stable idempotency key retry across restart.** A fake executor requires an idempotency key,
+records one mutation and loses the first response. Kill the process after the durable dispatch mark
+and before retry. After restart, recovery reuses the exact durably persisted
+`stable_operation_key`; the fake remote records exactly one mutation and the Harness records one
+canonical call resolution.
+
+**F-14 — stale tool binding generation, deterministic arms.** Arm A keeps frozen generation G1
+addressable while replacing the live same-named binding with G2; the old snapshot must invoke G1 and
+G2 invocation count is zero. Arm B makes G1 unaddressable before dispatch; the old snapshot must
+resolve stale/unavailable under the original call identity and G2 invocation count is zero. A test
+must select one setup and assert its single expected outcome rather than accept either result.
+
+Add these mandatory fixtures:
+
+**F-21 — causal admission.** Duplicate delivery of one occurrence produces one `AgentTurn` and one
+execution authority. Re-delivery matching a terminal turn returns a defined recorded terminal/decline
+outcome rather than silently disappearing. A legitimate later occurrence with a new occurrence
+identity is admitted. A wake matching a crash-orphaned non-terminal turn drives recovery rather than
+being permanently wedged by uniqueness.
+
+**F-22 — rollout single authority.** Load legacy/compatibility and durable-reducer paths together for
+one causal wake. Assert at most one provider dispatch, at most one tool dispatch per logical call,
+and exactly one collaboration product row; every shadow path is non-side-effecting.
+
+**F-23 — orphaned in-flight attempt recovery.** Restart with an attempt at
+`dispatch_may_have_escaped` holding finalized partial output. Recovery reaches a defined resumed,
+terminal or suspended turn state; unprotected partial assistant output is superseded and absent from
+the next request; protected committed-effect history remains monotonic; superseded rows remain as
+audit evidence.
+
+**F-24 — indeterminate visibility.** Cancel while a `never_automatic_repeat` tool is at
+`dispatch_may_have_escaped`. Assert no second dispatch, no fabricated known status, and after restart
+a durable readable turn-level attention projection points to the unresolved execution.
+
+The applicable deterministic Phase 1 acceptance set is now **F-01 through F-24**. Phase 1D / PR 5
+may not claim the crash/recovery exit bar with only F-01 through F-20 green.
+
+### 32.11 Provider continuation admission — AR-11
+
+Phase 1 admits a `ProviderAdapter` + `ModelProfile` combination only when every continuation datum
+required for correctness can be represented losslessly in durable ordered `InferenceItem` /
+`ProviderOpaqueItem` / `ProviderCallRef` state and reconstructed into a provider-valid next request.
+Adapters must validate this before use.
+
+If required continuation cannot be safely reconstructed, generic Harness code does not invent a
+replay strategy. For provider attempts, `reconcile_or_suspend` has no generic provider-side
+reconcile operation in Phase 1 and therefore degenerates to durable `suspend` unless the specific
+adapter contract later supplies authoritative reconciliation.
+
+### 32.12 Security/storage gates tied to the creating PR — AR-12
+
+Sensitive replay material: PR 1 must state whether the OpenAI-compatible/LM Studio adapter can emit
+`hidden_reasoning`, `signature_or_encrypted_reasoning`, or `secret_like` replay payloads. Before the
+first adapter PR that can persist any such payload, that same PR must define and review at-rest
+classification, access, encryption where required, retention/deletion and log/redaction behavior.
+No sensitive replay material may be durably created first and governed later.
+
+Raw tool output: PR 3 must define inline-size threshold, artifact/blob ownership, retention/deletion,
+access and redaction/failure behavior **before** PR 3 persists raw tool output or lands F-13. The
+policy gate cannot be deferred past the PR that creates the data.
+
+### 32.13 Standing external-side-effect rule remains unchanged
+
+Nothing above weakens frozen decision 18. Cerebro does not promise generic exactly-once external
+side effects. A call whose effect may have escaped is not automatically repeated unless executor
+semantics prove read-only behavior, idempotency, stable externally enforced idempotency, or
+authoritative reconciliation.
