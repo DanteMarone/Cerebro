@@ -49,10 +49,9 @@ Confirmed from the pinned repository tree:
 Confirmed at `deny.toml` on the pinned commit:
 
 - unlicensed Rust dependencies are denied;
-- allowed SPDX licenses include Apache-2.0, MIT, BSD-3-Clause, ISC, Unicode-3.0, OpenSSL, and MPL-2.0;
-- explicit exceptions include Unicode-DFS-2016 (`unicode-ident`), CDLA-Permissive-2.0 (`webpki-roots`), MIT for listed Redox crates, and Zlib (`foldhash`).
+- the file defines an explicit allowed-license set and named dependency exceptions.
 
-This is a dependency policy/check configuration, not an exhaustive distributable attribution inventory.
+This is dependency policy/check configuration, not an exhaustive distributable attribution inventory. Any future code reuse would need its own dependency and distribution review.
 
 ### Vendored/local compatibility material
 
@@ -78,26 +77,24 @@ Confirmed top-level areas at the pinned commit include:
 
 There is **no root `package.json`** at this pinned snapshot. JavaScript package roots live below subdirectories such as `ui/` and `documentation/`.
 
-The root Rust workspace lists these members:
+The exact root `Cargo.toml` uses wildcard workspace membership:
 
-- `crates/goose`
-- `crates/goose-cli`
-- `crates/goose-bench`
-- `crates/goose-server`
-- `crates/goose-mcp`
-- `crates/goose-test`
-- `crates/goose-acp`
-- `crates/goose-telemetry`
-- `crates/goose-scheduler`
-- `crates/goose-certguard`
-- `crates/goose-llm`
-- `crates/goose-providers`
-- `crates/goose-provider-custom`
-- `crates/goose-notification`
+- `members = ["crates/*", "vendor/v8"]`
+- `resolver = "2"`
 
-Default Rust workspace members are `goose-cli`, `goose`, `goose-mcp`, and `goose-server`.
+That is intentionally recorded instead of freezing a hand-maintained crate list: every crate directly under `crates/` at this commit is a workspace member. This includes newer generic/GDK-facing crates such as `crates/goose-agent` and `crates/goose-provider-types` in addition to the product-specific `goose`, CLI, server, providers, MCP, ACP, telemetry, scheduler, and related crates.
 
-Workspace package metadata at the pinned commit reports edition 2024, version `1.14.0`, authors `Block <ai-oss@block.xyz>`, and Apache-2.0. Some historical package metadata still references the former `block/goose` repository; the pinned repository itself is `aaif-goose/goose` and the README states Goose is part of the Agentic AI Foundation at the Linux Foundation.
+Exact workspace package metadata at the pinned commit is:
+
+- edition `2021`
+- version `1.48.0`
+- minimum Rust version `1.94.1`
+- authors `AAIF <ai-oss-tools@block.xyz>`
+- license `Apache-2.0`
+- repository `https://github.com/aaif-goose/goose`
+- description `An AI agent`
+
+The workspace pins the ACP Rust SDK patches to upstream commit `c97a5203d3392f7f231514d84eea014f9f43e6fb` and patches crate `v8` to the local `vendor/v8` compatibility package. The workspace MCP dependency is `rmcp` 3.0.0 with selected features.
 
 `ui/package.json` is a private workspace root covering `acp`, `text`, `desktop`, and `goose-binary/*`. `ui/desktop/package.json` identifies the Electron app as `goose-app`, product name `Goose`, version `1.48.0`, and depends on the workspace Goose SDK plus ACP/MCP-related client packages. `documentation/package.json` is a private Docusaurus site package with a separate npm lockfile/dependency graph.
 
