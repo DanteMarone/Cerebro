@@ -27,8 +27,6 @@ Artifacts:
 
 All upstream-derived findings remain classified as **conceptual inspiration only**. No Codex implementation source has been copied or adapted into Cerebro.
 
-Next research target: recovery/verification semantics, followed by session persistence/events/multi-agent behavior and provider abstraction.
-
 ## 2026-08-29 — Recovery, persistence, and multi-agent continuation
 
 Completed:
@@ -45,8 +43,6 @@ Artifacts:
 
 - `RECOVERY_AND_VERIFICATION.md`
 - `SESSIONS_EVENTS_AND_MULTIAGENT.md`
-- refreshed `RESEARCH_LOG.md`
-- handoff checkpoint follows this entry.
 
 Key design direction strengthened by this slice:
 
@@ -58,4 +54,42 @@ Key design direction strengthened by this slice:
 
 All upstream-derived findings remain classified as **conceptual inspiration only**. No Codex implementation source has been copied or adapted into Cerebro.
 
-Next research target: provider abstraction, then MCP/tool-search/output-budget behavior, then the Codex-to-Cerebro gap and Harness v1 proposal.
+## 2026-08-29 — Provider, MCP/output, gap analysis, and Harness v1
+
+Completed:
+
+- mapped `ModelProviderInfo` versus runtime `ModelProvider`, provider-owned auth/account recovery, endpoint/header policy, provider catalogs, capability upper bounds and session/turn client lifetime;
+- confirmed the current Codex wire abstraction is still effectively OpenAI Responses-shaped despite a useful runtime provider trait;
+- identified provider continuation/response IDs as adapter optimizations rather than durable harness truth;
+- mapped MCP canonical tool identity, model-visible namespace specs, legacy flattened hook naming and collision behavior;
+- mapped direct/deferred/Code Mode/hidden exposure policy and tool-search indexing/loading;
+- confirmed external tools fail closed on collisions and cannot silently replace core privileged tools;
+- mapped request-scoped MCP binding/preparation, approval/lifecycle/cancellation path and read-only concurrency hints;
+- mapped raw/log output versus model-visible bounded output, head+tail/middle truncation and typed multimodal budgeting;
+- reviewed Code Mode enough to classify it as an alternate execution surface worth deferring from Harness v1;
+- grounded the Codex comparison against current Cerebro `AgentRuntime`, context builder, provider protocol, OpenAI-compatible adapter, MCP registry, Delta union and TurnGuard;
+- wrote the prioritized Codex-to-Cerebro gap analysis;
+- wrote a smallest viable Harness v1 architecture and incremental migration/test plan.
+
+Artifacts:
+
+- `PROVIDER_ABSTRACTION.md`
+- `MCP_TOOL_SEARCH_AND_OUTPUTS.md`
+- `CODEX_TO_CEREBRO_GAP.md`
+- `CEREBRO_HARNESS_V1.md`
+- refreshed `README.md`
+- refreshed `RESEARCH_LOG.md`
+- final handoff checkpoint follows this entry.
+
+Research conclusion:
+
+- Cerebro should keep its shared-channel collaboration/product state and evolve the harness underneath it;
+- the highest-value foundational additions are canonical provider-neutral inference types, `ModelProfile`, immutable per-sample snapshots, canonical tool identities/results, durable agent-turn/event/checkpoint state, typed recovery, stateful context/compaction and explicit completion policy;
+- native provider adapters should translate native APIs into Cerebro-owned semantic events rather than all impersonating one OpenAI wire protocol;
+- large tool catalogs should be planned per request and eventually support deferred discovery;
+- model-visible output truncation must not delete the durable full result;
+- Code Mode and more elaborate Codex mechanisms are not Harness v1 requirements.
+
+All Codex-derived recommendations remain **conceptual inspiration only**. No Codex implementation source has been copied or adapted into Cerebro, so no new upstream NOTICE material is required by this research phase.
+
+The planned open-ended Codex mining pass is complete enough to stop. The next recommended work is implementation design/Phase 1 from `CEREBRO_HARNESS_V1.md`, validated against at least one materially non-OpenAI native provider protocol before the generic contract is frozen.
