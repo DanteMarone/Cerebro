@@ -204,3 +204,97 @@ These are implementation choices inside the frozen architecture, not reasons to 
 This branch is intended to differ from its base only by the four design deliverables listed above. Perform a final Git compare after this commit and record the exact resulting branch head on issue #206.
 
 Tests/lint are not required for this design-only branch because root `AGENTS.md` permits skipping them for documentation-only changes. Production implementation PRs must restore normal lint/test requirements and include the Phase 0 + Phase 1 acceptance coverage appropriate to their slice.
+
+## Issue #210 contract-clarification handoff
+
+Status: **contract clarifications complete; clarified branch is the implementation source of truth**
+
+Issue: #210 — `Design: apply Harness v1 contract clarifications from architecture audit`
+
+Clarification branch: `design/harness-v1-contract-clarifications`
+
+Original frozen architecture:
+`design/harness-v1-reconciliation@f0b792fd02b72b53375babd7c02a8b95bdeb1902`
+
+Authoritative architecture review:
+`review/harness-v1-architecture-audit@46865080a74a20f7406df506d7c6668ffdafc283`
+
+For Harness v1 implementation after issue #210, use the clarification branch at the exact final ref
+recorded in the issue #210 completion comment. The original frozen SHA remains the historical #206
+baseline; it is no longer sufficient by itself as the implementation contract.
+
+### Exact clarification commits
+
+From the frozen SHA, in order:
+
+- `77b9539f02d5936cda53f6154624fd42a72cff22` — Clarify Harness v1 Phase 1 contracts
+- `5debc73145e0f058849b8924bfe7108b5d29d98c` — Apply Harness v1 architecture clarifications
+- this handoff commit follows `5debc73145e0f058849b8924bfe7108b5d29d98c`; its exact SHA is the final branch head recorded on issue #210
+
+A Git commit cannot contain its own SHA without changing that SHA. The durable final branch head is
+therefore the `design/harness-v1-contract-clarifications` ref after this handoff commit, copied
+verbatim into the issue #210 completion comment.
+
+### Files and historical disposition
+
+Issue #210 changes only:
+
+- `docs/research/codex-harness/CEREBRO_HARNESS_V1.md`
+- `docs/research/harness-v1/PHASE_1_CONTRACT.md`
+- `docs/research/harness-v1/HANDOFF.md`
+
+`docs/research/harness-v1/RECONCILIATION.md` remains the historical issue #206 research-disposition
+record. No addendum was needed because issue #210 tightens implementation contracts without changing
+any accepted/modified/deferred/rejected research disposition.
+
+### AR-01 through AR-12 disposition
+
+| Finding | Durable clarification |
+| --- | --- |
+| AR-01 | `TurnRecoveryDriver` is owned by `TurnCoordinator`; startup scans non-terminal turns in the active epoch, and unsafe/unrecoverable turns become durably `suspended` with a reason. |
+| AR-02 | Provider-originated `InferenceItem`s carry producing `InferenceAttemptId`; abandoned incomplete-attempt output without a dispatched effect is superseded/audit-retained and excluded from later requests, while committed/possibly escaped effect history remains monotonic. |
+| AR-03 | `inference_items` is conversation-owned from the first schema with required turn attribution, so conversation-retained replay never needs a later central re-key. |
+| AR-04 | `AgentTurn` has durable attention/unresolved-effect projection maintained with `ToolExecution`; cancellation/failure cannot hide an outstanding uncertain effect, and Phase 1 has a durable discovery surface. |
+| AR-05 | `product_outcome_kind` is the authoritative product-finalization discriminator; `final_message_id` is never the sole finalization predicate; visible failure/error publication is atomic with finalization state. |
+| AR-06 | The pre-tool checkpoint includes durable `stable_operation_key` when required; D/E/E2/I/J/K/L are the atomic barrier set and earlier facts are verified fail-closed preconditions. |
+| AR-07 | Causal-wake duplicate delivery and legitimate re-occurrence are distinct; DM/poll/explicit key encodings and occurrence identity requirements are defined, and terminal prior wakes cannot silently suppress later occurrences. |
+| AR-08 | Exactly one execution authority per admitted `CausalWakeKey` is a frozen invariant; legacy/shadow paths are non-side-effecting for the same wake. |
+| AR-09 | F-05, F-07 and F-14 are corrected; F-21 through F-24 are added; F-01 through F-24 are the applicable deterministic Phase 1 acceptance set. |
+| AR-10 | `InferenceItem`, `InferenceAttempt` and `ToolExecution` each carry canonical persisted `format_version`. |
+| AR-11 | Phase 1 admits only provider/model combinations whose required continuation is losslessly representable in durable replay state; absent authoritative provider reconciliation, `reconcile_or_suspend` becomes durable suspend. |
+| AR-12 | Sensitive replay policy is bound to PR 1 / the first adapter PR that can create it; raw tool-output policy is bound to PR 3 before raw output is persisted. |
+
+### Frozen decisions unchanged
+
+No issue #206 architecture decision was reversed. In particular frozen decision 18 is unchanged:
+Cerebro does not promise generic exactly-once external side effects. A call whose external effect may
+have escaped is not automatically repeated unless executor semantics prove read-only behavior,
+idempotency, stable externally enforced idempotency, or authoritative reconciliation.
+
+### Pre-PR-1 canonical type gate
+
+The clarified Phase 1 contract now requires before PR 1 implementation:
+
+- `InferenceItem.format_version`;
+- `InferenceItem.producing_attempt_id` for provider-originated items;
+- `InferenceAttempt.format_version`;
+- `ToolExecution.format_version`.
+
+The superseded-attempt disposition is also defined before schema/code implementation begins.
+
+### Acceptance and next implementation work
+
+The documented deterministic Harness v1 acceptance set is F-01 through F-24, alongside the full
+accepted Phase 0 characterization suite.
+
+Next implementation work is PR 1 / Phase 1A:
+**Implement: Harness v1 canonical contracts and compatibility adapters**.
+No new implementation issue number is recorded in the repository as of this handoff, so do not
+invent one; create/use the implementation issue when coordination assigns it.
+
+### Verification
+
+The final compare must be against
+`f0b792fd02b72b53375babd7c02a8b95bdeb1902` and must contain documentation only. Root `AGENTS.md`
+permits lint/tests to be skipped for documentation-only changes, so no production test/lint run is
+required for this clarification branch.
