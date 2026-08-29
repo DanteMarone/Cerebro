@@ -1,52 +1,20 @@
 # Codex Harness Research Handoff
 
-This file exists so a fresh ChatGPT session or another AI agent can resume this research without relying on chat history.
+This file exists so a fresh ChatGPT session or another AI agent can resume without relying on chat history.
 
-## Purpose
-
-Cerebro is evolving from a Slack-shaped interface around externally harnessed agents into a model-agnostic agent runtime that can call model-provider APIs directly. The goal of this research is to mine the public `openai/codex` repository for harness engineering ideas that can inform a Cerebro-native harness.
+## Current state
 
 Primary tracker: GitHub issue #202 (`Research: map OpenAI Codex harness for Cerebro`).
 
 Research branch: `research/codex-harness-mining`.
 
-## Current architectural direction
+The planned open-ended Codex source-mining pass is now **complete enough to stop**. The architecture map, source archaeology, Cerebro gap analysis and Harness v1 proposal are durable on this branch. The next recommended work is implementation design/Phase 1 from `CEREBRO_HARNESS_V1.md`, not another broad Codex sweep.
 
-Cerebro should remain the source of truth for channel/shared conversation state, agent identity/persona, provider/model selection, tool permissions/execution, context/compaction, task/session state, collaboration, persistence, budgets, telemetry, recovery and verification.
-
-The intended end state is that GPT, Claude, Gemini, DeepSeek and local models can all act as Cerebro-native agents through direct provider APIs while sharing Cerebro's collaboration environment and tool layer. Existing CLI harnesses (Codex CLI, Claude Code, Antigravity, etc.) may remain temporarily as reference/senior-agent implementations during development.
-
-Do not assume raw provider APIs reproduce vendor-harness quality. The research target is the engineering around the model: prompts/instructions, context assembly, tool design, filesystem behavior, sandbox/permissions, recovery, compaction, verification, sessions/events, subagents and observability.
-
-## Research strategy and Apache-2.0 provenance
-
-Use Codex as a reference/donor implementation, not as a wholesale base for Cerebro.
-
-For every relevant mechanism, classify later use as one of:
-
-- conceptual inspiration only
-- independently reimplemented
-- adapted from upstream
-- copied substantially/verbatim
-
-The current research phase MUST NOT copy Codex implementation code into Cerebro. Documentation, architectural descriptions, source-path references and small identifiers/signatures are allowed.
-
-For anything that could later influence implementation, retain:
-
-- upstream repository (`openai/codex`)
-- exact upstream path and pinned commit SHA
-- license/NOTICE status
-- engineering idea/code under consideration
-- intended Cerebro component if known
-- usage classification
-- attribution/license requirement
-- modifications if code is later adapted/copied
-
-If actual upstream code is copied or adapted later, preserve applicable Apache-2.0 notices and document lineage before merging. Do not imply OpenAI endorsement or use OpenAI/Codex trademarks as Cerebro branding.
+Do not modify Cerebro runtime behavior on this research branch unless Dante explicitly changes scope.
 
 ## Pinned upstream baseline
 
-All current source claims use:
+All current Codex source-level claims use exactly:
 
 - repository: `openai/codex`
 - commit: `0b45b171ca7141fd7723f16adb59cd8e7c1a74c3`
@@ -54,161 +22,204 @@ All current source claims use:
 - observed commit time: 2026-08-29 03:59:21 UTC
 - commit title: `Preserve permissions when updating session metadata (#41464)`
 
-Root `LICENSE` is Apache-2.0. Root `NOTICE` exists and includes OpenAI Codex attribution plus Ratatui-derived-code MIT notices. Do not silently move the baseline to a newer Codex commit; record/reason about any future rebase explicitly.
+Root Codex `LICENSE` is Apache-2.0. Root `NOTICE` exists and includes OpenAI Codex attribution plus Ratatui-derived-code MIT notices.
 
-## Durable research artifacts completed
+Do not silently move this baseline. Any future upstream rebase must be explicit and should state why the newer source is needed.
+
+## Provenance status
+
+All Codex-derived findings/recommendations in this research pass are currently classified as:
+
+**conceptual inspiration only**
+
+No Codex implementation source has been copied or adapted into Cerebro. Therefore this research phase itself does not require adding Codex NOTICE material to Cerebro.
+
+If future implementation copies/adapts upstream code, record before merge:
+
+- upstream repository/path/commit;
+- exact code/idea used;
+- classification: independent reimplementation / adapted / copied;
+- applicable Apache-2.0/NOTICE obligations;
+- modifications and reviewer.
+
+## Durable artifacts
 
 Under `docs/research/codex-harness/`:
 
-- `README.md` — research landing/provenance policy.
-- `UPSTREAM_BASELINE.md` — pinned commit, license/NOTICE baseline, high-priority crate map.
-- `ARCHITECTURE_MAP.md` — confirmed client > app-server > CodexThread > Session > `run_turn` > sampling > tool follow-up > completion path.
-- `CONTEXT_AND_PROMPTS.md` — base instructions, model metadata, typed context fragments, World State, AGENTS.md hierarchy/diffs, StepContext and compaction semantics.
-- `TOOLS_AND_EXECUTION.md` — tool registry/exposure/router separation, per-step planning, failure/abort semantics, parallelism, apply_patch and shell execution pipelines.
-- `RECOVERY_AND_VERIFICATION.md` — retry layers, typed failures, transport fallback, compaction/context failure, cancellation/suspend/recover, hooks, completion gates and reviewer semantics.
-- `SESSIONS_EVENTS_AND_MULTIAGENT.md` — SQ/EQ protocol, thread persistence/reconstruction, rollback/fork/resume, agent control, V1/V2 collaboration, lineage, residency and execution limits.
-- `RESEARCH_LOG.md` — chronological durable checkpoint log.
+- `README.md` — current research index/status and provenance ground rules.
+- `UPSTREAM_BASELINE.md` — pinned commit, license/NOTICE baseline, high-priority source map.
+- `ARCHITECTURE_MAP.md` — client > app-server > thread/session > `run_turn` > model > tools > follow-up/completion.
+- `CONTEXT_AND_PROMPTS.md` — model instructions/profiles, StepContext, World State, AGENTS.md hierarchy/diffs, context budgets and compaction.
+- `TOOLS_AND_EXECUTION.md` — ToolRegistry/Exposure/Router separation, terminal outcomes, parallelism, apply_patch and shell execution pipelines.
+- `RECOVERY_AND_VERIFICATION.md` — retry layers, transport fallback, context failure, cancellation/suspend/recover, hooks, completion gates and reviewer workflow.
+- `SESSIONS_EVENTS_AND_MULTIAGENT.md` — SQ/EQ protocol, durable thread reconstruction, rollback/fork/resume, V1/V2 multi-agent lineage, residency and execution limits.
+- `PROVIDER_ABSTRACTION.md` — provider config/runtime/model separation, auth/catalog/transport state, Responses-specific limitation and proposed provider-neutral boundary.
+- `MCP_TOOL_SEARCH_AND_OUTPUTS.md` — MCP tool identity/exposure/collisions, deferred search, request-scoped binding, raw/model output separation and truncation.
+- `CODEX_TO_CEREBRO_GAP.md` — comparison against current Cerebro runtime, prioritized gaps, mechanisms to keep/reject/defer.
+- `CEREBRO_HARNESS_V1.md` — proposed smallest viable model-agnostic harness, migration sequence and acceptance tests.
+- `RESEARCH_LOG.md` — chronological research checkpoint.
 
-Remaining planned design artifacts:
+## Main research conclusion
 
-- `CODEX_TO_CEREBRO_GAP.md`
-- `CEREBRO_HARNESS_V1.md`
+Cerebro should not become a Codex clone.
 
-Additional research slices still required before those design artifacts:
+Cerebro already owns the product-level pieces that matter for its intended direction: persistent shared channels, agent identity/persona, attribution, autonomous polling/mentions, tasks, budgets, leases, an event hub, provider streaming, MCP/core tools and completion-ordered final chat persistence.
 
-- provider abstraction;
-- MCP/tool search/output truncation.
+The missing layer is a stronger provider-neutral harness underneath that workspace.
 
-## Key confirmed findings so far
+Highest-priority boundaries for Harness v1:
 
-### Headless runtime boundary
+1. canonical Cerebro-owned inference/provider/error types;
+2. `ModelProfile` separate from provider identity;
+3. immutable request-scoped `StepSnapshot` for each model sample and resulting tool calls;
+4. canonical `ToolKey`/definition/binding/result types plus request-scoped `ToolPlanSnapshot`;
+5. durable `AgentTurn` + sparse execution events/checkpoints independent of final channel messages;
+6. typed retry/recovery/cancellation/suspend semantics;
+7. stateful/versioned context + model-aware token budgets + compaction;
+8. raw/full tool result separated from bounded model-visible output;
+9. explicit completion/evidence policy distinct from the model saying it is done;
+10. deferred/searchable tool exposure when MCP catalogs become large.
 
-`codex-core` is explicitly the reusable business-logic runtime beneath multiple UIs. `app-server` exposes thread/turn/item lifecycle for rich clients. This strongly supports Cerebro keeping a headless harness with the Slack-shaped UI as a client/subscriber rather than coupling UI to inference logic.
+## Strong Codex findings worth carrying into implementation
 
-### Core control loop
+### Immutable request state
 
-The confirmed high-level path is:
+Codex's request-scoped `StepContext` freezes the effective model/settings, token budget, environment, capability roots, MCP binding/catalog, exact model-visible tool router and instructions for one sample. Resulting tool calls execute against that same snapshot.
+
+Cerebro should independently implement the same invariant: the tool definition a model saw must not mutate underneath a later tool call.
+
+### Context as state, not concatenation
+
+Codex uses typed World State, provenance-aware project instructions and compaction checkpoints rather than only recent-message trimming. Compaction is a history/state transition that reinjects governing context.
+
+Cerebro's current `ContextBuilder` is a useful product packet assembler but still needs a stateful `ContextManager` layer for long-lived/native agents.
+
+### Tool architecture
+
+Codex separates the full executable registry from effective exposure and the exact request router. Large external/MCP catalogs can be deferred/searchable rather than dumped into every prompt. External collisions fail closed. Every admitted call should receive one terminal result.
+
+Cerebro should preserve structured canonical tool identity and generate provider wire names only at the edge.
+
+### Raw versus model-visible output
+
+Codex keeps logging/runtime output and model-context output under different budgets. Log-like text is middle/head+tail truncated with explicit omission metadata for the model rather than destroying the only full result.
+
+Cerebro should store full/raw/artifact output separately from the bounded context representation.
+
+### Provider boundary
+
+Codex has useful provider configuration/runtime/model separation, but its actual wire contract remains effectively OpenAI Responses-shaped at the pinned baseline.
+
+Cerebro should take the structural lesson, not that limitation: native OpenAI, Anthropic, Gemini, DeepSeek and local adapters should translate into Cerebro-owned `InferenceRequest`/`InferenceEvent`/`InferenceError` semantics.
+
+Provider cache/continuation IDs are optimization hints unless proven required for correctness. Another worker should be able to reconstruct a semantically equivalent request from Cerebro durable state without them.
+
+### Recovery and completion
+
+Retry, recovery, persistence and acceptance are separate policies. Context overflow is not solved by replaying the same oversized request. Cancellation is a lifecycle. Suspend/recover is distinct from permanent abort. Prompt instructions to “run tests” are not the same thing as a harness completion gate.
+
+Cerebro should have typed failures plus a small `CompletionPolicy` capable of `allow`, `continue_with_feedback`, or `fail`.
+
+### Sessions/events/multi-agent
+
+Codex separates durable thread identity from live runtimes and reconstructs model/context state from persisted rollout rather than relying on rendered chat alone.
+
+Its V2 multi-agent work also separates durable message delivery from scheduling a new inference turn and separates agent identity, runtime residency and active execution.
+
+Cerebro should adopt those execution concepts without replacing its visible Slack-like shared-channel collaboration model.
+
+## Current Cerebro gaps confirmed against source
+
+Current research-branch sources reviewed include:
+
+- `cerebro/runtime.py`
+- `cerebro/context.py`
+- `cerebro/models.py`
+- `cerebro/providers/base.py`
+- `cerebro/providers/openai_compatible.py`
+- `cerebro/providers/lmstudio.py`
+- `cerebro/providers/cli_agent.py`
+- `cerebro/mcp.py`
+- `cerebro/turnguard.py`
+- `README.md`
+- `docs/CEREBRO_V2_ARCHITECTURE.md`
+
+The major confirmed gaps are documented in `CODEX_TO_CEREBRO_GAP.md`. In particular:
+
+- current Provider protocol still consumes workspace `Message` rows directly;
+- tool calls/results require protocol data in `Message.meta_json`;
+- current generic tool result is effectively string-shaped;
+- MCP names are eagerly flattened `server__tool` and all allowed schemas are exposed directly;
+- current context budgeting is intentionally approximate/recent-history based;
+- `TurnGuard` is live in-memory state, not durable execution recovery state;
+- cancellation/UI cleanup exists, but layered typed recovery/suspend/resume does not yet;
+- provider directory at this checkpoint contains OpenAI-compatible/LM Studio/CLI/fake paths but no native Gemini/Anthropic/Responses adapter;
+- there is no generic hard completion/evidence gate.
+
+These are architecture gaps, not a claim that current Cerebro collaboration/product behavior is wrong.
+
+## Harness v1 recommendation
+
+Read `CEREBRO_HARNESS_V1.md` before implementing.
+
+The recommended incremental package is conceptually:
 
 ```text
-client turn/start
-  > app-server validates/translates
-  > CodexThread / Session admits turn
-  > run_turn
-      > pre-sampling compaction if needed
-      > capture request-scoped StepContext
-      > update World State/context
-      > inject user/skill/plugin context
-      > clone model-visible history
-      > build prompt from base instructions + history + exact ToolRouter specs
-      > ModelClientSession.stream
-          > record assistant/reasoning output
-          > execute tool calls
-          > persist terminal tool outcomes
-          > track usage/events
-      > follow-up sample when tools/input/provider require it
-      > compact mid-turn if continuation would overflow
-      > run stop hooks
-      > complete turn
+AgentRuntime / TurnCoordinator
+        |
+        v
+Harness runner
+  AgentTurn + events/checkpoints
+  ContextManager
+  StepSnapshot
+  ProviderAdapter + ModelProfile
+  ToolCatalog/Planner/Runtime
+  CompletionPolicy
+        |
+        v
+final existing Cerebro message
 ```
 
-### Request-scoped StepContext
+Do not ship this as one mega-refactor.
 
-`StepContext` freezes the exact settings, model-related token budget, environment snapshot, capability roots, executor capability discovery, MCP binding/catalog, ToolRouter and effective AGENTS.md value for one sampling request. Tool execution retains that same StepContext even if it completes later.
+Recommended implementation sequence:
 
-This is a strong Cerebro Harness v1 candidate: the model should execute against the exact state that advertised its tools/context, not mutable global state observed later.
+1. canonical inference/error/provider types + compatibility adapter for current OpenAI-compatible provider;
+2. canonical tool model + immutable step snapshot;
+3. durable `AgentTurn`/event schema;
+4. generic runner cutover;
+5. typed retry/cancellation/recovery;
+6. context sections/model-aware budgets;
+7. compaction;
+8. one materially non-OpenAI native provider;
+9. completion/evidence policy;
+10. deferred tool search/output-artifact enhancements.
 
-### World State
+## Exact next task for a fresh session
 
-Codex models mutable harness context as typed World State sections with stable IDs, persisted compact snapshots and add/replace/remove diff semantics. Current sections cover model/personality, token/context guidance, AGENTS.md, permissions, collaboration/persistent mode, environment/date, apps/plugins/tools, multi-agent mode and managed developer instructions.
+Do **not** restart Codex archaeology from the beginning.
 
-This avoids endlessly duplicating unchanged context while still explicitly telling the model when governing state changes.
+Unless Dante changes scope, the next task is:
 
-### AGENTS.md
+> Design/implement Harness v1 Phase 1: introduce canonical Cerebro inference/provider/error types and adapt the existing OpenAI-compatible provider behind them, with behavior-preserving tests.
 
-Project instructions are discovered from project root to cwd, using `AGENTS.override.md` before `AGENTS.md` plus configured fallbacks. Discovery is root-bounded, byte-budgeted, provenance/environment-aware, skipped for untrusted projects and cached by environment/trust state. Changed/removed AGENTS.md state is explicitly synchronized to the model through World State diffs.
+Before freezing the canonical schema, validate it against current native Gemini or Anthropic API semantics so it does not become OpenAI Chat Completions with renamed classes.
 
-### Model-specific behavior
+If implementation questions later need another Codex look, use the pinned commit and investigate only the specific hypothesis. If a materially newer Codex design is intentionally studied, create an explicit new baseline rather than silently mixing revisions.
 
-Model metadata is much richer than a name/context window. It carries model instruction templates/messages, reasoning settings, tool modes, truncation policy, context/compaction settings, modalities, apply-patch/web-search behavior, multi-agent behavior and other capability flags. Base instructions resolve from explicit override > persisted session history > selected model template.
+## Suggested dynamic follow-up after Phase 1/2
 
-This supports a first-class Cerebro `ModelProfile`/harness capability layer separate from provider adapters.
+Once the new boundaries exist, harnessed coding agents can add value by running dynamic probes that static GitHub archaeology cannot:
 
-### Compaction
+- cancellation during streaming/tool execution;
+- catalog mutation during an in-flight sample;
+- tool side-effect duplication under retry;
+- process restart at durable checkpoints;
+- compaction fidelity;
+- provider-native tool-call/reasoning edge cases.
 
-The default compaction request is essentially a concise LLM handoff, but the runtime treats compaction as a state transition. It constructs replacement history, retains recent real user messages under a separate budget, appends a typed summary, manages compaction-window IDs, resets or reinjects canonical initial context depending on pre-turn versus mid-turn compaction, updates World State baselines and recomputes token usage.
-
-Model switches can trigger reconciliation/compaction when compaction hashes differ or a new model has a smaller usable window.
-
-### Tools
-
-Codex separates the executable `ToolRegistry` from effective `ToolExposure` and the exact model-visible `ToolRouter` plan for one step. Tool availability can depend on model/provider capability, feature flags, environment, MCP policy, agent depth/mode and direct/deferred/code-mode exposure.
-
-Every accepted tool call is intended to end in a model-visible terminal result. Ordinary failures, parse/validation feedback and cancellation are fed back into history rather than silently losing the call. Parallel model tool calling is separate from each runtime's own concurrency safety.
-
-### apply_patch
-
-`apply_patch` is a dedicated verified edit primitive: parse model patch > resolve captured environment > verify against filesystem > derive affected paths/permissions > sandbox/authorize > apply > track diff/lifecycle > feed correctness failures back to model. No Codex apply-patch implementation has been copied.
-
-### Shell
-
-`exec_command` is a structured execution pipeline rather than raw shell subprocess use: environment/cwd/shell resolution, local-vs-remote paths, permissions/approval, sandbox intent, patch interception, process identity, output limits, cancellation and model-visible sandbox/failure results.
-
-### Recovery and verification
-
-Recovery is intentionally layered rather than one generic retry loop. HTTP request retry, sampling-stream retry, offline/network waiting, WebSocket > HTTP fallback, context compaction, task cancellation and durable suspend/recover are distinct mechanisms with different replay semantics.
-
-`ContextWindowExceeded` is a non-retryable hard error after the harness has had opportunities to compact. Cancellation is propagated through `CancellationToken`, with a short graceful completion window before forced task abort.
-
-Verification is also layered: default instructions tell the model when/how to test, but ordinary completion is not hard-gated by proof that tests passed. Runtime-enforced checks cover narrower concerns such as tool authorization and edit verification. Stop hooks can explicitly block completion and feed continuation feedback back to the model. `/review` is an explicit reviewer sub-agent workflow rather than an automatic verifier on every normal turn.
-
-Cerebro should therefore separate evidence collection, acceptance policy and completion gating.
-
-### Sessions, persistence and event reconstruction
-
-Codex explicitly uses a submission-queue/event-queue session protocol. Durable thread identity is separated from live in-memory runtime. Thread persistence records stable identity, parent/fork lineage, history mode, model/provider metadata, instructions and context-window information.
-
-Rollout reconstruction is not chat replay: it rebuilds model-visible history plus previous-turn settings, context baselines, World State and context-window identity while understanding compaction, interruption, rollback and inter-agent communication. Stored turn projections separately expose completed/interrupted/failed/in-progress status.
-
-Rollback is itself a durable replay event, and resume is distinct from fork. This strongly supports Cerebro using durable events/checkpoints plus a deterministic reducer instead of storing only rendered messages.
-
-### Multi-agent
-
-A sub-agent is a real thread with parent/root turn lineage, persistent identity and its own lifecycle. `AgentControl` is root-tree scoped and shared across root/sub-agents, carrying registry, budgets, residency and execution-capacity state.
-
-Child spawn deliberately inherits the effective live parent turn: provider/model, reasoning, instructions/provenance, approval/permission state, cwd and the exact request-scoped environment selection. Optional role/model overrides are layered and validated afterward.
-
-V2 moves toward canonical task paths plus mailbox semantics: `send_message` communicates without necessarily starting inference, while `followup_task` communicates and triggers work when appropriate. Agent identity, runtime residency and active execution are distinct; persisted V2 agents can be known without all runtimes being loaded, and V2 sub-agent turns have separate execution-capacity limits.
-
-This aligns closely with Cerebro's Slack-like collaboration direction: durable messages should not automatically equal provider calls.
-
-## Division of labor
-
-ChatGPT is the primary source archaeologist and documentation/provenance keeper because it can read public GitHub source and write directly to Cerebro without consuming paid coding-agent credits.
-
-Use harnessed agents later for:
-
-- cloning/building/running Codex locally
-- dynamic tracing/runtime probes
-- compiling/testing hypotheses
-- independent review of important conclusions
-
-## Exact next research targets
-
-A fresh session should continue in this order:
-
-1. **Provider abstraction**
-   - inspect `model-provider`, `client`, `model-provider-info`, provider/session construction and Responses normalization;
-   - map what the provider adapter owns: auth, endpoint/headers, wire API, transport, retries, streaming events, response IDs/caching and feature support;
-   - distinguish reusable harness contracts from OpenAI Responses-specific assumptions.
-2. **MCP/tool search/output truncation**
-   - finish MCP naming/collision/exposure rules, deferred tool search/Code Mode economics and request-scoped binding behavior;
-   - map model-visible output truncation/budget behavior versus durable full logs/artifacts.
-3. **Codex > Cerebro gap**
-   - write `CODEX_TO_CEREBRO_GAP.md` after provider/MCP research is durable;
-   - classify each candidate as conceptual inspiration, independent reimplementation, adaptation or copy; current classification remains conceptual only.
-4. **Harness v1**
-   - only after the gap is explicit, write `CEREBRO_HARNESS_V1.md` with the smallest architecture that preserves the important boundaries.
+Static research is no longer the bottleneck.
 
 ## Important constraint
 
-Do not modify Cerebro runtime behavior on this research branch unless Dante explicitly changes scope. Research/design/provenance artifacts first. No Codex implementation source has been copied or adapted into Cerebro so far.
+No Codex implementation code has been copied or adapted into Cerebro so far. Preserve that fact unless a future explicit provenance decision changes it.
