@@ -65,13 +65,19 @@ Under `docs/research/codex-harness/`:
 - `ARCHITECTURE_MAP.md` — confirmed client > app-server > CodexThread > Session > `run_turn` > sampling > tool follow-up > completion path.
 - `CONTEXT_AND_PROMPTS.md` — base instructions, model metadata, typed context fragments, World State, AGENTS.md hierarchy/diffs, StepContext and compaction semantics.
 - `TOOLS_AND_EXECUTION.md` — tool registry/exposure/router separation, per-step planning, failure/abort semantics, parallelism, apply_patch and shell execution pipelines.
+- `RECOVERY_AND_VERIFICATION.md` — retry layers, typed failures, transport fallback, compaction/context failure, cancellation/suspend/recover, hooks, completion gates and reviewer semantics.
+- `SESSIONS_EVENTS_AND_MULTIAGENT.md` — SQ/EQ protocol, thread persistence/reconstruction, rollback/fork/resume, agent control, V1/V2 collaboration, lineage, residency and execution limits.
+- `RESEARCH_LOG.md` — chronological durable checkpoint log.
 
-Remaining planned artifacts:
+Remaining planned design artifacts:
 
-- `RECOVERY_AND_VERIFICATION.md`
-- `SESSIONS_EVENTS_AND_MULTIAGENT.md`
 - `CODEX_TO_CEREBRO_GAP.md`
 - `CEREBRO_HARNESS_V1.md`
+
+Additional research slices still required before those design artifacts:
+
+- provider abstraction;
+- MCP/tool search/output truncation.
 
 ## Key confirmed findings so far
 
@@ -147,6 +153,34 @@ Every accepted tool call is intended to end in a model-visible terminal result. 
 
 `exec_command` is a structured execution pipeline rather than raw shell subprocess use: environment/cwd/shell resolution, local-vs-remote paths, permissions/approval, sandbox intent, patch interception, process identity, output limits, cancellation and model-visible sandbox/failure results.
 
+### Recovery and verification
+
+Recovery is intentionally layered rather than one generic retry loop. HTTP request retry, sampling-stream retry, offline/network waiting, WebSocket > HTTP fallback, context compaction, task cancellation and durable suspend/recover are distinct mechanisms with different replay semantics.
+
+`ContextWindowExceeded` is a non-retryable hard error after the harness has had opportunities to compact. Cancellation is propagated through `CancellationToken`, with a short graceful completion window before forced task abort.
+
+Verification is also layered: default instructions tell the model when/how to test, but ordinary completion is not hard-gated by proof that tests passed. Runtime-enforced checks cover narrower concerns such as tool authorization and edit verification. Stop hooks can explicitly block completion and feed continuation feedback back to the model. `/review` is an explicit reviewer sub-agent workflow rather than an automatic verifier on every normal turn.
+
+Cerebro should therefore separate evidence collection, acceptance policy and completion gating.
+
+### Sessions, persistence and event reconstruction
+
+Codex explicitly uses a submission-queue/event-queue session protocol. Durable thread identity is separated from live in-memory runtime. Thread persistence records stable identity, parent/fork lineage, history mode, model/provider metadata, instructions and context-window information.
+
+Rollout reconstruction is not chat replay: it rebuilds model-visible history plus previous-turn settings, context baselines, World State and context-window identity while understanding compaction, interruption, rollback and inter-agent communication. Stored turn projections separately expose completed/interrupted/failed/in-progress status.
+
+Rollback is itself a durable replay event, and resume is distinct from fork. This strongly supports Cerebro using durable events/checkpoints plus a deterministic reducer instead of storing only rendered messages.
+
+### Multi-agent
+
+A sub-agent is a real thread with parent/root turn lineage, persistent identity and its own lifecycle. `AgentControl` is root-tree scoped and shared across root/sub-agents, carrying registry, budgets, residency and execution-capacity state.
+
+Child spawn deliberately inherits the effective live parent turn: provider/model, reasoning, instructions/provenance, approval/permission state, cwd and the exact request-scoped environment selection. Optional role/model overrides are layered and validated afterward.
+
+V2 moves toward canonical task paths plus mailbox semantics: `send_message` communicates without necessarily starting inference, while `followup_task` communicates and triggers work when appropriate. Agent identity, runtime residency and active execution are distinct; persisted V2 agents can be known without all runtimes being loaded, and V2 sub-agent turns have separate execution-capacity limits.
+
+This aligns closely with Cerebro's Slack-like collaboration direction: durable messages should not automatically equal provider calls.
+
 ## Division of labor
 
 ChatGPT is the primary source archaeologist and documentation/provenance keeper because it can read public GitHub source and write directly to Cerebro without consuming paid coding-agent credits.
@@ -162,19 +196,18 @@ Use harnessed agents later for:
 
 A fresh session should continue in this order:
 
-1. **Recovery and verification**
-   - trace retry/backoff, stream failure, context-window failure, interruption/suspend/recover, stop hooks, pre/post tool hooks and any explicit completion/verification machinery;
-   - distinguish hard harness enforcement from model prompt behavior (especially tests/review/"done" semantics).
-2. **Sessions/events/multi-agent**
-   - trace Session submission loop and durable rollout/thread-store reconstruction;
-   - map spawn/send/wait/interrupt/follow-up task semantics for multi-agent V1/V2;
-   - identify parent/subagent context inheritance and limits.
-3. **Provider abstraction**
-   - inspect `model-provider`, `client`, provider capabilities and Responses normalization;
-   - identify which abstractions are OpenAI-specific versus reusable for Cerebro's multi-provider layer.
-4. **MCP/tool search/output truncation**
-   - finish exposure/naming/collision/deferred-tool behavior and output budget semantics.
-5. Then write `CODEX_TO_CEREBRO_GAP.md` and only after the research map is mature propose `CEREBRO_HARNESS_V1.md`.
+1. **Provider abstraction**
+   - inspect `model-provider`, `client`, `model-provider-info`, provider/session construction and Responses normalization;
+   - map what the provider adapter owns: auth, endpoint/headers, wire API, transport, retries, streaming events, response IDs/caching and feature support;
+   - distinguish reusable harness contracts from OpenAI Responses-specific assumptions.
+2. **MCP/tool search/output truncation**
+   - finish MCP naming/collision/exposure rules, deferred tool search/Code Mode economics and request-scoped binding behavior;
+   - map model-visible output truncation/budget behavior versus durable full logs/artifacts.
+3. **Codex > Cerebro gap**
+   - write `CODEX_TO_CEREBRO_GAP.md` after provider/MCP research is durable;
+   - classify each candidate as conceptual inspiration, independent reimplementation, adaptation or copy; current classification remains conceptual only.
+4. **Harness v1**
+   - only after the gap is explicit, write `CEREBRO_HARNESS_V1.md` with the smallest architecture that preserves the important boundaries.
 
 ## Important constraint
 
