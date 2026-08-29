@@ -890,3 +890,109 @@ The following are no longer open questions for Harness v1 implementation:
 - Phase 0 completion, tool sequencing, concurrency, TurnGuard, cancellation and usage behavior remains the compatibility bar.
 
 Further design changes to these points require a new explicit architecture decision rather than incidental implementation drift.
+
+## 30. Issue #210 contract clarification addendum
+
+Issue #210 applies the accepted architecture-audit findings from
+`review/harness-v1-architecture-audit@46865080a74a20f7406df506d7c6668ffdafc283` to this frozen
+architecture. The detailed canonical field and fixture definitions are normative in
+`docs/research/harness-v1/PHASE_1_CONTRACT.md` section 32. This addendum tightens ownership and
+recovery semantics; it does not reopen any issue #206 decision.
+
+### 30.1 Recovery has a named owner
+
+`TurnCoordinator` owns the logical **`TurnRecoveryDriver`**. On process startup, before new wakes are
+admitted for an agent, it scans non-terminal `AgentTurn`s in the active `execution_epoch` and drives
+them from durable state through the recovery rules. Any turn Phase 1 cannot safely reconstruct or
+resume becomes durably `suspended` with an explicit reason; a dead process may not leave it
+indefinitely `running`.
+
+### 30.2 Attempt ownership and format versioning are canonical
+
+Every persisted `InferenceItem` carries its producing `InferenceAttemptId` when provider-originated,
+plus its own `format_version`. `InferenceAttempt` and `ToolExecution` also carry their own
+`format_version`.
+
+Finalized provider output from an attempt that never reached authoritative `InferenceCompleted` and
+authorized no dispatched side effect is attempt-scoped. On abandonment it is marked superseded,
+excluded from later provider request history, and retained as audit evidence. Where a dispatched or
+committed side effect exists, the causal prefix and committed tool resolutions needed to preserve
+that effect remain active canonical history. Monotonic semantic progress across external effects is
+unchanged.
+
+### 30.3 Replay history has a conversation storage owner
+
+`inference_items` is conversation-owned from the first durable schema and carries required
+`AgentTurn` attribution. Turn-scoped history is a filtered view over that collection. This gives
+`ReplayRetentionScope.conversation` a durable home without later re-keying and without putting
+provider replay state into collaboration `messages` or `Message.meta_json`.
+
+### 30.4 Causal admission distinguishes duplicate delivery from later occurrence
+
+Duplicate-key loading applies only to the same admitted occurrence where the existing turn remains
+the intended recoverable execution. Current DM and message-backed poll wakes use their durable
+trigger message identity as the occurrence identity; explicit/manual turns and poll wakes without a
+durable trigger use a durable explicit `occurrence_id`. A terminal prior occurrence cannot suppress
+a legitimate later one. Re-delivery of the same terminal occurrence returns its recorded outcome,
+and any intentional decline is durably recorded rather than silently dropped.
+
+### 30.5 The pre-tool barrier includes the durable operation key
+
+When a snapshotted executor binding relies on stable externally enforced idempotency, the
+`stable_operation_key` is assigned and persisted before dispatch eligibility. The Phase 1 contract
+now distinguishes facts committed in the atomic executable-barrier transaction from earlier durable
+facts that the barrier verifies as preconditions. External dispatch remains impossible until the
+whole precondition set is true and the atomic barrier has committed.
+
+### 30.6 One causal wake has one execution authority
+
+For one admitted `CausalWakeKey`, exactly one execution path may dispatch providers, dispatch client
+tools, or insert collaboration/product rows. Legacy, compatibility or shadow paths may observe only
+when they are mechanically non-side-effecting for that wake. This is a frozen Harness v1 safety
+invariant, not a rollout implementation choice.
+
+### 30.7 Indeterminate external effects have durable ownership and a discovery surface
+
+An `AgentTurn` carries a durable authoritative projection of outstanding uncertain tool executions,
+including an attention flag/count maintained transactionally with relevant `ToolExecution`
+transitions. Turn cancellation or failure cannot implicitly resolve or hide
+`dispatch_may_have_escaped` state. Phase 1 must provide a durable store/product/operator query that
+surfaces turns needing attention and identifies the unresolved call without depending on transient
+Hub delivery.
+
+### 30.8 Product finalization has one discriminator
+
+`product_outcome_kind` is the authoritative finalization/idempotency discriminator.
+`final_message_id` is associated evidence for outcomes that publish a row and is never sufficient by
+itself to decide that finalization did or did not occur. PASS/silent outcomes intentionally have no
+final message. Any user-visible fail-closed error/failure publication participates in the same atomic
+finalization transaction.
+
+### 30.9 Phase 1 continuation is admitted only when durable replay is lossless
+
+Phase 1 permits only adapter/model combinations whose correctness-required continuation state can be
+losslessly represented and reconstructed from durable ordered `InferenceItem`,
+`ProviderOpaqueItem`, and `ProviderCallRef` state. If a provider attempt cannot be reconstructed
+safely, generic code does not invent replay: `reconcile_or_suspend` degenerates to durable
+`suspend` unless the adapter has an authoritative reconciliation contract.
+
+### 30.10 Security/storage gates move to the PR that first creates the data
+
+The first adapter PR that can persist sensitive replay material must define its at-rest access,
+classification, encryption where required, retention/deletion and redaction policy before that data
+is created. For the Phase 1 OpenAI-compatible/LM Studio edge, PR 1 must explicitly state whether
+such replay material is surfaced. PR 3 must define raw tool-output inline/artifact ownership,
+retention, access, redaction and failure policy before raw tool output is persisted.
+
+### 30.11 Acceptance set after clarification
+
+The deterministic acceptance suite is F-01 through F-24. F-05, F-07 and F-14 are corrected to test
+their intended crash/idempotency/binding-generation invariants, and F-21 through F-24 cover causal
+admission, rollout single authority, orphaned in-flight attempt recovery and indeterminate-effect
+visibility. The exact fixtures are frozen in `PHASE_1_CONTRACT.md` section 32.10.
+
+### 30.12 Standing external-side-effect rule is unchanged
+
+Cerebro still does not promise generic exactly-once external side effects. Once an external effect
+may have escaped, automatic repeat dispatch is prohibited unless executor semantics prove read-only
+behavior, idempotency, stable externally enforced idempotency, or authoritative reconciliation.
