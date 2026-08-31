@@ -13,6 +13,7 @@ import asyncio
 import fnmatch
 import json
 import logging
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -51,10 +52,24 @@ class StdioMCPClient:
         self._req_id = 0
         self._tools: list[ToolSpec] = []
         self._raw_tool_names: set[str] = set()
+        self._connection_id: str | None = None
 
     @property
     def is_running(self) -> bool:
         return self._process is not None and self._process.returncode is None
+
+    @property
+    def connection_id(self) -> str | None:
+        """Identity of the server process currently answering, or None when nothing is.
+
+        Minted fresh on every successful handshake and cleared on stop. The Harness folds this
+        into a tool's binding generation so a respawned server never inherits the identity of
+        the process it replaced: a call frozen against the old connection resolves stale rather
+        than being silently rebound to a different subprocess.
+        """
+        if not self.is_running:
+            return None
+        return self._connection_id
 
     async def start(self) -> None:
         if not self.config.command:
@@ -82,6 +97,7 @@ class StdioMCPClient:
         # Initialize protocol handshake
         await self._initialize()
         await self._fetch_tools()
+        self._connection_id = uuid.uuid4().hex
 
     async def stop(self) -> None:
         if self._process and self._process.returncode is None:
@@ -94,6 +110,7 @@ class StdioMCPClient:
                 except Exception:
                     pass
         self._process = None
+        self._connection_id = None
 
     async def _send_request(self, method: str, params: dict[str, Any] | None = None) -> Any:
         if not self.is_running:

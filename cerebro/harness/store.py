@@ -28,34 +28,53 @@ from cerebro.harness.execution import ToolExecution
 from cerebro.harness.history import InferenceHistory
 from cerebro.harness.ids import (
     AgentTurnId,
+    ArtifactRef,
     CerebroCallId,
     ConversationTurnId,
     InferenceAttemptId,
+    InferenceItemId,
     StepSnapshotId,
+    ToolBindingGeneration,
 )
-from cerebro.harness.items import InferenceItem, ToolCallItem, ToolResultItem
+from cerebro.harness.items import (
+    InferenceItem,
+    ProviderOpaqueItem,
+    ToolCallItem,
+    ToolResultItem,
+)
+from cerebro.harness.artifacts import ARTIFACT_FORMAT_VERSION, StagedArtifact, StoredArtifact
+from cerebro.harness.snapshot import STEP_SNAPSHOT_FORMAT_VERSION, StepSnapshot
+from cerebro.harness.tooling import ToolBinding, ToolKey
 from cerebro.harness.serialization import (
     SUPPORTED_ATTEMPT_FORMAT_VERSIONS,
     SUPPORTED_ITEM_FORMAT_VERSIONS,
     SUPPORTED_TOOL_EXECUTION_FORMAT_VERSIONS,
     SUPPORTED_TURN_FORMAT_VERSIONS,
+    SUPPORTED_STEP_SNAPSHOT_FORMAT_VERSIONS,
     canonical_json,
     dump_attempt,
     dump_item,
+    dump_step_snapshot,
     dump_tool_execution,
     dump_turn,
     load_attempt,
     load_item,
+    load_step_snapshot,
     load_tool_execution,
     load_turn,
 )
 from cerebro.harness.turn import AgentTurn, AgentTurnLifecycle
 from cerebro.harness.wake import CausalWakeKey
 
-HARNESS_SCHEMA_EPOCH = 1
-HARNESS_STORAGE_FORMAT_VERSION = 1
+HARNESS_SCHEMA_EPOCH = 2
+HARNESS_STORAGE_FORMAT_VERSION = 2
 STEP_SNAPSHOT_STORAGE_FORMAT_VERSION = 1
+STEP_SNAPSHOT_EXECUTABLE_FORMAT_VERSION = STEP_SNAPSHOT_FORMAT_VERSION
 TURN_EVENT_FORMAT_VERSION = 1
+
+# Item kinds whose arrival advances the durable provider-replay checkpoint version. Anything a
+# later request must be able to reproduce exactly counts; ordinary assistant prose does not.
+_REPLAY_REQUIRED_OPAQUE = "required_for_correctness"
 
 _TERMINAL_LIFECYCLES = frozenset({"completed", "cancelled", "failed"})
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[str, frozenset[str]] = {
@@ -80,6 +99,7 @@ class HarnessMetadata(BaseModel):
     schema_epoch: int
     storage_format_version: int
     active_execution_epoch: int
+    security_revocation_epoch: int
     updated_at: str
 
 
@@ -239,6 +259,18 @@ def _tool_from_row(row: Any) -> StoredToolExecution:
         ),
         "dispatch_marked_at": execution.dispatch_marked_at,
         "resolved_at": execution.resolved_at,
+        "stable_operation_key": execution.stable_operation_key,
+        "binding_executor_identity": execution.binding_executor_identity,
+        "recovery_effect_class": execution.recovery_capability.effect_class,
+        "recovery_repeat_semantics": execution.recovery_capability.repeat_semantics,
+        "raw_output_ref": (
+            str(execution.raw_output_ref) if execution.raw_output_ref is not None else None
+        ),
+        "model_output_item_id": (
+            str(execution.model_output_item_id)
+            if execution.model_output_item_id is not None
+            else None
+        ),
     }
     for column, value in expected.items():
         if row[column] != value:
@@ -246,6 +278,71 @@ def _tool_from_row(row: Any) -> StoredToolExecution:
                 f"ToolExecution {execution.call_id} column {column} disagrees with payload"
             )
     return StoredToolExecution(execution, row["row_version"])
+
+
+def _step_snapshot_from_row(row: Any) -> StepSnapshot:
+    """Strictly decode one executable snapshot and re-check every queryable column.
+
+    An executable snapshot is the only description of what was runnable for a step. A row whose
+    indexed columns disagree with its canonical envelope is not a snapshot with a typo; it is
+    two different answers to that question, so it fails closed.
+    """
+    version = row["format_version"]
+    if version not in SUPPORTED_STEP_SNAPSHOT_FORMAT_VERSIONS:
+        raise UnsupportedFormatVersion(
+            "StepSnapshot", version, SUPPORTED_STEP_SNAPSHOT_FORMAT_VERSIONS
+        )
+    snapshot = load_step_snapshot(_json_object(row["storage_envelope_json"], "StepSnapshot"))
+    expected = {
+        "snapshot_id": str(snapshot.snapshot_id),
+        "agent_turn_id": str(snapshot.agent_turn_id),
+        "step_index": snapshot.step_index,
+        "turn_version_at_creation": snapshot.turn_version_at_creation,
+        **snapshot.queryable_columns(),
+    }
+    for column, value in expected.items():
+        if row[column] != value:
+            raise HarnessStateError(
+                f"StepSnapshot {snapshot.snapshot_id} column {column} disagrees with its "
+                f"immutable envelope"
+            )
+    return snapshot
+
+
+def _artifact_from_row(row: Any) -> StoredArtifact:
+    """Decode one artifact index row without touching its payload."""
+    if row["format_version"] != ARTIFACT_FORMAT_VERSION:
+        raise UnsupportedFormatVersion(
+            "HarnessArtifact", row["format_version"], frozenset({ARTIFACT_FORMAT_VERSION})
+        )
+    return StoredArtifact(
+        artifact_ref=ArtifactRef(row["artifact_ref"]),
+        agent_turn_id=AgentTurnId(row["agent_turn_id"]),
+        call_id=CerebroCallId(row["call_id"]),
+        tool_key=ToolKey.parse(row["tool_key"]),
+        binding_generation=ToolBindingGeneration(row["binding_generation"]),
+        content_type=row["content_type"],
+        storage_backend=row["storage_backend"],
+        byte_size=row["byte_size"],
+        content_sha256=row["content_sha256"],
+        retention_policy=row["retention_policy"],
+        provenance=_json_object(row["provenance_json"], "HarnessArtifact"),
+        created_at=row["created_at"],
+    )
+
+
+def _replay_weight(item: Any) -> int:
+    """How much one appended item advances the durable provider-replay checkpoint.
+
+    Only material a later request must reproduce exactly counts: replay-required opaque protocol
+    state and a tool call carrying a replay-required provider handle.
+    """
+    if isinstance(item, ProviderOpaqueItem):
+        return 1 if item.replay_requirement == _REPLAY_REQUIRED_OPAQUE else 0
+    if isinstance(item, ToolCallItem):
+        ref = item.provider_ref
+        return 1 if ref is not None and ref.replay_required else 0
+    return 0
 
 
 async def _fetch_one_conn(conn: Any, sql: str, params: tuple[Any, ...] = ()) -> Any:
@@ -412,6 +509,52 @@ def _updated_turn(turn: AgentTurn, *, at: str, **changes: Any) -> AgentTurn:
     return AgentTurn.model_validate(payload)
 
 
+async def _insert_tool_execution(conn: Any, execution: ToolExecution) -> None:
+    """Insert one durable ToolExecution row with its frozen binding evidence.
+
+    The binding generation, executor identity and recovery capability are written as queryable
+    columns as well as canonical JSON. A stale-binding check that had to parse a blob would be
+    one convenience query away from silently skipping itself.
+    """
+    await conn.execute(
+        """
+        INSERT INTO tool_executions (
+            call_id,format_version,row_version,agent_turn_id,step_snapshot_id,
+            tool_call_item_id,tool_key,admitted_turn_version,dispatch_state,
+            resolution_kind,resolution_status,resolution_reason,binding_generation,
+            stable_operation_key,admitted_at,dispatch_marked_at,resolved_at,payload_json,
+            binding_executor_identity,recovery_effect_class,recovery_repeat_semantics,
+            raw_output_ref,model_output_item_id
+        ) VALUES (?,?,0,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            str(execution.call_id),
+            execution.format_version,
+            str(execution.agent_turn_id),
+            str(execution.step_snapshot_id),
+            str(execution.tool_call_item_id),
+            execution.tool_key.canonical(),
+            execution.admitted_turn_version,
+            execution.dispatch_state,
+            str(execution.binding_generation),
+            execution.stable_operation_key,
+            execution.admitted_at,
+            execution.dispatch_marked_at,
+            execution.resolved_at,
+            canonical_json(dump_tool_execution(execution)),
+            execution.binding_executor_identity,
+            execution.recovery_capability.effect_class,
+            execution.recovery_capability.repeat_semantics,
+            str(execution.raw_output_ref) if execution.raw_output_ref is not None else None,
+            (
+                str(execution.model_output_item_id)
+                if execution.model_output_item_id is not None
+                else None
+            ),
+        ),
+    )
+
+
 async def _append_tool_result_conn(
     conn: Any,
     turn: AgentTurn,
@@ -464,7 +607,7 @@ async def _append_tool_result_conn(
     new_history_version = expected_history_version + 1
     cursor = await conn.execute(
         "UPDATE inference_histories SET version=?,next_sequence=?,updated_at=? "
-        "WHERE conversation_turn_id=? AND version=?",
+        "WHERE conversation_turn_id=? AND version=?",  # a tool result carries no replay material
         (
             new_history_version,
             history["next_sequence"] + 1,
@@ -476,6 +619,218 @@ async def _append_tool_result_conn(
     if cursor.rowcount != 1:
         raise StaleHarnessWrite(f"InferenceHistory {turn.conversation_turn_id} lost its CAS")
     return item, new_history_version
+
+
+@dataclass(frozen=True)
+class ExecutableBarrierFacts:
+    """The durable facts section 17 A-L requires, read back inside one writer transaction."""
+
+    turn: AgentTurn
+    snapshot: StepSnapshot
+    attempt: InferenceAttempt
+    call_item: ToolCallItem
+    binding: ToolBinding
+    history_version: int
+    replay_version: int
+    security_revocation_epoch: int
+
+
+@dataclass(frozen=True)
+class ExecutableCallCheckpoint:
+    """The committed executable pre-side-effect checkpoint for one call."""
+
+    execution: StoredToolExecution
+    turn: AgentTurn
+    snapshot: StepSnapshot
+    history_version: int
+    replay_version: int
+
+
+async def _verify_executable_barrier(
+    conn: Any,
+    *,
+    agent_turn_id: AgentTurnId,
+    snapshot_id: StepSnapshotId,
+    attempt_id: InferenceAttemptId,
+    tool_call_item_id: InferenceItemId,
+    call_id: CerebroCallId,
+    binding: ToolBinding,
+    expected_turn_version: int,
+    expected_history_version: int,
+    expected_replay_version: int,
+    require_provider_call_ref: bool,
+    required_opaque_kinds: tuple[str, ...],
+) -> ExecutableBarrierFacts:
+    """Verify section 17 A, B, C, D, F, G, H and J against durable truth, or fail closed.
+
+    These may have been committed by earlier authoritative snapshot/output transactions, so the
+    barrier does not re-write them; it proves they are still exactly what the call was frozen
+    against. Every check raises rather than degrading, because a barrier that passes on partial
+    evidence is not a barrier.
+    """
+    turn = await _turn_conn(conn, agent_turn_id)
+    if turn.state_version != expected_turn_version:
+        raise StaleHarnessWrite(
+            f"AgentTurn {agent_turn_id} expected {expected_turn_version}, "
+            f"found {turn.state_version}"
+        )
+    if turn.is_terminal:
+        raise HarnessStateError("a terminal AgentTurn has no executable call")
+
+    # A. the immutable executable snapshot exists and is still this turn's active step.
+    snapshot_row = await _fetch_one_conn(
+        conn, "SELECT * FROM step_snapshots WHERE snapshot_id = ?", (str(snapshot_id),)
+    )
+    if snapshot_row is None:
+        raise HarnessRecordNotFound(f"StepSnapshot {snapshot_id} does not exist")
+    if snapshot_row["format_version"] != STEP_SNAPSHOT_EXECUTABLE_FORMAT_VERSION:
+        raise HarnessStateError(
+            f"StepSnapshot {snapshot_id} is format_version "
+            f"{snapshot_row['format_version']}; only an executable snapshot can make a call "
+            f"executable"
+        )
+    snapshot = _step_snapshot_from_row(snapshot_row)
+    if snapshot.agent_turn_id != turn.id:
+        raise HarnessStateError("StepSnapshot does not belong to this AgentTurn")
+    if turn.active_step_snapshot_id != snapshot.snapshot_id:
+        raise HarnessStateError("the executable checkpoint requires the active StepSnapshot")
+    if snapshot.step_index != turn.current_step_index:
+        raise HarnessStateError("StepSnapshot is not the turn's current step")
+
+    # B. the active provider attempt identity exists and matches snapshot and turn.
+    stored_attempt = await _attempt_conn(conn, attempt_id)
+    attempt = stored_attempt.attempt
+    if attempt.agent_turn_id != turn.id or attempt.step_snapshot_id != snapshot.snapshot_id:
+        raise HarnessStateError("InferenceAttempt does not belong to this snapshot and turn")
+    if turn.active_inference_attempt_id != attempt.attempt_id:
+        raise HarnessStateError("the executable checkpoint requires the active InferenceAttempt")
+    if attempt.semantic_state != "active":
+        raise HarnessStateError(
+            f"attempt {attempt_id} is {attempt.semantic_state}; abandoned or terminal output "
+            f"cannot authorise a tool"
+        )
+
+    # D. the completed ToolCallItem is persisted and is this call.
+    item_row = await _fetch_one_conn(
+        conn, "SELECT * FROM inference_items WHERE item_id = ?", (str(tool_call_item_id),)
+    )
+    if item_row is None:
+        raise HarnessRecordNotFound(f"ToolCallItem {tool_call_item_id} is not durable")
+    call_item = _item_from_row(item_row)
+    if not isinstance(call_item, ToolCallItem):
+        raise HarnessStateError("the checkpointed item is not a finalized ToolCallItem")
+    if call_item.agent_turn_id != turn.id:
+        raise HarnessStateError("ToolCallItem belongs to another AgentTurn")
+    if call_item.producing_attempt_id != attempt.attempt_id:
+        raise HarnessStateError("ToolCallItem was not produced by the active attempt")
+    if call_item.call_id != call_id:
+        raise HarnessStateError("ToolCallItem does not carry this CerebroCallId")
+    if call_item.is_superseded:
+        raise HarnessStateError("a superseded ToolCallItem cannot become executable")
+    if call_item.tool_key != binding.key:
+        raise HarnessStateError("ToolCallItem names a different tool than the frozen binding")
+
+    # C and G. every finalized item this attempt produced up to the call is durable, ordered
+    # and unsuperseded, and every replay-required opaque item the adapter named is present.
+    preceding_rows = await _fetch_all_conn(
+        conn,
+        "SELECT * FROM inference_items WHERE producing_attempt_id=? AND sequence_no<=? "
+        "ORDER BY sequence_no,item_id",
+        (str(attempt.attempt_id), call_item.sequence_no),
+    )
+    preceding = [_item_from_row(row) for row in preceding_rows]
+    if not preceding or preceding[-1].item_id != call_item.item_id:
+        raise HarnessStateError(
+            "the ToolCallItem is not the last finalized item of its attempt; provider output "
+            "order is not durable"
+        )
+    sequences = [item.sequence_no for item in preceding]
+    if sequences != sorted(sequences) or len(set(sequences)) != len(sequences):
+        raise HarnessStateError("finalized provider output is not persisted in provider order")
+    superseded = [item for item in preceding if item.is_superseded]
+    if superseded:
+        raise HarnessStateError(
+            "a superseded preceding output item cannot support an executable checkpoint"
+        )
+    persisted_kinds = {
+        item.kind for item in preceding if isinstance(item, ProviderOpaqueItem)
+    }
+    missing_kinds = sorted(set(required_opaque_kinds) - persisted_kinds)
+    if missing_kinds:
+        raise HarnessStateError(
+            f"required ProviderOpaqueItem kinds are not durable: {missing_kinds}"
+        )
+
+    # F. the replay-required provider handle is persisted with the call.
+    if require_provider_call_ref:
+        ref = call_item.provider_ref
+        if ref is None or not ref.replay_required:
+            raise HarnessStateError(
+                "this call requires a replay-required ProviderCallRef; without it the "
+                "continuation cannot be reconstructed after the effect has happened"
+            )
+
+    # H. history and provider-replay versions match and never trail the frozen snapshot.
+    history_row = await _fetch_one_conn(
+        conn,
+        "SELECT * FROM inference_histories WHERE conversation_turn_id=?",
+        (str(turn.conversation_turn_id),),
+    )
+    if history_row is None:
+        raise HarnessRecordNotFound(f"InferenceHistory {turn.conversation_turn_id} is missing")
+    if history_row["version"] != expected_history_version:
+        raise StaleHarnessWrite(
+            f"InferenceHistory {turn.conversation_turn_id} expected "
+            f"{expected_history_version}, found {history_row['version']}"
+        )
+    if history_row["replay_version"] != expected_replay_version:
+        raise StaleHarnessWrite(
+            f"provider replay checkpoint expected {expected_replay_version}, "
+            f"found {history_row['replay_version']}"
+        )
+    if snapshot.inference_history_version > expected_history_version:
+        raise HarnessStateError("snapshot history version is ahead of durable history")
+    if snapshot.provider_replay_version > expected_replay_version:
+        raise HarnessStateError("snapshot replay version is ahead of durable replay state")
+
+    # J. the frozen plan binds exactly this executor generation and recovery capability.
+    frozen = snapshot.tool_plan.binding_for(binding.key)
+    if frozen is None:
+        raise HarnessStateError(
+            f"tool {binding.key.canonical()} is not in the frozen tool plan for this step"
+        )
+    if frozen != binding:
+        raise HarnessStateError(
+            f"the offered binding for {binding.key.canonical()} is not the one frozen in the "
+            f"snapshot; a call is never rebound to a newer generation"
+        )
+    if snapshot.tool_plan.grant_evidence and snapshot.tool_plan.evidence_for(binding.key) is None:
+        raise HarnessStateError(
+            f"no frozen grant evidence for {binding.key.canonical()}"
+        )
+
+    metadata_row = await _fetch_one_conn(
+        conn, "SELECT * FROM harness_metadata WHERE singleton = 1"
+    )
+    if metadata_row is None:
+        raise HarnessRecordNotFound("Harness metadata is missing")
+    current_epoch = metadata_row["security_revocation_epoch"]
+    if current_epoch != snapshot.security_revocation_epoch:
+        raise HarnessStateError(
+            f"security revocation epoch advanced from {snapshot.security_revocation_epoch} to "
+            f"{current_epoch}; this call resolves denied under its original identity"
+        )
+
+    return ExecutableBarrierFacts(
+        turn=turn,
+        snapshot=snapshot,
+        attempt=attempt,
+        call_item=call_item,
+        binding=frozen,
+        history_version=expected_history_version,
+        replay_version=expected_replay_version,
+        security_revocation_epoch=current_epoch,
+    )
 
 
 class HarnessStore:
@@ -743,6 +1098,154 @@ class HarnessStore:
         if str(snapshot.snapshot_id) != row["snapshot_id"]:
             raise HarnessStateError("snapshot identity column disagrees with its envelope")
         return snapshot
+
+    async def commit_step_snapshot(
+        self,
+        snapshot: StepSnapshot,
+        *,
+        expected_turn_version: int,
+    ) -> tuple[StepSnapshot, AgentTurn]:
+        """Commit the immutable executable snapshot and make it the turn's active step.
+
+        The snapshot is written whole: the canonical envelope plus every queryable column, in
+        one transaction with the turn projection and its event. There is no window in which a
+        snapshot exists but is not yet the thing recovery would read.
+        """
+        snapshot = load_step_snapshot(dump_step_snapshot(snapshot))
+        if snapshot.turn_version_at_creation != expected_turn_version:
+            raise HarnessStateError("snapshot creation version must equal expected turn version")
+
+        async def _tx(conn: Any) -> tuple[StepSnapshot, AgentTurn]:
+            turn = await _turn_conn(conn, snapshot.agent_turn_id)
+            if turn.state_version != expected_turn_version:
+                raise StaleHarnessWrite(
+                    f"AgentTurn {turn.id} expected {expected_turn_version}, "
+                    f"found {turn.state_version}"
+                )
+            if turn.is_terminal:
+                raise HarnessStateError("terminal AgentTurn cannot admit a new StepSnapshot")
+            if snapshot.step_index < turn.current_step_index:
+                raise HarnessStateError("StepSnapshot step_index cannot rewind current step")
+            metadata = await _fetch_one_conn(
+                conn, "SELECT * FROM harness_metadata WHERE singleton = 1"
+            )
+            if metadata is None:
+                raise HarnessRecordNotFound("Harness metadata is missing")
+            if snapshot.security_revocation_epoch != metadata["security_revocation_epoch"]:
+                raise HarnessStateError(
+                    "a snapshot must freeze the current security revocation epoch"
+                )
+            history = await _fetch_one_conn(
+                conn,
+                "SELECT * FROM inference_histories WHERE conversation_turn_id=?",
+                (str(turn.conversation_turn_id),),
+            )
+            if history is None:
+                raise HarnessRecordNotFound(
+                    f"InferenceHistory {turn.conversation_turn_id} is missing"
+                )
+            if snapshot.inference_history_version > history["version"]:
+                raise HarnessStateError("snapshot history version is ahead of durable history")
+            if snapshot.provider_replay_version > history["replay_version"]:
+                raise HarnessStateError("snapshot replay version is ahead of durable replay")
+            columns = snapshot.queryable_columns()
+            names = ",".join(columns)
+            placeholders = ",".join("?" for _ in columns)
+            await conn.execute(
+                f"""
+                INSERT INTO step_snapshots (
+                    snapshot_id,format_version,agent_turn_id,step_index,
+                    turn_version_at_creation,storage_envelope_json,created_at,{names}
+                ) VALUES (?,?,?,?,?,?,?,{placeholders})
+                """,
+                (
+                    str(snapshot.snapshot_id),
+                    snapshot.format_version,
+                    str(snapshot.agent_turn_id),
+                    snapshot.step_index,
+                    snapshot.turn_version_at_creation,
+                    canonical_json(dump_step_snapshot(snapshot)),
+                    snapshot.created_at,
+                    *columns.values(),
+                ),
+            )
+            updated = _updated_turn(
+                turn,
+                at=snapshot.created_at,
+                current_step_index=snapshot.step_index,
+                active_step_snapshot_id=snapshot.snapshot_id,
+            )
+            await _update_turn_conn(conn, updated, expected_turn_version)
+            await _append_event(
+                conn,
+                updated,
+                "step.snapshot_committed",
+                at=snapshot.created_at,
+                snapshot_id=snapshot.snapshot_id,
+                detail={
+                    "format_version": snapshot.format_version,
+                    "tool_plan_hash": snapshot.tool_plan.plan_hash(),
+                    "tool_count": len(snapshot.tool_plan.bindings),
+                    "security_revocation_epoch": snapshot.security_revocation_epoch,
+                },
+            )
+            return snapshot, updated
+
+        return await db.run_in_writer(_tx)
+
+    async def get_step_snapshot(self, snapshot_id: StepSnapshotId) -> StepSnapshot:
+        """Load one immutable executable snapshot, failing closed on any divergence."""
+        row = await db.fetch_one(
+            "SELECT * FROM step_snapshots WHERE snapshot_id = ?", (str(snapshot_id),)
+        )
+        if row is None:
+            raise HarnessRecordNotFound(f"StepSnapshot {snapshot_id} does not exist")
+        if row["format_version"] != STEP_SNAPSHOT_EXECUTABLE_FORMAT_VERSION:
+            raise UnsupportedFormatVersion(
+                "StepSnapshot",
+                row["format_version"],
+                frozenset({STEP_SNAPSHOT_EXECUTABLE_FORMAT_VERSION}),
+            )
+        return _step_snapshot_from_row(row)
+
+    async def replay_version(self, conversation_turn_id: ConversationTurnId) -> int:
+        """The durable provider-replay checkpoint version for one conversation history."""
+        row = await db.fetch_one(
+            "SELECT replay_version FROM inference_histories WHERE conversation_turn_id = ?",
+            (str(conversation_turn_id),),
+        )
+        if row is None:
+            raise HarnessRecordNotFound(f"InferenceHistory {conversation_turn_id} is missing")
+        return row["replay_version"]
+
+    async def security_revocation_epoch(self) -> int:
+        """The current durable security revocation epoch."""
+        return (await self.metadata()).security_revocation_epoch
+
+    async def advance_security_revocation_epoch(self, *, at: str | None = None) -> int:
+        """Advance the revocation epoch, invalidating every earlier grant snapshot.
+
+        Monotonic and coarse on purpose. Fine-grained revocation would need per-grant state that
+        an interrupted turn cannot be trusted to have read; an epoch is one comparison that a
+        snapshot froze and dispatch re-checks.
+        """
+        changed_at = at or _now()
+
+        async def _tx(conn: Any) -> int:
+            row = await _fetch_one_conn(
+                conn, "SELECT * FROM harness_metadata WHERE singleton = 1"
+            )
+            if row is None:
+                raise HarnessRecordNotFound("Harness metadata is missing")
+            new_epoch = row["security_revocation_epoch"] + 1
+            await conn.execute(
+                "UPDATE harness_metadata SET security_revocation_epoch=?,updated_at=? "
+                "WHERE singleton=1",
+                (new_epoch, changed_at),
+            )
+            return new_epoch
+
+        return await db.run_in_writer(_tx)
 
     async def admit_inference_attempt(
         self,
@@ -1092,14 +1595,19 @@ class HarnessStore:
                 stored_items.append(item)
                 next_sequence += 1
             new_version = expected_history_version + len(stored_items)
+            new_replay_version = history["replay_version"] + sum(
+                _replay_weight(item) for item in stored_items
+            )
             cursor = await conn.execute(
                 """
-                UPDATE inference_histories SET version=?,next_sequence=?,updated_at=?
+                UPDATE inference_histories
+                SET version=?,next_sequence=?,replay_version=?,updated_at=?
                 WHERE conversation_turn_id=? AND version=?
                 """,
                 (
                     new_version,
                     next_sequence,
+                    new_replay_version,
                     appended_at,
                     str(conversation_turn_id),
                     expected_history_version,
@@ -1112,7 +1620,11 @@ class HarnessStore:
                 turn,
                 "inference.output_checkpointed",
                 at=appended_at,
-                detail={"item_count": len(stored_items), "history_version": new_version},
+                detail={
+                    "item_count": len(stored_items),
+                    "history_version": new_version,
+                    "replay_version": new_replay_version,
+                },
             )
             return stored_items, new_version
 
@@ -1302,32 +1814,7 @@ class HarnessStore:
                 or item.tool_key != execution.tool_key
             ):
                 raise HarnessStateError("ToolExecution does not match its ToolCallItem")
-            await conn.execute(
-                """
-                INSERT INTO tool_executions (
-                    call_id,format_version,row_version,agent_turn_id,step_snapshot_id,
-                    tool_call_item_id,tool_key,admitted_turn_version,dispatch_state,
-                    resolution_kind,resolution_status,resolution_reason,binding_generation,
-                    stable_operation_key,admitted_at,dispatch_marked_at,resolved_at,payload_json
-                ) VALUES (?,?,0,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,?)
-                """,
-                (
-                    str(execution.call_id),
-                    execution.format_version,
-                    str(execution.agent_turn_id),
-                    str(execution.step_snapshot_id),
-                    str(execution.tool_call_item_id),
-                    execution.tool_key.canonical(),
-                    execution.admitted_turn_version,
-                    execution.dispatch_state,
-                    str(execution.binding_generation),
-                    execution.stable_operation_key,
-                    execution.admitted_at,
-                    execution.dispatch_marked_at,
-                    execution.resolved_at,
-                    canonical_json(dump_tool_execution(execution)),
-                ),
-            )
+            await _insert_tool_execution(conn, execution)
             await _append_event(
                 conn,
                 turn,
@@ -1339,6 +1826,236 @@ class HarnessStore:
             return StoredToolExecution(execution, 0)
 
         return await db.run_in_writer(_tx)
+
+    async def commit_executable_call_checkpoint(
+        self,
+        *,
+        agent_turn_id: AgentTurnId,
+        snapshot_id: StepSnapshotId,
+        attempt_id: InferenceAttemptId,
+        tool_call_item_id: InferenceItemId,
+        call_id: CerebroCallId,
+        binding: ToolBinding,
+        expected_turn_version: int,
+        expected_history_version: int,
+        expected_replay_version: int,
+        stable_operation_key: str | None = None,
+        require_provider_call_ref: bool = False,
+        required_opaque_kinds: tuple[str, ...] = (),
+        at: str | None = None,
+    ) -> ExecutableCallCheckpoint:
+        """Commit the section 17 / AR-06 pre-side-effect barrier atomically.
+
+        A, B, C, F, G and H may already have been committed by earlier authoritative snapshot
+        and output transactions; this verifies them and fails closed if any is missing or stale.
+        D, E, E2, I, J, K and L commit together here, in the existing single-writer
+        `BEGIN IMMEDIATE` transaction. A crash before that commit leaves the call
+        non-executable, and no external tool has been invoked because nothing may invoke one
+        until a *later* transaction moves the execution to `dispatch_may_have_escaped`.
+        """
+        committed_at = at or _now()
+        capability = binding.recovery_capability
+        if capability.requires_stable_operation_key and not stable_operation_key:
+            raise HarnessStateError(
+                f"tool {binding.key.canonical()} declares repeat_semantics="
+                f"'stable_idempotency_key'; E2 requires a durable operation key before the "
+                f"call is dispatch eligible"
+            )
+
+        async def _tx(conn: Any) -> ExecutableCallCheckpoint:
+            facts = await _verify_executable_barrier(
+                conn,
+                agent_turn_id=agent_turn_id,
+                snapshot_id=snapshot_id,
+                attempt_id=attempt_id,
+                tool_call_item_id=tool_call_item_id,
+                call_id=call_id,
+                binding=binding,
+                expected_turn_version=expected_turn_version,
+                expected_history_version=expected_history_version,
+                expected_replay_version=expected_replay_version,
+                require_provider_call_ref=require_provider_call_ref,
+                required_opaque_kinds=required_opaque_kinds,
+            )
+            existing = await _fetch_one_conn(
+                conn,
+                "SELECT call_id FROM tool_executions WHERE call_id=? OR tool_call_item_id=?",
+                (str(call_id), str(tool_call_item_id)),
+            )
+            if existing is not None:
+                raise DuplicateHarnessIdentity(
+                    f"ToolCallItem {tool_call_item_id} already has execution identity "
+                    f"{existing['call_id']}; one completed call has exactly one ToolExecution"
+                )
+            # I, J, E and E2 in one row.
+            execution = ToolExecution(
+                call_id=call_id,
+                agent_turn_id=facts.turn.id,
+                step_snapshot_id=facts.snapshot.snapshot_id,
+                tool_call_item_id=tool_call_item_id,
+                tool_key=facts.binding.key,
+                admitted_turn_version=expected_turn_version,
+                binding_generation=facts.binding.binding_generation,
+                binding_executor_identity=facts.binding.executor_identity,
+                recovery_capability=facts.binding.recovery_capability,
+                stable_operation_key=stable_operation_key,
+                admitted_at=committed_at,
+            )
+            execution = load_tool_execution(dump_tool_execution(execution))
+            if not execution.dispatch_eligible:
+                raise HarnessStateError("E2 is unsatisfied; the call is not dispatch eligible")
+            await _insert_tool_execution(conn, execution)
+            # K, and L in the same transaction.
+            updated_turn = _updated_turn(facts.turn, at=committed_at)
+            await _update_turn_conn(conn, updated_turn, expected_turn_version)
+            await _append_event(
+                conn,
+                updated_turn,
+                "tool.call_admitted",
+                at=committed_at,
+                snapshot_id=facts.snapshot.snapshot_id,
+                attempt_id=facts.attempt.attempt_id,
+                call_id=call_id,
+                detail={
+                    "checkpoint": "executable_pre_side_effect",
+                    "tool_key": facts.binding.key.canonical(),
+                    "binding_generation": str(facts.binding.binding_generation),
+                    "repeat_semantics": facts.binding.recovery_capability.repeat_semantics,
+                    "stable_operation_key_assigned": bool(stable_operation_key),
+                    "history_version": facts.history_version,
+                    "replay_version": facts.replay_version,
+                    "security_revocation_epoch": facts.security_revocation_epoch,
+                },
+            )
+            return ExecutableCallCheckpoint(
+                execution=StoredToolExecution(execution, 0),
+                turn=updated_turn,
+                snapshot=facts.snapshot,
+                history_version=facts.history_version,
+                replay_version=facts.replay_version,
+            )
+
+        return await db.run_in_writer(_tx)
+
+    async def mark_tool_dispatch_after_barrier(
+        self,
+        call_id: CerebroCallId,
+        *,
+        binding: ToolBinding,
+        expected_tool_version: int,
+        expected_turn_version: int,
+        expected_history_version: int,
+        expected_replay_version: int,
+        require_provider_call_ref: bool = False,
+        required_opaque_kinds: tuple[str, ...] = (),
+        at: str | None = None,
+    ) -> tuple[StoredToolExecution, AgentTurn]:
+        """Re-verify the whole barrier and commit dispatch uncertainty in one transaction.
+
+        Verification and the dispatch mark cannot be two transactions. If they were, a
+        revocation, an abandonment or a rebinding could land between them and the executor would
+        be invoked against facts that were true a moment ago.
+        """
+        marked_at = at or _now()
+
+        async def _tx(conn: Any) -> tuple[StoredToolExecution, AgentTurn]:
+            stored = await _tool_conn(conn, call_id)
+            if stored.row_version != expected_tool_version:
+                raise StaleHarnessWrite(
+                    f"ToolExecution {call_id} expected {expected_tool_version}, "
+                    f"found {stored.row_version}"
+                )
+            execution = stored.execution
+            if execution.dispatch_state != "not_dispatched":
+                raise HarnessStateError(
+                    f"ToolExecution {call_id} is already {execution.dispatch_state}; the "
+                    f"dispatch mark is committed exactly once"
+                )
+            if not execution.binds_exactly(binding):
+                raise HarnessStateError(
+                    "the offered binding is not the frozen executable identity of this call"
+                )
+            facts = await _verify_executable_barrier(
+                conn,
+                agent_turn_id=execution.agent_turn_id,
+                snapshot_id=execution.step_snapshot_id,
+                attempt_id=(
+                    (await _turn_conn(conn, execution.agent_turn_id)).active_inference_attempt_id
+                ),
+                tool_call_item_id=execution.tool_call_item_id,
+                call_id=call_id,
+                binding=binding,
+                expected_turn_version=expected_turn_version,
+                expected_history_version=expected_history_version,
+                expected_replay_version=expected_replay_version,
+                require_provider_call_ref=require_provider_call_ref,
+                required_opaque_kinds=required_opaque_kinds,
+            )
+            updated = execution.model_copy(deep=True)
+            updated.mark_dispatch_may_have_escaped(at=marked_at)
+            updated = load_tool_execution(dump_tool_execution(updated))
+            new_version = stored.row_version + 1
+            cursor = await conn.execute(
+                """
+                UPDATE tool_executions SET
+                    row_version=?,dispatch_state=?,dispatch_marked_at=?,payload_json=?
+                WHERE call_id=? AND row_version=?
+                """,
+                (
+                    new_version,
+                    updated.dispatch_state,
+                    updated.dispatch_marked_at,
+                    canonical_json(dump_tool_execution(updated)),
+                    str(call_id),
+                    expected_tool_version,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise StaleHarnessWrite(f"ToolExecution {call_id} lost its CAS")
+            count_row = await _fetch_one_conn(
+                conn,
+                "SELECT COUNT(*) AS count FROM tool_executions WHERE agent_turn_id=? "
+                "AND (dispatch_state='dispatch_may_have_escaped' "
+                "OR resolution_kind='indeterminate')",
+                (str(facts.turn.id),),
+            )
+            unresolved_count = count_row["count"]
+            updated_turn = _updated_turn(
+                facts.turn,
+                at=marked_at,
+                unresolved_effect_count=unresolved_count,
+                needs_attention=unresolved_count > 0,
+            )
+            await _update_turn_conn(conn, updated_turn, expected_turn_version)
+            await _append_event(
+                conn,
+                updated_turn,
+                "tool.dispatch_marked",
+                at=marked_at,
+                snapshot_id=updated.step_snapshot_id,
+                call_id=call_id,
+                detail={"binding_generation": str(updated.binding_generation)},
+            )
+            return StoredToolExecution(updated, new_version), updated_turn
+
+        return await db.run_in_writer(_tx)
+
+    async def get_artifact(self, artifact_ref: ArtifactRef) -> StoredArtifact:
+        """Read one artifact index row. The payload itself comes from `ArtifactStore.read`."""
+        row = await db.fetch_one(
+            "SELECT * FROM harness_artifacts WHERE artifact_ref = ?", (str(artifact_ref),)
+        )
+        if row is None:
+            raise HarnessRecordNotFound(f"artifact {artifact_ref} does not exist")
+        return _artifact_from_row(row)
+
+    async def list_call_artifacts(self, call_id: CerebroCallId) -> list[StoredArtifact]:
+        """Every durable raw-output artifact recorded for one call, oldest first."""
+        rows = await db.fetch_all(
+            "SELECT * FROM harness_artifacts WHERE call_id=? ORDER BY created_at,artifact_ref",
+            (str(call_id),),
+        )
+        return [_artifact_from_row(row) for row in rows]
 
     async def get_tool_execution(self, call_id: CerebroCallId) -> StoredToolExecution:
         """Load one versioned ToolExecution."""
@@ -1360,6 +2077,7 @@ class HarnessStore:
         mutate: Callable[[ToolExecution], None],
         result_item: ToolResultItem | None = None,
         expected_history_version: int | None = None,
+        artifact: StagedArtifact | None = None,
     ) -> tuple[StoredToolExecution, AgentTurn]:
         async def _tx(conn: Any) -> tuple[StoredToolExecution, AgentTurn]:
             stored = await _tool_conn(conn, call_id)
@@ -1383,10 +2101,38 @@ class HarnessStore:
             if result_item is not None:
                 if result_item.call_id != updated.call_id or result_item.tool_key != updated.tool_key:
                     raise HarnessStateError("ToolResultItem does not match its ToolExecution")
-                if result_item.raw_output_ref is not None:
-                    raise HarnessStateError("raw tool output storage is deferred to Phase 1C")
                 if expected_history_version is None:
                     raise HarnessStateError("result append requires expected_history_version")
+                # A reference that outlives its object is worse than no reference: it looks like
+                # durable evidence and reads as a missing file. Both directions fail closed.
+                if result_item.raw_output_ref is not None and artifact is None:
+                    raise HarnessStateError(
+                        "a committed raw_output_ref requires its staged durable artifact"
+                    )
+                if artifact is not None:
+                    if result_item.raw_output_ref != artifact.artifact_ref:
+                        raise HarnessStateError(
+                            "ToolResultItem.raw_output_ref does not name the staged artifact"
+                        )
+                    if artifact.call_id != updated.call_id:
+                        raise HarnessStateError("staged artifact belongs to another call")
+                    if updated.raw_output_ref != artifact.artifact_ref:
+                        raise HarnessStateError(
+                            "ToolExecution must reference the staged raw output artifact"
+                        )
+                    await conn.execute(
+                        """
+                        INSERT INTO harness_artifacts (
+                            artifact_ref,format_version,agent_turn_id,call_id,tool_key,
+                            binding_generation,content_type,storage_backend,byte_size,
+                            content_sha256,inline_payload,relative_path,retention_policy,
+                            provenance_json,created_at
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        artifact.insert_values(),
+                    )
+                    event_detail["artifact_ref"] = str(artifact.artifact_ref)
+                    event_detail["raw_output_bytes"] = artifact.byte_size
                 stored_result, history_version = await _append_tool_result_conn(
                     conn,
                     turn,
@@ -1409,7 +2155,8 @@ class HarnessStore:
                 UPDATE tool_executions SET
                     format_version=?,row_version=?,dispatch_state=?,resolution_kind=?,
                     resolution_status=?,resolution_reason=?,stable_operation_key=?,
-                    dispatch_marked_at=?,resolved_at=?,payload_json=?
+                    dispatch_marked_at=?,resolved_at=?,payload_json=?,
+                    raw_output_ref=?,model_output_item_id=?
                 WHERE call_id=? AND row_version=?
                 """,
                 (
@@ -1423,6 +2170,12 @@ class HarnessStore:
                     updated.dispatch_marked_at,
                     updated.resolved_at,
                     canonical_json(dump_tool_execution(updated)),
+                    str(updated.raw_output_ref) if updated.raw_output_ref is not None else None,
+                    (
+                        str(updated.model_output_item_id)
+                        if updated.model_output_item_id is not None
+                        else None
+                    ),
                     str(call_id),
                     expected_tool_version,
                 ),
@@ -1485,13 +2238,16 @@ class HarnessStore:
         expected_turn_version: int,
         result_item: ToolResultItem | None = None,
         expected_history_version: int | None = None,
+        artifact: StagedArtifact | None = None,
         at: str | None = None,
     ) -> tuple[StoredToolExecution, AgentTurn]:
-        """Commit a known outcome and recompute attention in the same transaction."""
+        """Commit a known outcome, its raw evidence and attention in one transaction."""
         if (result_item is None) != (expected_history_version is None):
             raise HarnessStateError(
                 "result_item and expected_history_version must be supplied together"
             )
+        if artifact is not None and result_item is None:
+            raise HarnessStateError("a staged artifact needs its canonical ToolResultItem")
         resolved_at = at or _now()
         return await self._transition_tool(
             call_id,
@@ -1502,10 +2258,12 @@ class HarnessStore:
             mutate=lambda value: value.resolve_known(
                 status,
                 at=resolved_at,
+                raw_output_ref=artifact.artifact_ref if artifact is not None else None,
                 model_output_item_id=result_item.item_id if result_item is not None else None,
             ),
             result_item=result_item,
             expected_history_version=expected_history_version,
+            artifact=artifact,
         )
 
     async def resolve_tool_indeterminate(

@@ -690,7 +690,7 @@ async def test_migration_from_pre_phase1b_schema_preserves_product_data(tmp_path
     before_audit_events = await db.fetch_all("SELECT * FROM audit_events")
     await db.close()
     await db.connect(database)
-    assert await db.migrate() == [5]
+    assert await db.migrate() == [5, 6]
     assert await db.fetch_all("SELECT * FROM messages") == before_messages
     assert await db.fetch_all("SELECT * FROM tasks") == before_tasks
     assert await db.fetch_all("SELECT * FROM tool_calls") == before_tool_calls
@@ -706,7 +706,15 @@ async def test_migration_from_pre_phase1b_schema_preserves_product_data(tmp_path
         "trg_inference_attempts_monotonic",
         "trg_inference_items_identity_and_supersession",
         "trg_tool_executions_monotonic",
+        "trg_step_snapshots_executable_identity",
+        "trg_harness_artifacts_immutable",
+        "trg_inference_histories_replay_monotonic",
+        "trg_tool_executions_output_refs_immutable",
     }
+    metadata = await db.fetch_one("SELECT * FROM harness_metadata WHERE singleton=1")
+    assert metadata["schema_epoch"] == 2
+    assert metadata["storage_format_version"] == 2
+    assert metadata["security_revocation_epoch"] == 0
     await db.close()
 
 
@@ -1360,7 +1368,7 @@ async def test_migration_triggers_enforce_every_monotonic_boundary(test_db: Sett
     assert await db.migrate(old_dir) == [1, 2, 3, 4]
     await db.close()
     await db.connect(database)
-    assert await db.migrate() == [5]
+    assert await db.migrate() == [5, 6]
     store = HarnessStore()
     turn, snapshot, attempt = await running_turn_with_attempt(store, occurrence="tg-15")
     with pytest.raises(sqlite3.IntegrityError, match="step snapshot identity is immutable"):

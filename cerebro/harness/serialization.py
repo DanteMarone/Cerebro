@@ -22,12 +22,20 @@ from cerebro.harness.exceptions import UnsupportedFormatVersion
 from cerebro.harness.execution import TOOL_EXECUTION_FORMAT_VERSION, ToolExecution
 from cerebro.harness.items import INFERENCE_ITEM_FORMAT_VERSION, InferenceItem
 from cerebro.harness.request import InferenceRequest
+from cerebro.harness.snapshot import (
+    STEP_SNAPSHOT_FORMAT_VERSION,
+    TOOL_PLAN_FORMAT_VERSION,
+    StepSnapshot,
+    ToolPlanSnapshot,
+)
 from cerebro.harness.turn import AGENT_TURN_FORMAT_VERSION, AgentTurn
 from cerebro.harness.wake import CAUSAL_WAKE_KEY_VERSION
 
 __all__ = [
     "SUPPORTED_ATTEMPT_FORMAT_VERSIONS",
     "SUPPORTED_ITEM_FORMAT_VERSIONS",
+    "SUPPORTED_STEP_SNAPSHOT_FORMAT_VERSIONS",
+    "SUPPORTED_TOOL_PLAN_FORMAT_VERSIONS",
     "SUPPORTED_TURN_FORMAT_VERSIONS",
     "SUPPORTED_TOOL_EXECUTION_FORMAT_VERSIONS",
     "canonical_json",
@@ -35,22 +43,30 @@ __all__ = [
     "dump_event",
     "dump_item",
     "dump_request",
+    "dump_step_snapshot",
     "dump_tool_execution",
+    "dump_tool_plan",
     "dump_turn",
     "load_attempt",
     "load_event",
     "load_item",
     "load_request",
+    "load_step_snapshot",
     "load_tool_execution",
+    "load_tool_plan",
     "load_turn",
 ]
 
 SUPPORTED_ITEM_FORMAT_VERSIONS: frozenset[int] = frozenset({INFERENCE_ITEM_FORMAT_VERSION})
 SUPPORTED_ATTEMPT_FORMAT_VERSIONS: frozenset[int] = frozenset({INFERENCE_ATTEMPT_FORMAT_VERSION})
 SUPPORTED_TOOL_EXECUTION_FORMAT_VERSIONS: frozenset[int] = frozenset(
-    {TOOL_EXECUTION_FORMAT_VERSION}
+    {1, TOOL_EXECUTION_FORMAT_VERSION}
 )
 SUPPORTED_TURN_FORMAT_VERSIONS: frozenset[int] = frozenset({AGENT_TURN_FORMAT_VERSION})
+SUPPORTED_STEP_SNAPSHOT_FORMAT_VERSIONS: frozenset[int] = frozenset(
+    {STEP_SNAPSHOT_FORMAT_VERSION}
+)
+SUPPORTED_TOOL_PLAN_FORMAT_VERSIONS: frozenset[int] = frozenset({TOOL_PLAN_FORMAT_VERSION})
 
 _HIDDEN_INPUT_CONFIG = ConfigDict(hide_input_in_errors=True)
 _ITEM_ADAPTER: TypeAdapter[Any] = TypeAdapter(InferenceItem, config=_HIDDEN_INPUT_CONFIG)
@@ -103,6 +119,38 @@ def dump_item(item: Any) -> dict[str, Any]:
 def load_item(data: dict[str, Any]) -> Any:
     _require_version("InferenceItem", data, SUPPORTED_ITEM_FORMAT_VERSIONS)
     return _ITEM_ADAPTER.validate_python(data)
+
+
+# -- executable step snapshots ------------------------------------------------------
+#
+# The strictest family in the package. A snapshot is the sole record of what was executable, so
+# an unrecognised snapshot or tool-plan version is refused rather than parsed for the fields
+# this build happens to understand.
+
+def dump_step_snapshot(snapshot: StepSnapshot) -> dict[str, Any]:
+    """Serialize one immutable executable snapshot."""
+    return snapshot.model_dump(mode="json")
+
+
+def load_step_snapshot(data: dict[str, Any]) -> StepSnapshot:
+    """Load a snapshot, failing closed on both the snapshot and nested tool-plan versions."""
+    _require_version("StepSnapshot", data, SUPPORTED_STEP_SNAPSHOT_FORMAT_VERSIONS)
+    plan = data.get("tool_plan")
+    plan_version = plan.get("format_version") if isinstance(plan, dict) else None
+    if plan_version not in SUPPORTED_TOOL_PLAN_FORMAT_VERSIONS:
+        raise UnsupportedFormatVersion(
+            "ToolPlanSnapshot", plan_version, SUPPORTED_TOOL_PLAN_FORMAT_VERSIONS
+        )
+    return StepSnapshot.model_validate(data)
+
+
+def dump_tool_plan(plan: ToolPlanSnapshot) -> dict[str, Any]:
+    return plan.model_dump(mode="json")
+
+
+def load_tool_plan(data: dict[str, Any]) -> ToolPlanSnapshot:
+    _require_version("ToolPlanSnapshot", data, SUPPORTED_TOOL_PLAN_FORMAT_VERSIONS)
+    return ToolPlanSnapshot.model_validate(data)
 
 
 # -- inference attempts -------------------------------------------------------------

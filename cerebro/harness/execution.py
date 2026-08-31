@@ -12,7 +12,7 @@ being tidied into a fabricated failure.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -36,7 +36,10 @@ __all__ = [
     "ToolResolution",
 ]
 
-TOOL_EXECUTION_FORMAT_VERSION = 1
+# Version 2 adds the frozen executor identity alongside the binding generation (Phase 1C).
+# Version 1 rows still load: the field is optional and absent means "identity not frozen",
+# which is exactly what a Phase 1B row means.
+TOOL_EXECUTION_FORMAT_VERSION = 2
 
 ToolDispatchState = Literal["not_dispatched", "dispatch_may_have_escaped", "resolved"]
 
@@ -108,6 +111,7 @@ class ToolExecution(BaseModel):
     resolution: ToolResolution | None = None
 
     binding_generation: ToolBindingGeneration
+    binding_executor_identity: str | None = None
     recovery_capability: ToolRecoveryCapability
     stable_operation_key: str | None = None
 
@@ -145,6 +149,23 @@ class ToolExecution(BaseModel):
         if self.resolution is None:
             return True
         return self.resolution.resolution_kind == "indeterminate"
+
+    def binds_exactly(self, binding: "Any") -> bool:
+        """Whether this execution is frozen against exactly one `ToolBinding` (barrier J).
+
+        Equality is on the whole executable identity, not the name: key, generation, executor
+        identity where frozen, and the recovery capability that alone may authorise a repeat.
+        """
+        if self.tool_key != binding.key:
+            return False
+        if self.binding_generation != binding.binding_generation:
+            return False
+        if (
+            self.binding_executor_identity is not None
+            and self.binding_executor_identity != binding.executor_identity
+        ):
+            return False
+        return self.recovery_capability == binding.recovery_capability
 
     @property
     def dispatch_eligible(self) -> bool:
