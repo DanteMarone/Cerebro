@@ -194,8 +194,8 @@ CREATE INDEX IF NOT EXISTS idx_inference_items_turn_order
     ON inference_items(agent_turn_id, sequence_no, item_id);
 CREATE INDEX IF NOT EXISTS idx_inference_items_attempt
     ON inference_items(producing_attempt_id, sequence_no);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_inference_attempts_turn_generation
-    ON inference_attempts(agent_turn_id, attempt_generation);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inference_attempts_snapshot_generation
+    ON inference_attempts(step_snapshot_id, attempt_generation);
 CREATE INDEX IF NOT EXISTS idx_tool_executions_turn_state
     ON tool_executions(agent_turn_id, dispatch_state, resolution_kind, call_id);
 
@@ -211,6 +211,23 @@ BEGIN
         WHEN OLD.lifecycle IN ('completed', 'cancelled', 'failed')
              AND NEW.lifecycle != OLD.lifecycle
         THEN RAISE(ABORT, 'terminal agent_turn lifecycle cannot change')
+    END;
+    SELECT CASE
+        WHEN OLD.lifecycle IN ('completed', 'cancelled', 'failed')
+             AND (
+                 NEW.product_outcome_kind IS NOT OLD.product_outcome_kind
+                 OR NEW.final_message_id IS NOT OLD.final_message_id
+                 OR NEW.failure_kind IS NOT OLD.failure_kind
+                 OR json_extract(NEW.payload_json, '$.product_outcome_kind')
+                    IS NOT json_extract(OLD.payload_json, '$.product_outcome_kind')
+                 OR json_extract(NEW.payload_json, '$.final_message_id')
+                    IS NOT json_extract(OLD.payload_json, '$.final_message_id')
+                 OR json_extract(NEW.payload_json, '$.failure_kind')
+                    IS NOT json_extract(OLD.payload_json, '$.failure_kind')
+                 OR json_extract(NEW.payload_json, '$.failure_detail')
+                    IS NOT json_extract(OLD.payload_json, '$.failure_detail')
+             )
+        THEN RAISE(ABORT, 'terminal agent_turn finalization identity cannot change')
     END;
 END;
 

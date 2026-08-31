@@ -91,11 +91,16 @@ Cerebro now has additive SQLite storage for future restart-safe Harness executio
 causal wake admission, turn state, ordered inference history, provider dispatch barriers, and tool
 outcomes whose external truth is uncertain. On an explicit Harness recovery scan, non-terminal work
 that the current phase cannot safely continue becomes durably `suspended` with a reason; uncertain
-tool effects remain visible as needing attention after restart.
+tool effects remain visible as needing attention after restart. Recovery isolates damaged records
+per turn so a corrupt or missing reference cannot prevent later turns from receiving a safe
+disposition. Canonical history cannot be superseded across an effect that may have escaped, even
+after the database is closed and reopened.
 
 This is currently an internal storage and diagnostic substrate, not a user-facing execution mode.
 The production service still uses `AgentRuntime`, and startup does not invoke the Harness recovery
 driver. The new code does not send provider requests, execute tools, or change normal chat behavior.
+Terminal Harness rows cannot authorize new provider/tool dispatch, but an effect already marked
+uncertain can still be reconciled without erasing any other outstanding attention.
 
 ### Agent Silence & Silent Completion (§9.3)
 

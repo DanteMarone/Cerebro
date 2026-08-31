@@ -142,6 +142,19 @@ def _turn_from_row(row: Any) -> AgentTurn:
         "causal_wake_serialized": wake.serialized(),
         "causal_wake_hash": wake.stable_hash(),
         "lifecycle": turn.lifecycle,
+        "suspension_reason": turn.suspension_reason,
+        "current_step_index": turn.current_step_index,
+        "active_step_snapshot_id": (
+            str(turn.active_step_snapshot_id) if turn.active_step_snapshot_id is not None else None
+        ),
+        "active_inference_attempt_id": (
+            str(turn.active_inference_attempt_id)
+            if turn.active_inference_attempt_id is not None
+            else None
+        ),
+        "product_outcome_kind": turn.product_outcome_kind,
+        "final_message_id": turn.final_message_id,
+        "failure_kind": turn.failure_kind,
         "needs_attention": int(turn.needs_attention),
         "unresolved_effect_count": turn.unresolved_effect_count,
     }
@@ -187,6 +200,11 @@ def _item_from_row(row: Any) -> InferenceItem:
         "producing_attempt_id": (
             str(item.producing_attempt_id) if item.producing_attempt_id is not None else None
         ),
+        "superseded_at": item.superseded_at,
+        "superseded_reason": item.superseded_reason,
+        "superseding_attempt_id": (
+            str(item.superseding_attempt_id) if item.superseding_attempt_id is not None else None
+        ),
     }
     for column, value in expected.items():
         if row[column] != value:
@@ -213,6 +231,14 @@ def _tool_from_row(row: Any) -> StoredToolExecution:
         "tool_key": execution.tool_key.canonical(),
         "dispatch_state": execution.dispatch_state,
         "resolution_kind": resolution_kind,
+        "resolution_status": (
+            execution.resolution.status if resolution_kind == "known" else None
+        ),
+        "resolution_reason": (
+            execution.resolution.reason if resolution_kind == "indeterminate" else None
+        ),
+        "dispatch_marked_at": execution.dispatch_marked_at,
+        "resolved_at": execution.resolved_at,
     }
     for column, value in expected.items():
         if row[column] != value:
@@ -619,12 +645,22 @@ class HarnessStore:
 
     async def list_non_terminal_turns(self, execution_epoch: int) -> list[AgentTurn]:
         """List recovery candidates deterministically for one execution epoch."""
-        rows = await db.fetch_all(
-            "SELECT * FROM agent_turns WHERE execution_epoch=? "
-            "AND lifecycle NOT IN ('completed','cancelled','failed') ORDER BY created_at,id",
-            (execution_epoch,),
-        )
-        return [_turn_from_row(row) for row in rows]
+        rows = await db.fetch_all("SELECT * FROM agent_turns ORDER BY created_at,id")
+        turns = [_turn_from_row(row) for row in rows]
+        return [
+            turn
+            for turn in turns
+            if turn.execution_epoch == execution_epoch and not turn.is_terminal
+        ]
+
+    async def list_recovery_candidate_ids(self) -> list[str]:
+        """Enumerate durable turn identities without decoding semantic candidate fields.
+
+        Recovery reloads each identity independently so one malformed canonical row cannot prevent
+        later active-epoch turns from receiving a conservative disposition.
+        """
+        rows = await db.fetch_all("SELECT id FROM agent_turns ORDER BY created_at,id")
+        return [row["id"] for row in rows]
 
     async def commit_snapshot_identity(
         self,
@@ -649,6 +685,10 @@ class HarnessStore:
                     f"AgentTurn {turn.id} expected {expected_turn_version}, "
                     f"found {turn.state_version}"
                 )
+            if turn.is_terminal:
+                raise HarnessStateError("terminal AgentTurn cannot admit a new StepSnapshot")
+            if snapshot.step_index < turn.current_step_index:
+                raise HarnessStateError("StepSnapshot step_index cannot rewind current step")
             await conn.execute(
                 """
                 INSERT INTO step_snapshots (
@@ -726,6 +766,8 @@ class HarnessStore:
                     f"AgentTurn {turn.id} expected {expected_turn_version}, "
                     f"found {turn.state_version}"
                 )
+            if turn.is_terminal:
+                raise HarnessStateError("terminal AgentTurn cannot admit an InferenceAttempt")
             snapshot = await _fetch_one_conn(
                 conn,
                 "SELECT agent_turn_id FROM step_snapshots WHERE snapshot_id = ?",
@@ -812,6 +854,13 @@ class HarnessStore:
                     f"AgentTurn {turn.id} expected {expected_turn_version}, "
                     f"found {turn.state_version}"
                 )
+            if event_type == "inference.dispatch_marked":
+                if turn.is_terminal:
+                    raise HarnessStateError("terminal AgentTurn cannot dispatch a provider attempt")
+                if turn.active_inference_attempt_id != stored.attempt.attempt_id:
+                    raise HarnessStateError("provider dispatch requires the active inference attempt")
+                if turn.active_step_snapshot_id != stored.attempt.step_snapshot_id:
+                    raise HarnessStateError("provider dispatch requires the active StepSnapshot")
             updated_attempt = stored.attempt.model_copy(deep=True)
             mutate(updated_attempt)
             updated_attempt = load_attempt(dump_attempt(updated_attempt))
@@ -1077,20 +1126,18 @@ class HarnessStore:
         agent_turn_id: AgentTurnId | None = None,
     ) -> list[InferenceItem]:
         """Read deterministic conversation order, optionally filtered to one turn."""
-        clauses = ["conversation_turn_id = ?"]
-        params: list[Any] = [str(conversation_turn_id)]
-        if not include_superseded:
-            clauses.append("superseded_at IS NULL")
-        if agent_turn_id is not None:
-            clauses.append("agent_turn_id = ?")
-            params.append(str(agent_turn_id))
         rows = await db.fetch_all(
-            "SELECT * FROM inference_items WHERE "
-            + " AND ".join(clauses)
-            + " ORDER BY sequence_no,item_id",
-            tuple(params),
+            "SELECT * FROM inference_items WHERE conversation_turn_id=? "
+            "ORDER BY sequence_no,item_id",
+            (str(conversation_turn_id),),
         )
-        return [_item_from_row(row) for row in rows]
+        items = [_item_from_row(row) for row in rows]
+        return [
+            item
+            for item in items
+            if (include_superseded or not item.is_superseded)
+            and (agent_turn_id is None or item.agent_turn_id == agent_turn_id)
+        ]
 
     async def supersede_attempt_items(
         self,
@@ -1107,6 +1154,10 @@ class HarnessStore:
 
         async def _tx(conn: Any) -> tuple[list[InferenceItem], int]:
             attempt = await _attempt_conn(conn, attempt_id)
+            if attempt.attempt.semantic_state != "abandoned":
+                raise HarnessStateError(
+                    "attempt output may be superseded only after durable abandonment"
+                )
             history_row = await _fetch_one_conn(
                 conn,
                 "SELECT * FROM inference_histories WHERE conversation_turn_id = ?",
@@ -1130,11 +1181,34 @@ class HarnessStore:
                 [_item_from_row(row) for row in rows],
                 version=expected_history_version,
             )
+            turn = await _turn_conn(conn, attempt.attempt.agent_turn_id)
+            if turn.conversation_turn_id != conversation_turn_id:
+                raise HarnessStateError("attempt does not belong to this conversation history")
+            attempt_call_item_ids = {
+                item.item_id
+                for item in history.audit_history()
+                if isinstance(item, ToolCallItem)
+                and item.producing_attempt_id == attempt_id
+                and not item.is_superseded
+            }
+            tool_rows = await _fetch_all_conn(
+                conn,
+                "SELECT * FROM tool_executions ORDER BY admitted_at,call_id",
+            )
+            durable_protected_call_ids = {
+                stored.execution.call_id
+                for stored in (_tool_from_row(row) for row in tool_rows)
+                if stored.execution.tool_call_item_id in attempt_call_item_ids
+                and stored.execution.may_have_escaped
+            }
+            all_protected_call_ids = tuple(
+                sorted(set(protected_call_ids) | durable_protected_call_ids, key=str)
+            )
             superseded = history.supersede_abandoned_attempt(
                 attempt_id,
                 reason=reason,
                 at=at,
-                protected_call_ids=protected_call_ids,
+                protected_call_ids=all_protected_call_ids,
                 superseding_attempt_id=superseding_attempt_id,
             )
             if not superseded:
@@ -1161,7 +1235,6 @@ class HarnessStore:
             )
             if cursor.rowcount != 1:
                 raise StaleHarnessWrite(f"InferenceHistory {conversation_turn_id} lost its CAS")
-            turn = await _turn_conn(conn, attempt.attempt.agent_turn_id)
             await _append_event(
                 conn,
                 turn,
@@ -1204,6 +1277,8 @@ class HarnessStore:
                     f"AgentTurn {turn.id} expected {expected_turn_version}, "
                     f"found {turn.state_version}"
                 )
+            if turn.is_terminal:
+                raise HarnessStateError("terminal AgentTurn cannot admit a ToolExecution")
             snapshot = await _fetch_one_conn(
                 conn,
                 "SELECT agent_turn_id FROM step_snapshots WHERE snapshot_id = ?",
@@ -1219,7 +1294,13 @@ class HarnessStore:
             if item_row is None:
                 raise HarnessRecordNotFound("tool-call inference item is not durable")
             item = _item_from_row(item_row)
-            if not isinstance(item, ToolCallItem) or item.call_id != execution.call_id:
+            if item.agent_turn_id != execution.agent_turn_id:
+                raise HarnessStateError("ToolCallItem does not belong to the ToolExecution turn")
+            if (
+                not isinstance(item, ToolCallItem)
+                or item.call_id != execution.call_id
+                or item.tool_key != execution.tool_key
+            ):
                 raise HarnessStateError("ToolExecution does not match its ToolCallItem")
             await conn.execute(
                 """
@@ -1293,6 +1374,8 @@ class HarnessStore:
                     f"AgentTurn {turn.id} expected {expected_turn_version}, "
                     f"found {turn.state_version}"
                 )
+            if event_type == "tool.dispatch_marked" and turn.is_terminal:
+                raise HarnessStateError("terminal AgentTurn cannot dispatch a tool execution")
             updated = stored.execution.model_copy(deep=True)
             mutate(updated)
             updated = load_tool_execution(dump_tool_execution(updated))
@@ -1452,22 +1535,20 @@ class HarnessStore:
 
     async def list_turns_needing_attention(self) -> list[AgentTurn]:
         """Return the durable operator-discovery surface for uncertain effects."""
-        rows = await db.fetch_all(
-            "SELECT * FROM agent_turns WHERE needs_attention=1 ORDER BY updated_at,id"
-        )
-        return [_turn_from_row(row) for row in rows]
+        rows = await db.fetch_all("SELECT * FROM agent_turns ORDER BY updated_at,id")
+        turns = [_turn_from_row(row) for row in rows]
+        return [turn for turn in turns if turn.needs_attention]
 
     async def list_unresolved_tool_executions(
         self, turn_id: AgentTurnId
     ) -> list[StoredToolExecution]:
         """List unresolved calls with identity, tool key, state and reason."""
         rows = await db.fetch_all(
-            "SELECT * FROM tool_executions WHERE agent_turn_id=? "
-            "AND (dispatch_state='dispatch_may_have_escaped' "
-            "OR resolution_kind='indeterminate') ORDER BY admitted_at,call_id",
+            "SELECT * FROM tool_executions WHERE agent_turn_id=? ORDER BY admitted_at,call_id",
             (str(turn_id),),
         )
-        return [_tool_from_row(row) for row in rows]
+        executions = [_tool_from_row(row) for row in rows]
+        return [stored for stored in executions if stored.execution.is_unresolved_effect]
 
     async def list_turn_events(self, turn_id: AgentTurnId) -> list[dict[str, Any]]:
         """Read sparse semantic transition evidence in monotonic order."""

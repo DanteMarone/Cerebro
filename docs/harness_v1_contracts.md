@@ -210,11 +210,28 @@ and triggers rejecting identity reuse, version skips, terminal rewind and snapsh
 Known tool resolution can append its bounded `ToolResultItem`, advance history, resolve execution,
 and clear attention in one transaction. An indeterminate result keeps attention durable.
 
+Attempt generations are unique within an immutable StepSnapshot, not across the entire AgentTurn.
+Store admission rejects step-index rewind and rejects new snapshots, attempts, ToolExecutions, or
+provider/tool dispatch marks once the owning turn is terminal. Provider dispatch additionally
+requires the turn's current attempt and snapshot identities. The terminal SQL trigger freezes the
+product-finalization identity in both explicit columns and canonical JSON, while versioned
+post-terminal attention reconciliation remains valid.
+
+Abandoned-attempt supersession requires the attempt to be durably `abandoned`. In the same writer
+transaction, the store derives protected calls from ToolExecution rows whose effects may have
+escaped and unions them with caller-provided protection. A caller can preserve extra history but
+cannot remove the durable causal prefix of a possibly escaped effect.
+
+Discovery queries use only broad owner/identity scope before strict canonical decoding. Lifecycle,
+epoch, attention, supersession, and unresolved-effect filtering occurs only after duplicated SQL
+state agrees with canonical payloads; disagreement raises instead of returning an incomplete view.
+
 `TurnRecoveryDriver` is the TurnCoordinator-owned standalone startup primitive. Phase 1B does not
 wire it into `RuntimeService.start()`: without the reducer, resuming would imply an execution
-cutover. Its scan reads active-epoch non-terminal turns and durably suspends queued/running work it
-cannot safely resume. It accepts no provider adapter or tool executor and performs no external
-effect.
+cutover. Its scan enumerates durable turn identities and reloads/classifies each candidate in
+isolation. Loadable turns with missing or corrupt attempt/tool references are conservatively
+suspended, stale recovery CAS reloads newer durable truth, and damage in one row cannot skip later
+active-epoch work. It accepts no provider adapter or tool executor and performs no external effect.
 
 ## Not implemented here
 

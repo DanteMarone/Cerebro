@@ -238,8 +238,13 @@ escaped", and two separate adapter boundaries — `ProviderAdapter` for direct n
 The additive Harness store persists turns, causal admission, sparse transition evidence, immutable
 snapshot identity seams, conversation-owned inference history, provider attempts, and tool
 execution uncertainty in dedicated SQLite tables. Writes use versioned compare-and-set semantics
-inside the existing single-writer transactions. A standalone recovery scan durably suspends work
-that later Harness phases cannot safely resume; it never invokes a provider or tool.
+inside the existing single-writer transactions. Durable escaped-effect truth protects causal
+history during abandoned-attempt supersession, and terminal turns reject new snapshots, attempts,
+tool admissions, or dispatch marks while still allowing an already uncertain effect to reconcile.
+Discovery validates canonical payloads before lifecycle, attention, unresolved-effect, or
+supersession filtering. A standalone, failure-isolated recovery scan durably suspends each loadable
+turn that later Harness phases cannot safely resume; one damaged candidate cannot prevent later
+turns from being classified, and the scan never invokes a provider or tool.
 
 `cerebro/runtime.py::AgentRuntime` remains the live execution path. The durable Harness code is not
 wired into `RuntimeService.start()` and cannot produce provider or tool side effects. Full detail:
