@@ -33,6 +33,7 @@ from cerebro.harness import (
     StepSnapshotId,
     TOOL_EXECUTION_FORMAT_VERSION,
     TextPart,
+    ToolCallItem,
     ToolBindingGeneration,
     ToolExecution,
     ToolKey,
@@ -44,6 +45,7 @@ from cerebro.harness import (
     request_semantic_hash,
 )
 from cerebro.harness.adapters.openai_compatible import OpenAICompatibleAdapter
+from cerebro.harness.serialization import load_attempt
 from tests.harness_fixtures import (
     FakeTransport,
     assistant_item,
@@ -220,7 +222,62 @@ def test_committed_tool_results_are_never_superseded():
 
     history.supersede_abandoned_attempt(att, reason="abandoned", at=NOW)
 
-    assert result.item_id in {i.item_id for i in history.canonical_request_history()}
+    active = history.canonical_request_history()
+    assert result.item_id in {item.item_id for item in active}
+    assert call.item_id in {item.item_id for item in active}
+
+
+def _assert_every_active_result_has_its_causal_call(history):
+    active = history.canonical_request_history()
+    call_ids = {item.call_id for item in active if isinstance(item, ToolCallItem)}
+    for item in active:
+        if isinstance(item, ToolResultItem):
+            assert item.call_id in call_ids
+
+
+def test_supersession_keeps_first_committed_call_and_drops_unprotected_second_call():
+    att = InferenceAttemptId.generate()
+    history = InferenceHistory(ConversationTurnId.generate())
+    preamble = history.append(assistant_item("starting", att))
+    first_call = history.append(tool_call_item(att, native_call_id="call_1"))
+    first_result = history.append(tool_result_item(first_call))
+    unrelated = history.append(user_item("unrelated interleaved context"))
+    second_call = history.append(tool_call_item(att, native_call_id="call_2"))
+    trailing = history.append(assistant_item("partial follow-up", att))
+
+    history.supersede_abandoned_attempt(
+        att,
+        reason="provider stream died",
+        at=NOW,
+        protected_call_ids=[first_call.call_id],
+    )
+
+    active_ids = {item.item_id for item in history.canonical_request_history()}
+    assert {preamble.item_id, first_call.item_id, first_result.item_id, unrelated.item_id} <= active_ids
+    assert second_call.item_id not in active_ids
+    assert trailing.item_id not in active_ids
+    _assert_every_active_result_has_its_causal_call(history)
+
+
+def test_supersession_keeps_causal_prefix_through_a_protected_second_call():
+    att = InferenceAttemptId.generate()
+    history = InferenceHistory(ConversationTurnId.generate())
+    first_call = history.append(tool_call_item(att, native_call_id="call_1"))
+    second_call = history.append(tool_call_item(att, native_call_id="call_2"))
+    second_result = history.append(tool_result_item(second_call))
+    trailing = history.append(assistant_item("partial follow-up", att))
+
+    history.supersede_abandoned_attempt(
+        att,
+        reason="provider stream died",
+        at=NOW,
+        protected_call_ids=[second_call.call_id],
+    )
+
+    active_ids = {item.item_id for item in history.canonical_request_history()}
+    assert {first_call.item_id, second_call.item_id, second_result.item_id} <= active_ids
+    assert trailing.item_id not in active_ids
+    _assert_every_active_result_has_its_causal_call(history)
 
 
 # -- attempts ------------------------------------------------------------------------
@@ -253,6 +310,88 @@ def test_terminal_cancellation_before_dispatch_does_not_claim_escape():
     att.mark_cancelled_before_dispatch(completed_at=NOW)
     assert att.semantic_state == "cancelled_before_dispatch"
     assert not att.may_have_reached_provider
+
+
+@pytest.mark.parametrize(
+    ("dispatch_state", "barrier", "semantic_state", "extra"),
+    [
+        ("admitted", False, "active", {}),
+        ("dispatch_may_have_escaped", True, "active", {}),
+        ("terminal", False, "cancelled_before_dispatch", {}),
+        ("terminal", False, "failed", {"error": {"kind": "provider_internal"}}),
+        ("terminal", True, "failed", {"error": {"kind": "provider_internal"}}),
+        ("terminal", False, "abandoned", {}),
+        ("terminal", True, "abandoned", {}),
+        ("terminal", True, "completed", {"completion_status": "end_turn"}),
+    ],
+)
+def test_valid_attempt_state_matrix_constructs_and_deserializes(
+    dispatch_state, barrier, semantic_state, extra
+):
+    payload = attempt().model_dump()
+    payload.update(
+        dispatch_state=dispatch_state,
+        dispatch_barrier_committed=barrier,
+        semantic_state=semantic_state,
+        **extra,
+    )
+
+    assert type(attempt()).model_validate(payload).semantic_state == semantic_state
+    assert load_attempt(payload).semantic_state == semantic_state
+
+
+@pytest.mark.parametrize(
+    ("dispatch_state", "barrier", "semantic_state", "extra"),
+    [
+        ("admitted", True, "active", {}),
+        ("admitted", False, "failed", {"error": {"kind": "provider_internal"}}),
+        ("dispatch_may_have_escaped", False, "active", {}),
+        (
+            "dispatch_may_have_escaped",
+            True,
+            "failed",
+            {"error": {"kind": "provider_internal"}},
+        ),
+        ("terminal", False, "active", {}),
+        ("terminal", True, "active", {}),
+        ("terminal", False, "completed", {"completion_status": "end_turn"}),
+        ("terminal", True, "cancelled_before_dispatch", {}),
+    ],
+)
+def test_invalid_attempt_state_matrix_is_rejected_on_construction_and_load(
+    dispatch_state, barrier, semantic_state, extra
+):
+    payload = attempt().model_dump()
+    payload.update(
+        dispatch_state=dispatch_state,
+        dispatch_barrier_committed=barrier,
+        semantic_state=semantic_state,
+        **extra,
+    )
+
+    with pytest.raises(ValidationError):
+        type(attempt()).model_validate(payload)
+    with pytest.raises(ValidationError):
+        load_attempt(payload)
+
+
+@pytest.mark.parametrize("transition", ["failed", "abandoned"])
+@pytest.mark.parametrize("barrier", [False, True])
+def test_failure_and_abandonment_transitions_preserve_dispatch_uncertainty(
+    transition, barrier
+):
+    att = attempt()
+    if barrier:
+        att.mark_dispatch_may_have_escaped()
+    if transition == "failed":
+        att.mark_failed(InferenceError(kind="provider_internal"))
+    else:
+        att.mark_abandoned("provider switch")
+
+    restored = load_attempt(att.model_dump())
+    assert restored.semantic_state == transition
+    assert restored.dispatch_state == "terminal"
+    assert restored.dispatch_barrier_committed is barrier
 
 
 def test_late_events_from_a_superseded_attempt_are_fenced():

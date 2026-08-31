@@ -103,13 +103,30 @@ class InferenceAttempt(BaseModel):
     def _consistent_terminal_state(self) -> "InferenceAttempt":
         if self.attempt_generation < 1:
             raise ValueError("attempt_generation starts at 1")
-        if self.semantic_state == "completed" and self.completion_status is None:
-            raise ValueError("a completed attempt must record its completion_status")
         if self.semantic_state == "failed" and self.error is None:
             raise ValueError("a failed attempt must record its InferenceError")
-        if self.dispatch_state == "dispatch_may_have_escaped" and not self.dispatch_barrier_committed:
+        if self.dispatch_state == "admitted" and (
+            self.dispatch_barrier_committed or self.semantic_state != "active"
+        ):
             raise ValueError(
-                "dispatch_state='dispatch_may_have_escaped' requires the barrier flag"
+                "dispatch_state='admitted' requires an active semantic state before the barrier"
+            )
+        if self.dispatch_state == "dispatch_may_have_escaped" and (
+            not self.dispatch_barrier_committed or self.semantic_state != "active"
+        ):
+            raise ValueError(
+                "dispatch_state='dispatch_may_have_escaped' requires an active semantic state "
+                "after the barrier"
+            )
+        if self.dispatch_state == "terminal" and self.semantic_state not in _TERMINAL_SEMANTIC_STATES:
+            raise ValueError("dispatch_state='terminal' requires a terminal semantic state")
+        if self.semantic_state in _TERMINAL_SEMANTIC_STATES and self.dispatch_state != "terminal":
+            raise ValueError("a terminal semantic state requires dispatch_state='terminal'")
+        if self.semantic_state == "completed" and (
+            not self.dispatch_barrier_committed or self.completion_status is None
+        ):
+            raise ValueError(
+                "a completed attempt requires the dispatch barrier and a completion_status"
             )
         if self.semantic_state == "cancelled_before_dispatch" and self.dispatch_barrier_committed:
             raise ValueError(
@@ -150,12 +167,19 @@ class InferenceAttempt(BaseModel):
 
     # -- transitions ---------------------------------------------------------------
 
-    def _advance_dispatch(self, target: ProviderDispatchState) -> None:
+    def _validated_update(self, **changes: object) -> None:
+        """Apply a multi-field transition only after validating the complete resulting state."""
+        target = changes.get("dispatch_state", self.dispatch_state)
+        assert isinstance(target, str)
         if _DISPATCH_RANK[target] < _DISPATCH_RANK[self.dispatch_state]:
             raise HarnessStateError(
                 f"dispatch_state cannot move {self.dispatch_state} -> {target}"
             )
-        self.dispatch_state = target
+        payload = self.model_dump()
+        payload.update(changes)
+        validated = type(self).model_validate(payload)
+        for name in changes:
+            object.__setattr__(self, name, getattr(validated, name))
 
     def mark_dispatch_may_have_escaped(self, *, started_at: str | None = None) -> None:
         """Commit the pre-dispatch barrier. Must precede any adapter network call."""
@@ -163,10 +187,13 @@ class InferenceAttempt(BaseModel):
             raise HarnessStateError(
                 f"cannot dispatch an attempt in semantic_state={self.semantic_state!r}"
             )
-        self.dispatch_barrier_committed = True
-        self._advance_dispatch("dispatch_may_have_escaped")
+        changes: dict[str, object] = {
+            "dispatch_barrier_committed": True,
+            "dispatch_state": "dispatch_may_have_escaped",
+        }
         if started_at is not None and self.started_at is None:
-            self.started_at = started_at
+            changes["started_at"] = started_at
+        self._validated_update(**changes)
 
     def mark_cancelled_before_dispatch(self, *, completed_at: str | None = None) -> None:
         """Terminal cancellation that provably happened before the barrier committed."""
@@ -188,14 +215,13 @@ class InferenceAttempt(BaseModel):
             raise HarnessStateError(
                 "an attempt cannot complete without passing the dispatch barrier first"
             )
-        self.completion_status = status
+        changes: dict[str, object] = {"completion_status": status}
         if provider_request_id is not None:
-            self.provider_request_id = provider_request_id
-        self._finish("completed", completed_at=completed_at)
+            changes["provider_request_id"] = provider_request_id
+        self._finish("completed", completed_at=completed_at, **changes)
 
     def mark_failed(self, error: InferenceError, *, completed_at: str | None = None) -> None:
-        self.error = error
-        self._finish("failed", completed_at=completed_at)
+        self._finish("failed", completed_at=completed_at, error=error)
 
     def mark_abandoned(
         self,
@@ -209,19 +235,26 @@ class InferenceAttempt(BaseModel):
         Abandonment is the semantic boundary a provider/model switch needs. It says nothing
         about whether the provider saw the request: `dispatch_state` keeps that separately.
         """
-        self.abandonment_reason = reason
-        self.superseded_by_attempt_id = superseded_by_attempt_id
-        self._finish("abandoned", completed_at=completed_at)
+        self._finish(
+            "abandoned",
+            completed_at=completed_at,
+            abandonment_reason=reason,
+            superseded_by_attempt_id=superseded_by_attempt_id,
+        )
 
     def _finish(
-        self, semantic_state: ProviderAttemptSemanticState, *, completed_at: str | None
+        self,
+        semantic_state: ProviderAttemptSemanticState,
+        *,
+        completed_at: str | None,
+        **changes: object,
     ) -> None:
         if self.is_terminal:
             raise HarnessStateError(
                 f"attempt already terminal ({self.semantic_state}); refusing to move to "
                 f"{semantic_state}"
             )
-        self.semantic_state = semantic_state
-        self._advance_dispatch("terminal")
+        changes.update(semantic_state=semantic_state, dispatch_state="terminal")
         if completed_at is not None:
-            self.completed_at = completed_at
+            changes["completed_at"] = completed_at
+        self._validated_update(**changes)

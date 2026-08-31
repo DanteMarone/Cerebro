@@ -17,7 +17,7 @@ from typing import Any
 
 from cerebro.harness.exceptions import HarnessStateError
 from cerebro.harness.ids import CerebroCallId, ConversationTurnId, InferenceAttemptId
-from cerebro.harness.items import InferenceItem, item_sort_key
+from cerebro.harness.items import InferenceItem, ToolCallItem, ToolResultItem, item_sort_key
 
 __all__ = ["InferenceHistory"]
 
@@ -112,12 +112,26 @@ class InferenceHistory:
           have escaped, so that prefix is not superseded merely to retry the provider;
         - trailing output after the last protected effect boundary may be superseded.
 
-        `protected_call_ids` is supplied by the caller because the tool-execution state that
-        decides protection is durable state this module does not own.
+        Active committed `ToolResultItem`s are protection evidence in their own right. Caller-
+        supplied ids remain necessary for possibly escaped calls that have no result yet.
 
         Returns the items that were superseded.
         """
-        protected = set(protected_call_ids)
+        active_attempt_calls = {
+            item.call_id
+            for item in self._items
+            if isinstance(item, ToolCallItem)
+            and item.producing_attempt_id == attempt_id
+            and not item.is_superseded
+        }
+        committed_result_calls = {
+            item.call_id
+            for item in self._items
+            if isinstance(item, ToolResultItem)
+            and not item.is_superseded
+            and item.call_id in active_attempt_calls
+        }
+        protected = set(protected_call_ids) | committed_result_calls
         positions = [
             index for index, item in enumerate(self._items)
             if item.producing_attempt_id == attempt_id and not item.is_superseded
