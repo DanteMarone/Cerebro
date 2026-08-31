@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ConfigDict, TypeAdapter, ValidationError
 
 from cerebro.harness.attempts import INFERENCE_ATTEMPT_FORMAT_VERSION, InferenceAttempt
 from cerebro.harness.events import InferenceEvent
@@ -46,8 +46,9 @@ SUPPORTED_TOOL_EXECUTION_FORMAT_VERSIONS: frozenset[int] = frozenset(
     {TOOL_EXECUTION_FORMAT_VERSION}
 )
 
-_ITEM_ADAPTER: TypeAdapter[Any] = TypeAdapter(InferenceItem)
-_EVENT_ADAPTER: TypeAdapter[Any] = TypeAdapter(InferenceEvent)
+_HIDDEN_INPUT_CONFIG = ConfigDict(hide_input_in_errors=True)
+_ITEM_ADAPTER: TypeAdapter[Any] = TypeAdapter(InferenceItem, config=_HIDDEN_INPUT_CONFIG)
+_EVENT_ADAPTER: TypeAdapter[Any] = TypeAdapter(InferenceEvent, config=_HIDDEN_INPUT_CONFIG)
 
 
 def canonical_json(payload: Any) -> str:

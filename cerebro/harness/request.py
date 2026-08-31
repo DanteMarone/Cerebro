@@ -14,7 +14,7 @@ import hashlib
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cerebro.harness.content import Instruction
 from cerebro.harness.ids import ModelProfileId, ProviderConfigId, StepSnapshotId
@@ -60,7 +60,7 @@ class OutputPolicy(BaseModel):
 class InferenceRequest(BaseModel):
     """What one provider step is asking for, in canonical terms only."""
 
-    model_config = {"frozen": True}
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
 
     step_snapshot_id: StepSnapshotId
     provider_config_ref: ProviderConfigId

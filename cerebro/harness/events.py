@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cerebro.harness.attempts import InferenceCompletionStatus
 from cerebro.harness.errors import InferenceError
@@ -38,7 +38,7 @@ __all__ = [
 class _AttemptScoped(BaseModel):
     """Every event names the attempt it came from, so a late one can be fenced."""
 
-    model_config = {"frozen": True}
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
 
     attempt_id: InferenceAttemptId
 

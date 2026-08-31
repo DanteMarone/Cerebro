@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cerebro.harness.content import ContentPart, OmissionMetadata, Provenance
 from cerebro.harness.ids import (
@@ -79,7 +79,7 @@ class _ItemEnvelope(BaseModel):
     own terms years after the epoch that wrote it moved on.
     """
 
-    model_config = {"frozen": True}
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
 
     item_id: InferenceItemId
     format_version: int = INFERENCE_ITEM_FORMAT_VERSION
