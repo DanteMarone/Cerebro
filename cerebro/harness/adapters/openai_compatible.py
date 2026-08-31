@@ -239,51 +239,64 @@ class OpenAICompatibleAdapter:
         finish_reason = "stop"
         started_text = False
 
-        async for delta in self._transport.stream_payload(prepared.payload):
-            if cancel_token is not None and cancel_token.cancelled:
-                break
+        stream = self._transport.stream_payload(prepared.payload)
+        cancelled = False
+        try:
+            async for delta in stream:
+                if cancel_token is not None and cancel_token.cancelled:
+                    cancelled = True
+                    return
 
-            if isinstance(delta, TextDelta):
-                if not started_text:
-                    started_text = True
-                    yield OutputItemStarted(
-                        attempt_id=attempt_id, item_index=0, item_type="message"
+                if isinstance(delta, TextDelta):
+                    if not started_text:
+                        started_text = True
+                        yield OutputItemStarted(
+                            attempt_id=attempt_id, item_index=0, item_type="message"
+                        )
+                    text_parts.append(delta.text)
+                    yield AssistantTextDelta(attempt_id=attempt_id, text=delta.text)
+
+                elif isinstance(delta, ReasoningDelta):
+                    reasoning_parts.append(delta.text)
+                    yield ReasoningSummaryDelta(
+                        attempt_id=attempt_id, summary_fragment=delta.text
                     )
-                text_parts.append(delta.text)
-                yield AssistantTextDelta(attempt_id=attempt_id, text=delta.text)
 
-            elif isinstance(delta, ReasoningDelta):
-                reasoning_parts.append(delta.text)
-                yield ReasoningSummaryDelta(
-                    attempt_id=attempt_id, summary_fragment=delta.text
-                )
+                elif isinstance(delta, ToolCallDelta):
+                    slot = calls.get(delta.id)
+                    if slot is None:
+                        slot = {"name": delta.name or "", "args": ""}
+                        calls[delta.id] = slot
+                        call_order.append(delta.id)
+                    if delta.name:
+                        slot["name"] = delta.name
+                    slot["args"] += delta.args_fragment
+                    yield ToolCallInputDelta(
+                        attempt_id=attempt_id,
+                        call_index=call_order.index(delta.id),
+                        provider_native_call_id=delta.id,
+                        tool_wire_name=slot["name"] or None,
+                        arguments_fragment=delta.args_fragment,
+                    )
 
-            elif isinstance(delta, ToolCallDelta):
-                slot = calls.get(delta.id)
-                if slot is None:
-                    slot = {"name": delta.name or "", "args": ""}
-                    calls[delta.id] = slot
-                    call_order.append(delta.id)
-                if delta.name:
-                    slot["name"] = delta.name
-                slot["args"] += delta.args_fragment
-                yield ToolCallInputDelta(
-                    attempt_id=attempt_id,
-                    call_index=call_order.index(delta.id),
-                    provider_native_call_id=delta.id,
-                    tool_wire_name=slot["name"] or None,
-                    arguments_fragment=delta.args_fragment,
-                )
+                elif isinstance(delta, Usage):
+                    yield UsageUpdate(
+                        attempt_id=attempt_id,
+                        input_tokens=delta.input,
+                        output_tokens=delta.output,
+                    )
 
-            elif isinstance(delta, Usage):
-                yield UsageUpdate(
-                    attempt_id=attempt_id,
-                    input_tokens=delta.input,
-                    output_tokens=delta.output,
-                )
+                elif isinstance(delta, Done):
+                    finish_reason = delta.reason
 
-            elif isinstance(delta, Done):
-                finish_reason = delta.reason
+            if cancel_token is not None and cancel_token.cancelled:
+                cancelled = True
+                return
+        finally:
+            if cancelled:
+                closer = getattr(stream, "aclose", None)
+                if closer is not None:
+                    await closer()
 
         text = "".join(text_parts)
         if text:

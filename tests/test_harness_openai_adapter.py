@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from cerebro.harness import (
+    CancelToken,
     InferenceAttemptId,
     InferenceItemId,
     InferenceRequest,
@@ -343,6 +344,81 @@ async def test_a_text_response_finalizes_one_assistant_item():
     assert finalized[0].producing_attempt_id == attempt_id
     assert finalized[0].origin == "provider_attempt"
     assert events[-1].status == "end_turn"
+
+
+async def test_cancellation_after_text_delta_never_finalizes_partial_output():
+    class ClosingTransport(FakeTransport):
+        def __init__(self):
+            super().__init__([TextDelta(text="Hel"), TextDelta(text="lo.")])
+            self.stream_closed = False
+
+        async def stream_payload(self, payload):
+            self.payloads.append(payload)
+            try:
+                for delta in self.deltas:
+                    yield delta
+            finally:
+                self.stream_closed = True
+
+    transport = ClosingTransport()
+    adapter = OpenAICompatibleAdapter(transport)
+    prepared = adapter.prepare(
+        _request(), provider_config(), attempt_id=InferenceAttemptId.generate()
+    )
+    cancel_token = CancelToken()
+    events = []
+
+    async for event in adapter.stream(prepared, cancel_token):
+        events.append(event)
+        if isinstance(event, AssistantTextDelta):
+            cancel_token.cancel("turn cancelled")
+
+    assert [event.text for event in events if isinstance(event, AssistantTextDelta)] == ["Hel"]
+    assert not any(isinstance(event, OutputItemCompleted) for event in events)
+    assert not any(isinstance(event, InferenceCompleted) for event in events)
+    assert transport.stream_closed
+
+
+async def test_cancellation_after_tool_fragment_never_finalizes_a_call():
+    class ClosingTransport(FakeTransport):
+        def __init__(self):
+            super().__init__(
+                [
+                    ToolCallDelta(
+                        id="call_1", name="fs_read", args_fragment='{"path":'
+                    ),
+                    ToolCallDelta(id="call_1", name="", args_fragment='"notes.md"}'),
+                ]
+            )
+            self.stream_closed = False
+
+        async def stream_payload(self, payload):
+            self.payloads.append(payload)
+            try:
+                for delta in self.deltas:
+                    yield delta
+            finally:
+                self.stream_closed = True
+
+    transport = ClosingTransport()
+    adapter = OpenAICompatibleAdapter(transport)
+    prepared = adapter.prepare(
+        _request(tools=[tool_definition()]),
+        provider_config(),
+        attempt_id=InferenceAttemptId.generate(),
+    )
+    cancel_token = CancelToken()
+    events = []
+
+    async for event in adapter.stream(prepared, cancel_token):
+        events.append(event)
+        if isinstance(event, ToolCallInputDelta):
+            cancel_token.cancel("turn cancelled")
+
+    assert len([event for event in events if isinstance(event, ToolCallInputDelta)]) == 1
+    assert not any(isinstance(event, OutputItemCompleted) for event in events)
+    assert not any(isinstance(event, InferenceCompleted) for event in events)
+    assert transport.stream_closed
 
 
 async def test_a_tool_call_finalizes_with_two_distinct_identities():
