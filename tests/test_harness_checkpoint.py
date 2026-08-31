@@ -529,3 +529,122 @@ def _artifacts(settings: Settings):
     from cerebro.harness import ArtifactStore
 
     return ArtifactStore(settings.data_dir / "harness_artifacts")
+
+
+@pytest.mark.asyncio
+async def test_a_completed_attempt_still_authorises_its_own_tool_calls(test_db: Settings):
+    """B: `tool_calls_pending` is the ordinary case, not an edge one.
+
+    A provider finishes the step and only then does the tool run, so demanding a still-streaming
+    attempt here would block every real dispatch.
+    """
+    store = HarnessStore()
+    live = catalog()
+    turn, snapshot, attempt = await snapshotted_turn(store, live, occurrence="completed-attempt")
+    admission = await admit_output(
+        store, turn, snapshot, attempt, [tool_call(attempt, mcp_key())]
+    )
+    stored_call = admission.accepted[0]
+    turn = await store.get_turn(turn.id)
+    _, turn = await store.mark_attempt_dispatch_may_have_escaped(
+        attempt.attempt_id,
+        expected_attempt_version=0,
+        expected_turn_version=turn.state_version,
+        at=NOW,
+    )
+    _, turn = await store.complete_attempt(
+        attempt.attempt_id,
+        "tool_calls_pending",
+        expected_attempt_version=1,
+        expected_turn_version=turn.state_version,
+        at=NOW,
+    )
+    binding = snapshot.tool_plan.binding_for(mcp_key())
+    checkpoint = await store.commit_executable_call_checkpoint(
+        agent_turn_id=turn.id,
+        snapshot_id=snapshot.snapshot_id,
+        attempt_id=attempt.attempt_id,
+        tool_call_item_id=stored_call.item_id,
+        call_id=stored_call.call_id,
+        binding=binding,
+        expected_turn_version=turn.state_version,
+        expected_history_version=await store.history_version(turn.conversation_turn_id),
+        expected_replay_version=await store.replay_version(turn.conversation_turn_id),
+        at=NOW,
+    )
+    assert checkpoint.execution.execution.dispatch_state == "not_dispatched"
+
+    gateway = FakeExecutorGateway()
+    runtime = HarnessToolRuntime(
+        store, catalog=live, gateway=gateway, artifacts=_artifacts(test_db)
+    )
+    outcome = await runtime.execute_call(stored_call.call_id)
+    assert outcome.disposition == "resolved_known"
+    assert gateway.count_for("g1") == 1
+
+
+@pytest.mark.asyncio
+async def test_a_failed_attempt_cannot_authorise_a_tool(test_db: Settings):
+    """An attempt the turn has moved on from must not make an external effect executable."""
+    store = HarnessStore()
+    live = catalog()
+    turn, snapshot, attempt = await snapshotted_turn(store, live, occurrence="failed-attempt")
+    admission = await admit_output(
+        store, turn, snapshot, attempt, [tool_call(attempt, mcp_key())]
+    )
+    stored_call = admission.accepted[0]
+    turn = await store.get_turn(turn.id)
+    from cerebro.harness import InferenceError
+
+    _, turn = await store.fail_attempt(
+        attempt.attempt_id,
+        InferenceError(kind="provider_internal", message="upstream died"),
+        expected_attempt_version=0,
+        expected_turn_version=turn.state_version,
+        at=NOW,
+    )
+    with pytest.raises(HarnessStateError, match="cannot authorise a tool"):
+        await store.commit_executable_call_checkpoint(
+            agent_turn_id=turn.id,
+            snapshot_id=snapshot.snapshot_id,
+            attempt_id=attempt.attempt_id,
+            tool_call_item_id=stored_call.item_id,
+            call_id=stored_call.call_id,
+            binding=snapshot.tool_plan.binding_for(mcp_key()),
+            expected_turn_version=turn.state_version,
+            expected_history_version=await store.history_version(turn.conversation_turn_id),
+            expected_replay_version=await store.replay_version(turn.conversation_turn_id),
+            at=NOW,
+        )
+    assert await _tool_execution_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_an_abandonment_after_the_checkpoint_blocks_dispatch(test_db: Settings):
+    """The dispatch transaction re-verifies B, so an abandonment between the two stops it."""
+    store = HarnessStore()
+    live = catalog()
+    fixture = await executable_call(store, live, occurrence="abandon-after-checkpoint")
+    turn = await fixture.reload()
+    stored = await store.get_tool_execution(fixture.call_id)
+    _, turn = await store.abandon_attempt(
+        fixture.attempt.attempt_id,
+        "switched provider",
+        expected_attempt_version=0,
+        expected_turn_version=turn.state_version,
+        at=NOW,
+    )
+    gateway = FakeExecutorGateway()
+    with pytest.raises(HarnessStateError, match="cannot authorise a tool"):
+        await store.mark_tool_dispatch_after_barrier(
+            fixture.call_id,
+            binding=fixture.snapshot.tool_plan.binding_for(mcp_key()),
+            expected_tool_version=stored.row_version,
+            expected_turn_version=turn.state_version,
+            expected_history_version=await store.history_version(turn.conversation_turn_id),
+            expected_replay_version=await store.replay_version(turn.conversation_turn_id),
+            at=NOW,
+        )
+    assert gateway.invocations == []
+    reloaded = await store.get_tool_execution(fixture.call_id)
+    assert reloaded.execution.dispatch_state == "not_dispatched"

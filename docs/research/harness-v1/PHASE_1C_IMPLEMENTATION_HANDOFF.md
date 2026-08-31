@@ -176,7 +176,7 @@ Verified first by `_verify_executable_barrier`, all failing closed:
 | letter | check |
 | --- | --- |
 | A | a `format_version = 2` snapshot row exists, decodes strictly, belongs to the turn, is the turn's active snapshot, and is the turn's current step |
-| B | the named attempt exists, belongs to that turn and snapshot, is the turn's active attempt, and is semantically `active` |
+| B | the named attempt exists, belongs to that turn and snapshot, is the turn's active attempt, and is `active` or `completed`. `completed` is the ordinary case, not an edge one: a provider finishes a step with `tool_calls_pending` and only then does the tool run, so demanding a still-streaming attempt would block every real dispatch. `abandoned`, `failed` and `cancelled_before_dispatch` are refused |
 | C | every item this attempt produced up to the call is durable, in ascending non-duplicated sequence order, unsuperseded, and the call is the last of them |
 | D | the persisted item is a `ToolCallItem` of this turn, produced by the active attempt, carrying this `CerebroCallId`, unsuperseded, naming the frozen binding's `ToolKey` |
 | F | when required, the call carries a `replay_required` `ProviderCallRef` with a handle |
@@ -287,9 +287,11 @@ a snapshot from newer current configuration; snapshot column/envelope divergence
 and tool-plan versions; refusal to freeze credential material; snapshot must freeze the current
 revocation epoch; barrier compare-and-set on turn, history and replay versions; missing
 `ProviderCallRef` and missing required `ProviderOpaqueItem` blocking the checkpoint; one
-`ToolCallItem` never producing two execution identities; E2 refusal without a durable key; artifact
-write failure leaving no committed reference; a dangling `raw_output_ref` refused; raw output absent
-from every generic surface; Phase 1B Harness data surviving the 005 → 006 upgrade.
+`ToolCallItem` never producing two execution identities; E2 refusal without a durable key; a
+`completed` attempt still authorising its own tool call while a `failed` one cannot; an abandonment
+landing between the checkpoint and the dispatch transaction stopping the dispatch; artifact write
+failure leaving no committed reference; a dangling `raw_output_ref` refused; raw output absent from
+every generic surface; Phase 1B Harness data surviving the 005 → 006 upgrade.
 
 Phase 1B TG-01 through TG-19 and all Phase 1A/Phase 0 regressions remain green. The only test edits
 were to `test_migration_from_pre_phase1b_schema_preserves_product_data` and
@@ -306,7 +308,7 @@ From the repository root at `10499c7` plus the documentation and crash-matrix co
   tests/test_harness_crash_matrix.py tests/test_harness_store.py tests/test_db_migrations.py` —
   all passed;
 - `flake8 .` — clean, exit 0;
-- `PYTHONPATH=. pytest -q` — **700 passed, 3 skipped**, exit 0;
+- `PYTHONPATH=. pytest -q` — **703 passed, 3 skipped**, exit 0;
 - `git diff --check` — clean.
 
 ## Production routing
@@ -353,7 +355,8 @@ ones. Giving executors a way to declare a proven non-effect is Phase 1D work, no
 
 - `47262c8` — Add executable StepSnapshot, tool plan and pre-side-effect checkpoint
 - `10499c7` — Add Phase 1C snapshot, checkpoint and tool-runtime fixtures
-- the crash-matrix and documentation commits follow
+- `c6c5bbb` — Add F-05 crash matrix and document the Phase 1C checkpoint path
+- the barrier attempt-state repair commit follows
 
 A Git commit cannot contain its own SHA, so the exact pushed branch head is reported in the
 completion response; this handoff records its predecessors.

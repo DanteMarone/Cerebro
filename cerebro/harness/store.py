@@ -76,6 +76,13 @@ TURN_EVENT_FORMAT_VERSION = 1
 # later request must be able to reproduce exactly counts; ordinary assistant prose does not.
 _REPLAY_REQUIRED_OPAQUE = "required_for_correctness"
 
+# Attempt states whose finalized output may still make a call executable. `completed` is the
+# ordinary case, not an edge one: a provider finishes with `tool_calls_pending` and only then does
+# the tool run, so demanding `active` here would block every real dispatch. `abandoned`,
+# `failed` and `cancelled_before_dispatch` are excluded, because output from an attempt the turn
+# has moved on from must not authorise an external effect.
+_ATTEMPT_STATES_THAT_MAY_AUTHORISE_A_TOOL = frozenset({"active", "completed"})
+
 _TERMINAL_LIFECYCLES = frozenset({"completed", "cancelled", "failed"})
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[str, frozenset[str]] = {
     "queued": frozenset({"running", "suspended", "cancelled", "failed"}),
@@ -104,9 +111,11 @@ class HarnessMetadata(BaseModel):
 
 
 class StepSnapshotIdentity(BaseModel):
-    """Immutable Phase 1B identity seam for a future executable StepSnapshot.
+    """The superseded Phase 1B identity-only snapshot envelope (`format_version` 1).
 
-    Executable snapshot contents, tool bindings and checkpoint semantics remain Phase 1C work.
+    Kept readable so Phase 1B rows and regressions still load. `StepSnapshot` in
+    `cerebro.harness.snapshot` is the executable form, and only that form can make a call
+    executable; the two share a table and are never interchangeable.
     """
 
     model_config = {"frozen": True}
@@ -704,10 +713,10 @@ async def _verify_executable_barrier(
         raise HarnessStateError("InferenceAttempt does not belong to this snapshot and turn")
     if turn.active_inference_attempt_id != attempt.attempt_id:
         raise HarnessStateError("the executable checkpoint requires the active InferenceAttempt")
-    if attempt.semantic_state != "active":
+    if attempt.semantic_state not in _ATTEMPT_STATES_THAT_MAY_AUTHORISE_A_TOOL:
         raise HarnessStateError(
-            f"attempt {attempt_id} is {attempt.semantic_state}; abandoned or terminal output "
-            f"cannot authorise a tool"
+            f"attempt {attempt_id} is {attempt.semantic_state}; its output cannot authorise a "
+            f"tool"
         )
 
     # D. the completed ToolCallItem is persisted and is this call.
@@ -1023,7 +1032,12 @@ class HarnessStore:
         *,
         expected_turn_version: int,
     ) -> tuple[StepSnapshotIdentity, AgentTurn]:
-        """Commit the immutable PR-3 identity seam and make it active for the turn."""
+        """Commit the superseded Phase 1B identity-only seam and make it active for the turn.
+
+        Retained so the Phase 1B store regressions keep exercising the turn/snapshot transitions
+        they were written against. It describes nothing executable: `format_version` 1 can never
+        satisfy the pre-side-effect barrier, which requires the Phase 1C executable snapshot.
+        """
         if snapshot.format_version != STEP_SNAPSHOT_STORAGE_FORMAT_VERSION:
             raise UnsupportedFormatVersion(
                 "StepSnapshotIdentity",
@@ -2222,7 +2236,13 @@ class HarnessStore:
         expected_turn_version: int,
         at: str | None = None,
     ) -> tuple[StoredToolExecution, AgentTurn]:
-        """Commit tool dispatch uncertainty and turn attention in one transaction."""
+        """Commit tool dispatch uncertainty and turn attention in one transaction.
+
+        The Phase 1B primitive, kept for the store-level regressions that exercise dispatch
+        uncertainty directly. It does **not** verify the executable pre-side-effect barrier, so it
+        is not the path an executor may be invoked behind: `HarnessToolRuntime` uses
+        `mark_tool_dispatch_after_barrier`, which re-verifies A-L/E2 in the same transaction.
+        """
         marked_at = at or _now()
         return await self._transition_tool(
             call_id,

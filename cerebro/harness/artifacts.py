@@ -41,6 +41,7 @@ from cerebro.harness.tooling import ToolKey
 
 __all__ = [
     "ARTIFACT_FORMAT_VERSION",
+    "ArtifactWriteFailed",
     "ARTIFACT_RETENTION_POLICY",
     "INLINE_THRESHOLD_BYTES",
     "ArtifactStore",

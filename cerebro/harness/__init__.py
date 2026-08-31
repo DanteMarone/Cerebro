@@ -28,6 +28,7 @@ from cerebro.harness.artifacts import (
     ARTIFACT_RETENTION_POLICY,
     INLINE_THRESHOLD_BYTES,
     ArtifactStore,
+    ArtifactWriteFailed,
     StagedArtifact,
     StoredArtifact,
 )
@@ -213,6 +214,7 @@ __all__ = [
     "AgentTurnLifecycle",
     "ArtifactRef",
     "ArtifactStore",
+    "ArtifactWriteFailed",
     "AssistantTextDelta",
     "CancelToken",
     "CausalWakeKey",
