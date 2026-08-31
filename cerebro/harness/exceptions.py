@@ -8,8 +8,11 @@ from __future__ import annotations
 
 __all__ = [
     "ContinuationNotAdmissible",
+    "DuplicateHarnessIdentity",
     "HarnessError",
+    "HarnessRecordNotFound",
     "HarnessStateError",
+    "StaleHarnessWrite",
     "UnknownDialect",
     "UnsupportedDialectFeature",
     "UnsupportedFormatVersion",
@@ -27,6 +30,18 @@ class HarnessStateError(HarnessError):
     progress is the property recovery depends on; a silently ignored illegal transition is
     indistinguishable from a successful one afterwards.
     """
+
+
+class StaleHarnessWrite(HarnessStateError):
+    """A compare-and-set write named a version that is no longer current."""
+
+
+class DuplicateHarnessIdentity(HarnessStateError):
+    """An identity was reused for different durable Harness state."""
+
+
+class HarnessRecordNotFound(HarnessStateError):
+    """A requested durable Harness identity does not exist."""
 
 
 class UnsupportedFormatVersion(HarnessError):

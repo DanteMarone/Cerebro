@@ -22,10 +22,13 @@ from cerebro.harness.exceptions import UnsupportedFormatVersion
 from cerebro.harness.execution import TOOL_EXECUTION_FORMAT_VERSION, ToolExecution
 from cerebro.harness.items import INFERENCE_ITEM_FORMAT_VERSION, InferenceItem
 from cerebro.harness.request import InferenceRequest
+from cerebro.harness.turn import AGENT_TURN_FORMAT_VERSION, AgentTurn
+from cerebro.harness.wake import CAUSAL_WAKE_KEY_VERSION
 
 __all__ = [
     "SUPPORTED_ATTEMPT_FORMAT_VERSIONS",
     "SUPPORTED_ITEM_FORMAT_VERSIONS",
+    "SUPPORTED_TURN_FORMAT_VERSIONS",
     "SUPPORTED_TOOL_EXECUTION_FORMAT_VERSIONS",
     "canonical_json",
     "dump_attempt",
@@ -33,11 +36,13 @@ __all__ = [
     "dump_item",
     "dump_request",
     "dump_tool_execution",
+    "dump_turn",
     "load_attempt",
     "load_event",
     "load_item",
     "load_request",
     "load_tool_execution",
+    "load_turn",
 ]
 
 SUPPORTED_ITEM_FORMAT_VERSIONS: frozenset[int] = frozenset({INFERENCE_ITEM_FORMAT_VERSION})
@@ -45,6 +50,7 @@ SUPPORTED_ATTEMPT_FORMAT_VERSIONS: frozenset[int] = frozenset({INFERENCE_ATTEMPT
 SUPPORTED_TOOL_EXECUTION_FORMAT_VERSIONS: frozenset[int] = frozenset(
     {TOOL_EXECUTION_FORMAT_VERSION}
 )
+SUPPORTED_TURN_FORMAT_VERSIONS: frozenset[int] = frozenset({AGENT_TURN_FORMAT_VERSION})
 
 _HIDDEN_INPUT_CONFIG = ConfigDict(hide_input_in_errors=True)
 _ITEM_ADAPTER: TypeAdapter[Any] = TypeAdapter(InferenceItem, config=_HIDDEN_INPUT_CONFIG)
@@ -62,6 +68,25 @@ def _require_version(kind: str, data: dict[str, Any], supported: frozenset[int])
     version = data["format_version"]
     if version not in supported:
         raise UnsupportedFormatVersion(kind, version, supported)
+
+
+# -- agent turns -------------------------------------------------------------------
+
+def dump_turn(turn: AgentTurn) -> dict[str, Any]:
+    """Serialize one canonical durable turn."""
+    return turn.model_dump(mode="json")
+
+
+def load_turn(data: dict[str, Any]) -> AgentTurn:
+    """Load a turn while failing closed on turn and nested wake versions."""
+    _require_version("AgentTurn", data, SUPPORTED_TURN_FORMAT_VERSIONS)
+    wake = data.get("causal_wake_key")
+    wake_version = wake.get("key_version") if isinstance(wake, dict) else None
+    if wake_version != CAUSAL_WAKE_KEY_VERSION:
+        raise UnsupportedFormatVersion(
+            "CausalWakeKey", wake_version, frozenset({CAUSAL_WAKE_KEY_VERSION})
+        )
+    return AgentTurn.model_validate(data)
 
 
 # -- inference items ----------------------------------------------------------------
