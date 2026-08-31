@@ -96,11 +96,28 @@ per turn so a corrupt or missing reference cannot prevent later turns from recei
 disposition. Canonical history cannot be superseded across an effect that may have escaped, even
 after the database is closed and reopened.
 
+Cerebro also records an immutable **executable snapshot** of what one agent step could run: which
+provider and model, which exact tools with which exact executable bindings, which permissions, and
+which security-revocation epoch. A tool call from that snapshot can only become runnable after one
+atomic checkpoint commits every durable fact it depends on, and an external tool can only actually be
+invoked after Cerebro has durably written down that the call may have escaped. If the machine dies
+before that point, no external tool ran. If it dies after, the uncertainty stays visible instead of
+being tidied into a fabricated failure.
+
+If the thing behind a tool changes between the snapshot and the call — an MCP server restarts, a
+permission is revoked, a trust tier is lowered — the old call is refused under its original identity.
+It is never quietly redirected to whatever now answers to the same name.
+
+When a tool does return, Cerebro keeps the complete output as durable evidence and shows the model a
+bounded excerpt that says explicitly how much was left out. The full output never goes into the chat
+transcript, the event stream or the logs.
+
 This is currently an internal storage and diagnostic substrate, not a user-facing execution mode.
 The production service still uses `AgentRuntime`, and startup does not invoke the Harness recovery
-driver. The new code does not send provider requests, execute tools, or change normal chat behavior.
-Terminal Harness rows cannot authorize new provider/tool dispatch, but an effect already marked
-uncertain can still be reconciled without erasing any other outstanding attention.
+driver. The new code does not send provider requests during normal chat, and no ordinary agent turn
+is routed through it. Terminal Harness rows cannot authorize new provider/tool dispatch, but an
+effect already marked uncertain can still be reconciled without erasing any other outstanding
+attention.
 
 ### Agent Silence & Silent Completion (§9.3)
 

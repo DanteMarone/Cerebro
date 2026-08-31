@@ -246,8 +246,25 @@ supersession filtering. A standalone, failure-isolated recovery scan durably sus
 turn that later Harness phases cannot safely resume; one damaged candidate cannot prevent later
 turns from being classified, and the scan never invokes a provider or tool.
 
-`cerebro/runtime.py::AgentRuntime` remains the live execution path. The durable Harness code is not
-wired into `RuntimeService.start()` and cannot produce provider or tool side effects. Full detail:
+The Harness now also has an immutable **executable `StepSnapshot`** and a frozen `ToolPlanSnapshot`.
+Together they record exactly what one step could run — provider, dialect, model profile, options,
+history and replay versions, tool bindings, permission policy, revocation epoch, workspace and
+completion policy — so recovery can reconstruct it without reading whatever happens to be configured
+now. A tool's executable identity is its canonical `ToolKey` plus a `ToolBindingGeneration`, never a
+provider wire name: CoreTools generations are content-derived and survive a restart, while MCP
+generations fold in the answering subprocess's connection identity, so a respawned server never
+inherits a call the model made to the process it replaced.
+
+A side-effecting call becomes executable only after one atomic pre-side-effect checkpoint commits
+the whole A–L/E2 set, and an external tool can be invoked only after a second transaction re-verifies
+that checkpoint and durably records `dispatch_may_have_escaped`. Known results are split: the
+complete raw output becomes a durable Harness artifact, and the model sees a bounded projection with
+explicit omission metadata. Repeating a call after uncertainty is authorised only by the executor's
+frozen recovery capability; Cerebro promises no generic exactly-once external effects.
+
+`cerebro/runtime.py::AgentRuntime` remains the live execution path. No production wake reaches the
+Harness execution path: nothing outside `cerebro/harness` imports the package, and the tool-effect
+primitive is called only by tests and explicit internal calls. Full detail:
 **[docs/harness_v1_contracts.md](docs/harness_v1_contracts.md)**.
 
 ## Development & Testing

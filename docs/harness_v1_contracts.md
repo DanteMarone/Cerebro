@@ -194,9 +194,11 @@ Phase 1B adds dedicated Harness tables beside the product schema:
 - `inference_attempts` retains the provider dispatch barrier separately from terminal semantics;
 - `tool_executions` retains dispatch uncertainty/resolution and atomically maintains the turn-level
   attention projection;
-- `step_snapshots` holds only the immutable identity envelope needed by attempts. It deliberately
-  contains no executable tool bindings or provider snapshot body yet;
-- `harness_metadata` names the active schema, storage-format and execution epochs.
+- `step_snapshots` holds both the Phase 1B identity envelope (`format_version` 1) and the Phase 1C
+  executable snapshot (`format_version` 2). They are never interchangeable;
+- `harness_artifacts` indexes durable raw tool output, inline or on disk;
+- `harness_metadata` names the active schema, storage-format, execution and security-revocation
+  epochs.
 
 `HarnessStore` uses the Phase 1A serializers for turns, items, attempts and executions. SQL keeps
 query-critical identity/state/version fields explicit while canonical structured content remains in
@@ -233,18 +235,110 @@ isolation. Loadable turns with missing or corrupt attempt/tool references are co
 suspended, stale recovery CAS reloads newer durable truth, and damage in one row cannot skip later
 active-epoch work. It accepts no provider adapter or tool executor and performs no external effect.
 
+
+## Executable snapshot, tool plan and the pre-side-effect checkpoint
+
+Phase 1C makes one snapshotted call executable, and only through one door.
+
+### The immutable executable `StepSnapshot`
+
+`StepSnapshot` (`format_version` 2) freezes everything that decides what a step could run: provider
+config and dialect version, model profile and version, provider semantic options, inference-history
+and provider-replay versions, context-projection version and token budget, the frozen tool plan,
+permission-policy version, security-revocation epoch, workspace/cwd/environment references, and the
+completion-policy version. Recovery reads this and nothing else; if any field were left to
+"whatever is configured now", a model or tool swap between crash and restart would silently rewrite
+what the step meant.
+
+It carries no credentials. Credential-shaped keys in the frozen options are rejected at
+construction, and `ProviderConfig.credential_reference` stays the only handle.
+
+Storage writes the canonical envelope *and* every queryable column, and every read compares them. A
+hand-edited column is two answers to one question, so it fails closed. A `format_version` 1 identity
+seam can never satisfy the executable barrier, and an unknown snapshot or tool-plan version is
+refused rather than parsed for the fields this build happens to recognise.
+
+### `ToolPlanSnapshot` and binding generations
+
+The plan freezes the offered `ToolDefinition`s, their executable `ToolBinding`s, the provider
+wire-name → `ToolKey` map, and per-key grant evidence. A wire name resolves through that map or not
+at all. An unbound definition, an unmapped key, or a binding frozen at a different catalog/policy
+version than the plan is rejected.
+
+`ToolBindingGeneration` is the field execution actually re-checks, and its source differs by tool
+kind for a reason:
+
+- **CoreTools** run in-process from code, so the generation is a content digest over the canonical
+  key, executor identity and the exact offered description and schema. It survives a Cerebro
+  restart — a restart does not replace code — and it changes when the offered contract changes.
+- **MCP** tools run in a subprocess, so the generation also folds in `StdioMCPClient.connection_id`,
+  a fresh value minted on every successful handshake and cleared on stop. A respawn, a restart or a
+  schema-changing `tools/list` refresh all produce a new generation. A server nobody has handshaken
+  contributes nothing executable.
+
+Trust tier and the `tools_enabled` globs are *grant* state, not binding identity. Revoking a tier
+denies the frozen call under its original identity instead of pretending the executor changed.
+
+### The A–L / E2 barrier
+
+`HarnessStore.commit_executable_call_checkpoint` runs one `BEGIN IMMEDIATE` transaction. It first
+verifies the facts earlier transactions were supposed to have committed — the executable snapshot is
+the turn's active step (A); the named attempt is active and bound to it (B); every finalized item
+this attempt produced up to the call is durable, ordered and unsuperseded (C, G); the call item is
+this `CerebroCallId` and names the frozen binding's key (D); a replay-required `ProviderCallRef` is
+present when required (F); history and replay versions match and never trail the snapshot (H); the
+offered binding equals the frozen one exactly (J); the security-revocation epoch is unchanged.
+
+Then it commits, together: the `CerebroCallId` (E), the stable operation key when the frozen
+capability requires one (E2), the `ToolExecution` in `not_dispatched` (I) bound to the exact
+generation, executor identity and recovery capability (J), the turn's state-version advance (K), and
+the matching `tool.call_admitted` checkpoint event (L). Nothing partial survives a failure, and a
+crash before the commit leaves a call that is not executable and an external world nobody touched.
+
+### `HarnessToolRuntime`
+
+The standalone effect primitive, deliberately unreachable from production. Its ordering is the point:
+load turn/snapshot/execution/binding; reject terminal turns, superseded snapshots, advanced
+revocation epochs, changed grants and stale bindings; re-verify the whole barrier **and** commit
+`dispatch_may_have_escaped` in one transaction; only then invoke the executor. Verifying in one
+transaction and marking in another would leave a window for a revocation to land between them.
+
+After dispatch, only the frozen `ToolRecoveryCapability` may authorise anything. `idempotent` and
+`stable_idempotency_key` allow one automatic repeat — the latter reusing the exact persisted key.
+`reconcile_before_repeat` consults the declared authoritative lookup and stays indeterminate if it
+cannot answer. `never_automatic_repeat` resolves indeterminate immediately. A raising executor is
+unknown, never a known failure.
+
+### Raw and model-visible tool output
+
+Known results are split. The complete raw output becomes a durable `harness_artifacts` entry —
+inline at or below 8 KiB, otherwise one file written, `fsync`-ed and atomically renamed *before* the
+semantic transaction opens, with the index row inserted inside it. A committed `ArtifactRef`
+therefore cannot point at a half-written object, and a rolled-back transaction leaves nothing
+reachable. Retention is `conversation` scope with no automatic pruning; provenance records the
+producing turn, call, tool key, binding generation, byte size and SHA-256.
+
+The model sees the first 4096 characters plus `OmissionMetadata` naming the reason, omitted bytes and
+original size. The payload itself is readable only through `ArtifactStore.read`; it never appears in
+a turn event, a Hub projection, a log line or an operator attention listing.
+
 ## Not implemented here
 
-The executable immutable `StepSnapshot`, CoreTools/MCP binding projection and generation semantics,
-the finalized-output pre-tool checkpoint, actual Harness provider/tool dispatch, raw tool-output
-storage, reducer/effect cutover, atomic product finalization, and context compaction remain deferred.
-See the Phase 1B handoff for the exact boundary.
+The durable reducer and direct-provider cutover, production `RuntimeService`/`AgentRuntime` routing
+to the Harness path, the semantic provider retry loop, cancellation orchestration, automatic recovery
+resumption of executable work, atomic product finalization, and context compaction remain deferred to
+Phase 1D. See the Phase 1C handoff for the exact boundary.
+
+`AgentRuntime` is still the only active production execution path. Nothing outside
+`cerebro/harness/` imports the package, and the tool-effect primitive is reached only by tests and
+explicit internal calls.
 
 ## Tests
 
 ```bash
 PYTHONPATH=. pytest -q tests/test_harness_contracts.py tests/test_harness_serialization.py tests/test_harness_openai_adapter.py tests/test_harness_external_agent.py tests/test_harness_projection.py tests/test_harness_redaction.py
 PYTHONPATH=. pytest -q tests/test_harness_store.py tests/test_db_migrations.py
+PYTHONPATH=. pytest -q tests/test_harness_snapshot.py tests/test_harness_tool_plan.py tests/test_harness_checkpoint.py tests/test_harness_tool_runtime.py tests/test_harness_crash_matrix.py
 ```
 
 No test invokes Codex, Claude, Antigravity or Goose. The external-agent tests use a stub provider
