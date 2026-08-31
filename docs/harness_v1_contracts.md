@@ -184,16 +184,67 @@ No adapter in this slice can create `hidden_reasoning`, `signature_or_encrypted_
 `secret_like` payloads. At-rest encryption, access control and retention for such payloads are
 owed by the first adapter PR that can actually emit them.
 
+## Durable store and recovery substrate
+
+Phase 1B adds dedicated Harness tables beside the product schema:
+
+- `agent_turns` and `turn_events` hold versioned current state and sparse semantic evidence;
+- `inference_histories` and `inference_items` own deterministic conversation-order replay with
+  required turn/attempt attribution and durable supersession metadata;
+- `inference_attempts` retains the provider dispatch barrier separately from terminal semantics;
+- `tool_executions` retains dispatch uncertainty/resolution and atomically maintains the turn-level
+  attention projection;
+- `step_snapshots` holds only the immutable identity envelope needed by attempts. It deliberately
+  contains no executable tool bindings or provider snapshot body yet;
+- `harness_metadata` names the active schema, storage-format and execution epochs.
+
+`HarnessStore` uses the Phase 1A serializers for turns, items, attempts and executions. SQL keeps
+query-critical identity/state/version fields explicit while canonical structured content remains in
+deterministic JSON. Unknown format versions fail closed. Causal admission is uniquely indexed by
+the exact versioned `CausalWakeKey.serialized()` text and its SHA-256 stable hash; duplicates load
+the existing turn, while distinct occurrence identities admit distinct turns.
+
+Every compound write runs through `db.run_in_writer()` / `BEGIN IMMEDIATE`. Agent-turn state,
+attempt rows, tool rows and history rows use compare-and-set versions, with database constraints
+and triggers rejecting identity reuse, version skips, terminal rewind and snapshot mutation.
+Known tool resolution can append its bounded `ToolResultItem`, advance history, resolve execution,
+and clear attention in one transaction. An indeterminate result keeps attention durable.
+
+Attempt generations are unique within an immutable StepSnapshot, not across the entire AgentTurn.
+Store admission rejects step-index rewind and rejects new snapshots, attempts, ToolExecutions, or
+provider/tool dispatch marks once the owning turn is terminal. Provider dispatch additionally
+requires the turn's current attempt and snapshot identities. The terminal SQL trigger freezes the
+product-finalization identity in both explicit columns and canonical JSON, while versioned
+post-terminal attention reconciliation remains valid.
+
+Abandoned-attempt supersession requires the attempt to be durably `abandoned`. In the same writer
+transaction, the store derives protected calls from ToolExecution rows whose effects may have
+escaped and unions them with caller-provided protection. A caller can preserve extra history but
+cannot remove the durable causal prefix of a possibly escaped effect.
+
+Discovery queries use only broad owner/identity scope before strict canonical decoding. Lifecycle,
+epoch, attention, supersession, and unresolved-effect filtering occurs only after duplicated SQL
+state agrees with canonical payloads; disagreement raises instead of returning an incomplete view.
+
+`TurnRecoveryDriver` is the TurnCoordinator-owned standalone startup primitive. Phase 1B does not
+wire it into `RuntimeService.start()`: without the reducer, resuming would imply an execution
+cutover. Its scan enumerates durable turn identities and reloads/classifies each candidate in
+isolation. Loadable turns with missing or corrupt attempt/tool references are conservatively
+suspended, stale recovery CAS reloads newer durable truth, and damage in one row cannot skip later
+active-epoch work. It accepts no provider adapter or tool executor and performs no external effect.
+
 ## Not implemented here
 
-The Harness SQL schema and durable store, `TurnRecoveryDriver`, `StepSnapshot` and the tool-plan
-projection, the pre-side-effect checkpoint transaction, the reducer/effect cutover, atomic product
-finalization, and context compaction. See the handoff document for the exact split.
+The executable immutable `StepSnapshot`, CoreTools/MCP binding projection and generation semantics,
+the finalized-output pre-tool checkpoint, actual Harness provider/tool dispatch, raw tool-output
+storage, reducer/effect cutover, atomic product finalization, and context compaction remain deferred.
+See the Phase 1B handoff for the exact boundary.
 
 ## Tests
 
 ```bash
 PYTHONPATH=. pytest -q tests/test_harness_contracts.py tests/test_harness_serialization.py tests/test_harness_openai_adapter.py tests/test_harness_external_agent.py tests/test_harness_projection.py tests/test_harness_redaction.py
+PYTHONPATH=. pytest -q tests/test_harness_store.py tests/test_db_migrations.py
 ```
 
 No test invokes Codex, Claude, Antigravity or Goose. The external-agent tests use a stub provider

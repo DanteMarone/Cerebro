@@ -6,6 +6,7 @@ Single-writer queue consumer pattern to prevent write concurrency conflicts.
 
 import asyncio
 from pathlib import Path
+import sqlite3
 from typing import Any
 import aiosqlite
 
@@ -24,6 +25,22 @@ class WrongDatabase(RuntimeError):
 
 class WrongEventLoop(RuntimeError):
     """The database was reached from an event loop other than the one it was connected on."""
+
+
+def _split_sql_statements(content: str) -> list[str]:
+    """Split a migration without breaking trigger bodies on their internal semicolons."""
+    statements: list[str] = []
+    pending: list[str] = []
+    for line in content.splitlines(keepends=True):
+        pending.append(line)
+        candidate = "".join(pending).strip()
+        if candidate and sqlite3.complete_statement(candidate):
+            statements.append(candidate)
+            pending = []
+    remainder = "".join(pending).strip()
+    if remainder:
+        statements.append(remainder)
+    return statements
 
 
 def _check_loop() -> None:
@@ -181,7 +198,7 @@ async def migrate(migrations_dir: Path | None = None) -> list[int]:
             continue
 
         content = sql_file.read_text(encoding="utf-8")
-        raw_statements = [s.strip() for s in content.split(";") if s.strip()]
+        raw_statements = _split_sql_statements(content)
 
         await _db.execute("BEGIN IMMEDIATE;")
         try:

@@ -3,14 +3,12 @@
 Provider-neutral types for durable agent execution: identities, ordered inference items,
 provider attempts, tool execution state, and the two adapter boundaries.
 
-This package is contracts only. It defines what later Harness PRs will persist and execute, and
-it does not execute anything itself. The live production path is still `cerebro.runtime`, whose
+This package now includes the additive Phase 1B durable store and conservative recovery scan. It
+still does not execute providers or tools. The live production path is `cerebro.runtime`, whose
 behaviour this slice deliberately leaves untouched.
 
 Deliberately absent, and owned by later slices:
 
-- the Harness SQL schema and durable store (PR 2);
-- `TurnRecoveryDriver` and the startup scan (PR 2);
 - `StepSnapshot` and the tool-plan projection (PR 3);
 - the pre-side-effect checkpoint transaction (PR 3);
 - the reducer/effect cutover and atomic finalization (PR 4/5).
@@ -59,8 +57,11 @@ from cerebro.harness.events import (
 )
 from cerebro.harness.exceptions import (
     ContinuationNotAdmissible,
+    DuplicateHarnessIdentity,
     HarnessError,
+    HarnessRecordNotFound,
     HarnessStateError,
+    StaleHarnessWrite,
     UnknownDialect,
     UnsupportedDialectFeature,
     UnsupportedFormatVersion,
@@ -126,6 +127,14 @@ from cerebro.harness.request import (
     ToolPolicy,
     request_semantic_hash,
 )
+from cerebro.harness.recovery import RecoveryDecision, TurnRecoveryDriver
+from cerebro.harness.store import (
+    HarnessMetadata,
+    HarnessStore,
+    StepSnapshotIdentity,
+    StoredInferenceAttempt,
+    StoredToolExecution,
+)
 from cerebro.harness.tooling import (
     JsonToolInput,
     ProviderOpaqueToolInput,
@@ -162,6 +171,7 @@ __all__ = [
     "ContentPart",
     "ContinuationNotAdmissible",
     "ConversationTurnId",
+    "DuplicateHarnessIdentity",
     "ExternalAgentAdapter",
     "ExternalAgentEvent",
     "ExternalExecutionId",
@@ -169,8 +179,11 @@ __all__ = [
     "ExternalPromptTurn",
     "ExternalRecoveryCapability",
     "HarnessError",
+    "HarnessMetadata",
+    "HarnessRecordNotFound",
     "HarnessId",
     "HarnessStateError",
+    "HarnessStore",
     "IndeterminateResolution",
     "InferenceAttempt",
     "InferenceAttemptId",
@@ -216,11 +229,16 @@ __all__ = [
     "ReasoningPolicy",
     "ReasoningSummaryDelta",
     "ReasoningSummaryItem",
+    "RecoveryDecision",
     "ReplayRequirement",
     "ReplayRetentionScope",
     "ReplaySensitivity",
     "SemanticRecoveryDisposition",
     "StepSnapshotId",
+    "StepSnapshotIdentity",
+    "StaleHarnessWrite",
+    "StoredInferenceAttempt",
+    "StoredToolExecution",
     "TextPart",
     "TextToolInput",
     "ToolBinding",
@@ -237,6 +255,7 @@ __all__ = [
     "ToolResolution",
     "ToolResultItem",
     "ToolResultStatus",
+    "TurnRecoveryDriver",
     "UnknownDialect",
     "UnsupportedDialectFeature",
     "UnsupportedFormatVersion",
