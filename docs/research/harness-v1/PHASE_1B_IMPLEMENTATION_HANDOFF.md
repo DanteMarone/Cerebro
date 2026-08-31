@@ -140,9 +140,10 @@ existing tests were not deleted, loosened or skipped.
 
 ## Commits and final branch identity
 
-- `26d852b` — Add durable Harness execution store
-- documentation/final verification commit follows
+- `26d852b6e526809e248e83405d39a806370b4705` — Add durable Harness execution store
+- `92c5c9a44c963b3b5294069ea41541e7421c95ab` — Document Harness durable recovery substrate
+- this handoff-finalization commit follows
 
 A Git commit cannot contain its own SHA without changing that SHA. The exact pushed final branch
 SHA is therefore reported in the issue/completion response; this handoff records the complete
-commit chain and the exact final predecessor available when written.
+incremental chain and exact final predecessor available when written.
