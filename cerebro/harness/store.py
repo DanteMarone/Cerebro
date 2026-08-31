@@ -1975,13 +1975,17 @@ class HarnessStore:
                 raise HarnessStateError(
                     "the offered binding is not the frozen executable identity of this call"
                 )
+            current_turn = await _turn_conn(conn, execution.agent_turn_id)
+            active_attempt_id = current_turn.active_inference_attempt_id
+            if active_attempt_id is None:
+                raise HarnessStateError(
+                    "the turn has no active InferenceAttempt; barrier condition B is unmet"
+                )
             facts = await _verify_executable_barrier(
                 conn,
                 agent_turn_id=execution.agent_turn_id,
                 snapshot_id=execution.step_snapshot_id,
-                attempt_id=(
-                    (await _turn_conn(conn, execution.agent_turn_id)).active_inference_attempt_id
-                ),
+                attempt_id=active_attempt_id,
                 tool_call_item_id=execution.tool_call_item_id,
                 call_id=call_id,
                 binding=binding,

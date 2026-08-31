@@ -197,16 +197,23 @@ def project_tool_plan(
 
 
 def resolve_current_binding(
-    source: ToolPlanSource, key: ToolKey
+    source: ToolPlanSource,
+    key: ToolKey,
+    generation: ToolBindingGeneration | None = None,
 ) -> ToolCatalogEntry | None:
     """The live entry for one canonical key, or None when nothing addresses it any more.
 
-    Dispatch compares this against the frozen binding. It never substitutes: a different
-    generation is a stale binding, not a newer one to use.
+    Passing `generation` asks the only question dispatch actually cares about: is the exact
+    frozen binding still addressable? A same-named entry at a different generation is not an
+    answer to that question, so it is not returned. Substituting it would be the silent
+    rebinding this whole identity scheme exists to prevent.
     """
     for entry in source.entries():
-        if entry.key == key:
-            return entry
+        if entry.key != key:
+            continue
+        if generation is not None and entry.binding.binding_generation != generation:
+            continue
+        return entry
     return None
 
 

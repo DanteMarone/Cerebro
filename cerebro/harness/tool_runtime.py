@@ -435,12 +435,15 @@ class HarnessToolRuntime:
                 at=at,
             )
 
-        live = resolve_current_binding(self.catalog, execution.tool_key)
-        if live is None or live.binding.binding_generation != execution.binding_generation:
-            found = None if live is None else str(live.binding.binding_generation)
+        live = resolve_current_binding(
+            self.catalog, execution.tool_key, execution.binding_generation
+        )
+        if live is None or not execution.binds_exactly(live.binding):
+            same_name = resolve_current_binding(self.catalog, execution.tool_key)
+            found = None if same_name is None else str(same_name.binding.binding_generation)
             reason = (
                 f"frozen binding generation {execution.binding_generation} is no longer "
-                f"addressable (live generation: {found})"
+                f"addressable (live generation for this ToolKey: {found})"
             )
             if post_dispatch:
                 return await self._resolve_indeterminate(
