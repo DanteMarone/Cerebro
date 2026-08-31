@@ -80,8 +80,10 @@ def tool_key() -> ToolKey:
 
 async def running_turn_with_attempt(
     store: HarnessStore,
+    *,
+    occurrence: str = "manual-1",
 ) -> tuple[AgentTurn, StepSnapshotIdentity, InferenceAttempt]:
-    turn = await store.admit_turn(make_turn())
+    turn = await store.admit_turn(make_turn(occurrence=occurrence))
     turn = await store.transition_turn(
         turn.id, expected_version=0, lifecycle="running", at=NOW
     )
@@ -355,6 +357,39 @@ async def test_stale_attempt_transition_is_explicit(test_db: Settings):
 
 
 @pytest.mark.asyncio
+async def test_cancel_before_dispatch_never_erases_post_barrier_truth(test_db: Settings):
+    store = HarnessStore()
+    turn, _, attempt = await running_turn_with_attempt(store)
+    cancelled, _ = await store.cancel_attempt_before_dispatch(
+        attempt.attempt_id,
+        expected_attempt_version=0,
+        expected_turn_version=turn.state_version,
+        at=NOW,
+    )
+    assert cancelled.attempt.semantic_state == "cancelled_before_dispatch"
+    assert cancelled.attempt.may_have_reached_provider is False
+
+    other_turn, _, other_attempt = await running_turn_with_attempt(
+        store, occurrence="manual-2"
+    )
+    dispatched, other_turn = await store.mark_attempt_dispatch_may_have_escaped(
+        other_attempt.attempt_id,
+        expected_attempt_version=0,
+        expected_turn_version=other_turn.state_version,
+        at=NOW,
+    )
+    with pytest.raises(HarnessStateError):
+        await store.cancel_attempt_before_dispatch(
+            other_attempt.attempt_id,
+            expected_attempt_version=dispatched.row_version,
+            expected_turn_version=other_turn.state_version,
+            at=LATER,
+        )
+    persisted = await store.get_inference_attempt(other_attempt.attempt_id)
+    assert persisted.attempt.dispatch_barrier_committed is True
+
+
+@pytest.mark.asyncio
 async def test_indeterminate_tool_and_attention_survive_reopen(test_db: Settings):
     store = HarnessStore()
     turn, execution = await tool_execution_fixture(store)
@@ -554,12 +589,32 @@ async def test_migration_from_pre_phase1b_schema_preserves_product_data(tmp_path
         (NOW, NOW),
     )
     await task_write
+    tool_write = await db.enqueue_write(
+        """
+        INSERT INTO tool_calls (id,agent_id,server,tool,args_json,status,started_at)
+        VALUES ('legacy-call','jarvis','core','notify','{}','success',?)
+        """,
+        (NOW,),
+    )
+    await tool_write
+    audit_write = await db.enqueue_write(
+        """
+        INSERT INTO audit_events (ts,actor_id,actor_kind,action,target,detail_json)
+        VALUES (?,'dante','human','test','legacy','{}')
+        """,
+        (NOW,),
+    )
+    await audit_write
     before_messages = await db.fetch_all("SELECT * FROM messages")
     before_tasks = await db.fetch_all("SELECT * FROM tasks")
+    before_tool_calls = await db.fetch_all("SELECT * FROM tool_calls")
+    before_audit_events = await db.fetch_all("SELECT * FROM audit_events")
     await db.close()
     await db.connect(database)
     assert await db.migrate() == [5]
     assert await db.fetch_all("SELECT * FROM messages") == before_messages
     assert await db.fetch_all("SELECT * FROM tasks") == before_tasks
+    assert await db.fetch_all("SELECT * FROM tool_calls") == before_tool_calls
+    assert await db.fetch_all("SELECT * FROM audit_events") == before_audit_events
     assert await db.fetch_one("SELECT * FROM harness_metadata WHERE singleton=1") is not None
     await db.close()

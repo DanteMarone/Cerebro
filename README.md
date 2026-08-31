@@ -227,7 +227,7 @@ Under v2 completion-ordered chat, turns never create uncommitted or empty rows i
 At startup, the runtime runs a one-time sweep to clean any legacy placeholders left behind from
 historical database migrations.
 
-### Harness v1 canonical contracts (`cerebro/harness`)
+### Harness v1 contracts and durable execution store (`cerebro/harness`)
 
 Provider-neutral contracts for durable agent execution: prefixed identities, an ordered
 `InferenceItem` history with per-item format versions, provider attempts with an explicit
@@ -235,8 +235,15 @@ pre-dispatch barrier, tool execution state that distinguishes "never dispatched"
 escaped", and two separate adapter boundaries — `ProviderAdapter` for direct native inference and
 `ExternalAgentAdapter` for CLI/vendor harnesses.
 
-These are contracts, not a runtime. `cerebro/runtime.py` remains the live execution path and its
-behaviour is unchanged. Full detail: **[docs/harness_v1_contracts.md](docs/harness_v1_contracts.md)**.
+The additive Harness store persists turns, causal admission, sparse transition evidence, immutable
+snapshot identity seams, conversation-owned inference history, provider attempts, and tool
+execution uncertainty in dedicated SQLite tables. Writes use versioned compare-and-set semantics
+inside the existing single-writer transactions. A standalone recovery scan durably suspends work
+that later Harness phases cannot safely resume; it never invokes a provider or tool.
+
+`cerebro/runtime.py::AgentRuntime` remains the live execution path. The durable Harness code is not
+wired into `RuntimeService.start()` and cannot produce provider or tool side effects. Full detail:
+**[docs/harness_v1_contracts.md](docs/harness_v1_contracts.md)**.
 
 ## Development & Testing
 
