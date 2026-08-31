@@ -30,6 +30,7 @@ from cerebro.harness.external_agent import (
     OrphanReconciliation,
 )
 from cerebro.harness.ids import ExternalExecutionId
+from cerebro.harness.provider_adapter import CancelToken
 from cerebro.models import Done, Message, ReasoningDelta, TextDelta
 from cerebro.providers.base import Params
 
@@ -66,10 +67,15 @@ def prompt_turns_from_messages(
 class ExternalExecutionHandle:
     """A started external execution, with the task that owns its child process."""
 
-    def __init__(self, execution_id: ExternalExecutionId, request: ExternalExecutionRequest):
+    def __init__(
+        self,
+        execution_id: ExternalExecutionId,
+        request: ExternalExecutionRequest,
+        cancel_token: CancelToken,
+    ) -> None:
         self.execution_id = execution_id
         self.request = request
-        self.cancelled = False
+        self.cancel_token = cancel_token
 
 
 class CliExternalAgentAdapter:
@@ -82,10 +88,10 @@ class CliExternalAgentAdapter:
         self._live: dict[str, asyncio.Task] = {}
 
     async def start_or_resume(
-        self, request: ExternalExecutionRequest
+        self, request: ExternalExecutionRequest, cancel_token: CancelToken
     ) -> ExternalExecutionHandle:
         """Begin one execution. There is no resume; a repeat start is a fresh subprocess."""
-        return ExternalExecutionHandle(request.execution_id, request)
+        return ExternalExecutionHandle(request.execution_id, request, cancel_token)
 
     async def stream_events(
         self, handle: ExternalExecutionHandle
@@ -97,18 +103,29 @@ class CliExternalAgentAdapter:
         change what a broken CLI agent looks like.
         """
         request = handle.request
-        rows = [
-            Message(
-                channel_id="external",
-                author_id=turn.author_id,
-                author_kind=turn.author_kind,
-                body=turn.body,
-            )
-            for turn in request.prompt_turns
-        ]
-        stream = self._provider.stream(rows, [], Params())
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("stream_events must be driven by an asyncio task")
+        execution_key = str(request.execution_id)
+        self._live[execution_key] = task
+        stream = None
         try:
+            if handle.cancel_token.cancelled:
+                raise asyncio.CancelledError(handle.cancel_token.reason)
+
+            rows = [
+                Message(
+                    channel_id="external",
+                    author_id=turn.author_id,
+                    author_kind=turn.author_kind,
+                    body=turn.body,
+                )
+                for turn in request.prompt_turns
+            ]
+            stream = self._provider.stream(rows, [], Params())
             async for delta in stream:
+                if handle.cancel_token.cancelled:
+                    raise asyncio.CancelledError(handle.cancel_token.reason)
                 if isinstance(delta, ReasoningDelta):
                     yield ExternalReasoningDelta(
                         execution_id=request.execution_id, text=delta.text
@@ -122,9 +139,12 @@ class CliExternalAgentAdapter:
                         execution_id=request.execution_id, reason=delta.reason
                     )
         finally:
-            aclose = getattr(stream, "aclose", None)
-            if aclose is not None:
-                await aclose()
+            if stream is not None:
+                aclose = getattr(stream, "aclose", None)
+                if aclose is not None:
+                    await aclose()
+            if self._live.get(execution_key) is task:
+                self._live.pop(execution_key, None)
 
     async def cancel(self, execution_id: ExternalExecutionId) -> None:
         """Cancel the running task, which is what kills the child.
@@ -136,10 +156,6 @@ class CliExternalAgentAdapter:
         task = self._live.pop(str(execution_id), None)
         if task is not None and not task.done():
             task.cancel()
-
-    def track(self, execution_id: ExternalExecutionId, task: asyncio.Task) -> None:
-        """Register the task driving one execution so `cancel` can reach it."""
-        self._live[str(execution_id)] = task
 
     async def reconcile_orphan(
         self, execution_id: ExternalExecutionId

@@ -12,6 +12,7 @@ import pytest
 
 from cerebro.harness import (
     AgentTurnId,
+    CancelToken,
     ExternalAgentAdapter,
     ExternalExecutionId,
     ExternalExecutionRequest,
@@ -115,7 +116,7 @@ async def test_the_shim_streams_the_provider_deltas_as_external_events():
     adapter = CliExternalAgentAdapter(provider)
     request = _request()
 
-    handle = await adapter.start_or_resume(request)
+    handle = await adapter.start_or_resume(request, CancelToken())
     events = [event async for event in adapter.stream_events(handle)]
 
     assert isinstance(events[0], ExternalReasoningDelta)
@@ -135,7 +136,7 @@ async def test_the_shim_preserves_the_current_prompt_rendering():
     ]
     request = _request(prompt_turns_from_messages(rows))
 
-    handle = await adapter.start_or_resume(request)
+    handle = await adapter.start_or_resume(request, CancelToken())
     [event async for event in adapter.stream_events(handle)]
 
     assert render_prompt(provider.seen, "claude") == render_prompt(rows, "claude")
@@ -144,7 +145,7 @@ async def test_the_shim_preserves_the_current_prompt_rendering():
 async def test_provider_failures_still_propagate_unchanged():
     provider = StubCliProvider(raises=ProviderError("agent 'claude' exited 1: boom"))
     adapter = CliExternalAgentAdapter(provider)
-    handle = await adapter.start_or_resume(_request())
+    handle = await adapter.start_or_resume(_request(), CancelToken())
 
     with pytest.raises(ProviderError, match="exited 1"):
         [event async for event in adapter.stream_events(handle)]
@@ -170,28 +171,52 @@ async def test_orphan_reconciliation_answers_suspend_rather_than_guessing():
 async def test_cancel_reaches_the_task_that_owns_the_child_process():
     """Cancellation is what kills the subprocess, so it has to reach the running task."""
     started = asyncio.Event()
+    cleanup = asyncio.Event()
 
     class HangingProvider(StubCliProvider):
         async def stream(self, messages, tools, params):
             started.set()
-            await asyncio.sleep(60)
-            yield Done(reason="stop")
+            try:
+                await asyncio.sleep(60)
+                yield Done(reason="stop")
+            except asyncio.CancelledError:
+                cleanup.set()
+                raise
 
     adapter = CliExternalAgentAdapter(HangingProvider())
     request = _request()
-    handle = await adapter.start_or_resume(request)
+    handle = await adapter.start_or_resume(request, CancelToken())
 
     async def drive():
         async for _ in adapter.stream_events(handle):
             pass
 
     task = asyncio.create_task(drive())
-    adapter.track(request.execution_id, task)
     await started.wait()
     await adapter.cancel(request.execution_id)
 
     with pytest.raises(asyncio.CancelledError):
         await task
+    assert cleanup.is_set()
+    assert str(request.execution_id) not in adapter._live
+
+
+@pytest.mark.parametrize("cancel_before_start", [True, False])
+async def test_cancel_token_is_honored_before_stream_dispatch(cancel_before_start):
+    provider = StubCliProvider()
+    adapter = CliExternalAgentAdapter(provider)
+    request = _request()
+    token = CancelToken()
+    if cancel_before_start:
+        token.cancel("pre-cancelled")
+    handle = await adapter.start_or_resume(request, token)
+    if not cancel_before_start:
+        token.cancel("cancelled after start")
+
+    with pytest.raises(asyncio.CancelledError):
+        [event async for event in adapter.stream_events(handle)]
+
+    assert provider.seen == []
 
 
 def test_the_real_cli_provider_fits_the_boundary_without_being_changed():

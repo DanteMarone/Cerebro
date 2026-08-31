@@ -137,7 +137,9 @@ class ExternalAgentAdapter(Protocol):
     adapter_id: str
     recovery_capability: ExternalRecoveryCapability
 
-    async def start_or_resume(self, request: ExternalExecutionRequest) -> Any:
+    async def start_or_resume(
+        self, request: ExternalExecutionRequest, cancel_token: Any
+    ) -> Any:
         """Begin (or, when supported, resume) one external execution."""
         ...
 
