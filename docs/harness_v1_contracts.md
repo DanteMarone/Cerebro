@@ -76,7 +76,8 @@ When an attempt is abandoned without authoritative completion, output that autho
 dispatched effect is marked superseded: it leaves `canonical_request_history()` and stays in
 `audit_history()`. Supersession never crosses a committed or possibly-escaped effect — the
 smallest prefix preserving that effect's causal history stays active, and committed tool results
-are never superseded at all.
+are never superseded at all. Active committed results automatically protect their causal tool
+calls even if a caller omits those call ids from its explicit protection set.
 
 ### Format versions are per object
 
@@ -90,6 +91,11 @@ An `InferenceAttempt` is marked `dispatch_may_have_escaped` **before** the adapt
 crash can therefore leave a false positive — an attempt that looks dispatched when the socket
 never opened. That is the safe direction. The unsafe inference, which this ordering forbids, is
 concluding that a missing local completion proves the provider was never called.
+
+Construction and deserialization enforce the complete stable-state matrix: admitted means active
+and pre-barrier, possibly escaped means active and post-barrier, and terminal dispatch and semantic
+states imply one another. Failed and abandoned attempts deliberately retain either barrier value
+so recovery can distinguish pre-dispatch from possibly-escaped outcomes.
 
 `ToolExecution` has the same shape: `not_dispatched` → `dispatch_may_have_escaped` → `resolved`,
 never backwards, and a resolved outcome is never overwritten by a later timeout or cancellation.
@@ -132,6 +138,8 @@ OpenAI-compatible path Cerebro runs today.
   and one SSE parser rather than two that can drift;
 - streamed deltas are published as progress and accumulated. Nothing becomes an item until the
   stream ends, so a complete-looking argument fragment can never authorise a tool;
+- cancellation terminates and closes the provider stream without promoting accumulated text,
+  reasoning, or tool fragments into completed items or a normal `InferenceCompleted` event;
 - anything the dialect cannot express is refused explicitly: provider-opaque replay material,
   non-text content parts, a tool call with no provider ref, parallel tool calls, or a config
   naming a different dialect;
@@ -154,7 +162,9 @@ harness that owns its own context, approvals, tools and side effects.
 `ExternalAgentAdapter` is therefore a separate protocol sharing no base class and no request type
 with `ProviderAdapter`. `CliExternalAgentAdapter` wraps the unchanged `CliAgentProvider`, so
 prompt rendering, cwd, timeout, output-file handling and the cancellation kill all stay in one
-place.
+place. `start_or_resume(request, cancel_token)` carries explicit cancellation state, and
+`stream_events()` registers its own driving task so `cancel(execution_id)` reaches CLI subprocess
+cleanup without a concrete-only tracking call.
 
 Phase 1 claims nothing about restart recovery here. `recovery_capability` says no to reconnect,
 resume and orphan reconciliation, and `reconcile_orphan()` answers `suspend` rather than guessing
@@ -166,6 +176,7 @@ Generic code has no legitimate reason to read adapter-owned bytes, so:
 
 - `ProviderOpaqueItem.__repr__` and `__str__` never show the payload, at **any** sensitivity;
 - `log_projection()` returns metadata plus `payload: "<redacted>"`, for logs, Hub events and UI;
+- direct, discriminated-union and nested request/event validation errors hide their raw inputs;
 - the durable serialized form keeps the payload exactly, because a redacted signature cannot
   continue a conversation.
 
