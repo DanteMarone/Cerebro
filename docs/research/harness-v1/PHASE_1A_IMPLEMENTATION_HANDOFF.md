@@ -2,11 +2,70 @@
 
 Issue: #212 — `Implement: Harness v1 canonical contracts and compatibility adapters`
 
-Status: **Phase 1A complete; ready for PR 2 (additive durable Harness store)**
+Status: **Phase 1A merge repair complete; awaiting independent re-review and merge**
 
 Branch: `implement/harness-v1-phase1a-contracts`
 
 Date: 2026-08-29
+
+## Merge-repair pass for review #213
+
+The independent review completed at
+`review/harness-v1-phase1a@853d3217ae1e2cb454ceb14a58bbc2f7c167f2aa` with verdict
+**MERGEABLE AFTER FIXES**. This repair started exactly at
+`d000ba85c316e146943a2d181da03098e0daebcd` and addresses only accepted findings P1A-01
+through P1A-05. P1A-06 and P1A-07 remain follow-up gates.
+
+Repair commits, in order:
+
+- `dc5b38b0f33b726b7a83f860764979f8eae34ba0` — prevent cancelled streams from finalizing deltas;
+- `22c598323bd7934041488c3c3eda0c030109bdbb` — enforce attempt and causal-history invariants;
+- `5605ee8515c02329784881469a9f19175c56583c` — make external cancellation part of the public lifecycle;
+- `49ddf2059b72d7293bbdc980f610a1862b8708ee` — redact opaque payloads from validation errors;
+- `e4bc746007195a2982cc32612c1fe1b12eb4842c` — document the repaired invariants.
+
+`e4bc746007195a2982cc32612c1fe1b12eb4842c` is the complete repair implementation head before
+this handoff-only commit. A commit cannot contain its own SHA; the authoritative final repair head
+is the pushed `implement/harness-v1-phase1a-contracts` branch ref and is reported with the
+completion handoff.
+
+| Finding | Disposition |
+| --- | --- |
+| P1A-01 | Cancellation now exits semantic finalization, closes the active provider iterator, and emits no completed item or normal completion from partial text/tool fragments. |
+| P1A-02 | Construction and deserialization enforce the complete dispatch/barrier/semantic matrix while failed and abandoned attempts preserve either barrier value. Multi-field transitions validate atomically. |
+| P1A-03 | Active committed `ToolResultItem`s automatically protect their causal calls; caller protection still covers unresolved possibly-escaped calls. Multi-call and interleaved-history regressions assert no active orphan result. |
+| P1A-04 | The declared lifecycle carries a cancel token; `stream_events()` registers/removes its driving task, so public `cancel()` reaches existing CLI cleanup without `track()`. No restart recovery was added. |
+| P1A-05 | Direct model, union adapter, nested request and nested event validation hide raw inputs. Traceback/log tests prove the sentinel payload is absent while durable serialization remains exact. |
+
+Repair verification from the repository root:
+
+- focused Harness repair suite — **138 passed**;
+- post-adjustment opaque-redaction suite — **8 passed**;
+- `flake8 .` — clean, exit 0;
+- `PYTHONPATH=. pytest -q` — **593 passed, 3 skipped**, exit 0.
+
+Exact repair-delta files (including this handoff):
+
+- `cerebro/harness/adapters/cli_external.py`
+- `cerebro/harness/adapters/openai_compatible.py`
+- `cerebro/harness/attempts.py`
+- `cerebro/harness/events.py`
+- `cerebro/harness/external_agent.py`
+- `cerebro/harness/history.py`
+- `cerebro/harness/items.py`
+- `cerebro/harness/request.py`
+- `cerebro/harness/serialization.py`
+- `docs/harness_v1_contracts.md`
+- `docs/research/harness-v1/PHASE_1A_IMPLEMENTATION_HANDOFF.md`
+- `tests/test_harness_contracts.py`
+- `tests/test_harness_external_agent.py`
+- `tests/test_harness_openai_adapter.py`
+- `tests/test_harness_redaction.py`
+
+`cerebro/runtime.py::AgentRuntime` remains the active production path. No SQL migration, Harness
+persistence, recovery driver, snapshot persistence, tool checkpoint transaction, reducer/effect
+cutover, provider-selection cutover, native provider, or external-agent restart recovery was added.
+Do not start Phase 1B until this branch is re-reviewed and merged.
 
 ## Exact authoritative inputs
 
