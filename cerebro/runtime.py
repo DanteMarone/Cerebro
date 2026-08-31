@@ -545,4 +545,3 @@ def _agent_params(agent: Agent) -> dict:
         return json.loads(agent.params_json)
     except (json.JSONDecodeError, TypeError):
         return {}
-

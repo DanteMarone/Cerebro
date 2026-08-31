@@ -166,4 +166,3 @@ def test_custom_budget_tokens_override(tmp_path):
     # With tight budget override of 100 tokens, history of 50 large messages is trimmed
     packet = b.build(agent, "prompt", CHANNEL, MEMBERS, history(50, 200), budget_tokens=100)
     assert len(packet) < 50
-

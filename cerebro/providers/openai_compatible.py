@@ -33,7 +33,14 @@ PROVIDER_PRESETS: dict[str, str] = {
 
 
 class ProviderError(RuntimeError):
-    """A provider call failed in a way the agent should see and can reason about."""
+    """A provider call failed in a way the agent should see and can reason about.
+
+    `status_code` is set when the failure came back as an HTTP status. The Harness error
+    taxonomy needs it to tell a 429 from a 401, and parsing it back out of the message string
+    would break the moment the wording changes.
+    """
+
+    status_code: int | None = None
 
 
 class ProviderUnavailable(ProviderError):
@@ -228,6 +235,18 @@ class OpenAICompatibleProvider:
         if tools:
             payload["tools"] = _tools_payload(tools)
 
+        async for delta in self.stream_payload(payload):
+            yield delta
+
+    async def stream_payload(self, payload: dict[str, Any]) -> AsyncIterator[Delta]:
+        """Stream one already-built chat-completions payload.
+
+        Split out of `stream` so the Harness `ProviderAdapter` can reuse this transport verbatim
+        instead of growing a second copy of the SSE parser. The Harness builds its own payload
+        from canonical items; everything from the socket down is identical either way, which is
+        the point — two parsers would drift, and the drift would show up as a tool call that one
+        path sees and the other does not.
+        """
         client = await self._http()
         seen_tools: dict[int, tuple[str, str]] = {}
         finish_reason = "stop"
@@ -239,7 +258,11 @@ class OpenAICompatibleProvider:
             ) as resp:
                 if resp.status_code >= 400:
                     detail = (await resp.aread()).decode("utf-8", "replace")[:500]
-                    raise ProviderError(f"{self.name} returned {resp.status_code}: {detail}")
+                    failure = ProviderError(
+                        f"{self.name} returned {resp.status_code}: {detail}"
+                    )
+                    failure.status_code = resp.status_code
+                    raise failure
 
                 async for line in resp.aiter_lines():
                     if not line.startswith("data:"):

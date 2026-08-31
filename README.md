@@ -227,6 +227,17 @@ Under v2 completion-ordered chat, turns never create uncommitted or empty rows i
 At startup, the runtime runs a one-time sweep to clean any legacy placeholders left behind from
 historical database migrations.
 
+### Harness v1 canonical contracts (`cerebro/harness`)
+
+Provider-neutral contracts for durable agent execution: prefixed identities, an ordered
+`InferenceItem` history with per-item format versions, provider attempts with an explicit
+pre-dispatch barrier, tool execution state that distinguishes "never dispatched" from "may have
+escaped", and two separate adapter boundaries — `ProviderAdapter` for direct native inference and
+`ExternalAgentAdapter` for CLI/vendor harnesses.
+
+These are contracts, not a runtime. `cerebro/runtime.py` remains the live execution path and its
+behaviour is unchanged. Full detail: **[docs/harness_v1_contracts.md](docs/harness_v1_contracts.md)**.
+
 ## Development & Testing
 
 Run the linter and test suite:
